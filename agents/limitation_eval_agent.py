@@ -15,6 +15,9 @@ from utils.parse_json import parse_json
 # ── 최대 RETRY 횟수 ──────────────────────────────────────────────
 MAX_EVAL_RETRIES = 1
 
+# ── Call 1 배치 크기 (한 번에 평가할 limitation 수) ────────────────
+CALL1_BATCH_SIZE = 10
+
 # =====================================================================
 # Call 1 프롬프트: Atomic Verification + Rubric Scoring
 # (FActScore + Prometheus)
@@ -149,35 +152,48 @@ def _run_call1(limitations: list[dict], refined_query: str) -> list[dict]:
     """Per-limitation 평가: atomic fact verification + rubric scoring."""
     llm = get_llm()
 
-    lim_text = "\n\n".join(
-        f"[limitation_id={i}]\n"
-        f"  paper_id: {l.get('paper_id', '')}\n"
-        f"  claim: {l.get('claim', '')}\n"
-        f"  evidence_quote: {l.get('evidence_quote', '')}\n"
-        f"  track: {l.get('track', '')}\n"
-        f"  source_section: {l.get('source_section', '')}"
-        for i, l in enumerate(limitations)
-    )
+    # 배치로 나눠서 처리
+    all_results = []
+    total = len(limitations)
 
-    messages = [
-        SystemMessage(content=CALL1_SYSTEM_PROMPT),
-        HumanMessage(content=(
-            f"## Research Query\n{refined_query}\n\n"
-            f"## Limitations to Evaluate ({len(limitations)})\n{lim_text}"
-        )),
-    ]
+    for batch_start in range(0, total, CALL1_BATCH_SIZE):
+        batch_end = min(batch_start + CALL1_BATCH_SIZE, total)
+        batch = limitations[batch_start:batch_end]
 
-    try:
-        response = llm.invoke(messages)
-        content = response.content if hasattr(response, "content") else str(response)
-        parsed = parse_json(content)
-        if isinstance(parsed, list):
-            return parsed
-        print("  ⚠️ [eval:call1] 파싱 결과가 list가 아님")
-        return []
-    except Exception as e:
-        print(f"  ⚠️ [eval:call1] LLM 호출 실패: {e}")
-        return []
+        print(f"  [eval:call1] Batch {batch_start//CALL1_BATCH_SIZE + 1}: evaluating limitations {batch_start}-{batch_end-1}")
+
+        lim_text = "\n\n".join(
+            f"[limitation_id={batch_start + i}]\n"
+            f"  paper_id: {l.get('paper_id', '')}\n"
+            f"  claim: {l.get('claim', '')}\n"
+            f"  evidence_quote: {l.get('evidence_quote', '')}\n"
+            f"  track: {l.get('track', '')}\n"
+            f"  source_section: {l.get('source_section', '')}"
+            for i, l in enumerate(batch)
+        )
+
+        messages = [
+            SystemMessage(content=CALL1_SYSTEM_PROMPT),
+            HumanMessage(content=(
+                f"## Research Query\n{refined_query}\n\n"
+                f"## Limitations to Evaluate ({len(batch)})\n{lim_text}"
+            )),
+        ]
+
+        try:
+            response = llm.invoke(messages)
+            content = response.content if hasattr(response, "content") else str(response)
+            parsed = parse_json(content)
+            if isinstance(parsed, list):
+                all_results.extend(parsed)
+                print(f"  [eval:call1] Batch {batch_start//CALL1_BATCH_SIZE + 1}: {len(parsed)} results")
+            else:
+                print(f"  ⚠️ [eval:call1] Batch {batch_start//CALL1_BATCH_SIZE + 1}: 파싱 결과가 list가 아님")
+        except Exception as e:
+            print(f"  ⚠️ [eval:call1] Batch {batch_start//CALL1_BATCH_SIZE + 1} LLM 호출 실패: {e}")
+            continue
+
+    return all_results
 
 
 # =====================================================================
@@ -369,9 +385,9 @@ def limitation_eval_node(state: AgentState) -> AgentState:
     print(f"  [eval] {len(limitations)}개 limitation 평가 시작")
 
     # ── Call 1: Per-limitation scoring ──
-    print("  [eval:call1] Atomic verification + Rubric scoring...")
+    print(f"  [eval:call1] Atomic verification + Rubric scoring (batches of {CALL1_BATCH_SIZE})...")
     call1_results = _run_call1(limitations, refined_query)
-    print(f"  [eval:call1] {len(call1_results)}개 결과 수신")
+    print(f"  [eval:call1] Total: {len(call1_results)}/{len(limitations)} results received")
 
     # Call 1 실패 시 전체 PASS (평가 생략)
     if not call1_results:
