@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAPAGO - Research GAP Analyzer</title>
+    <style>
+        :root {
+            --bg: #0f1117;
+            --surface: #1a1b26;
+            --surface2: #24283b;
+            --border: #3b4261;
+            --text: #c0caf5;
+            --text-dim: #565f89;
+            --accent: #7aa2f7;
+            --accent2: #bb9af7;
+            --green: #9ece6a;
+            --yellow: #e0af68;
+            --red: #f7768e;
+            --orange: #ff9e64;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-header h1 {
+            font-size: 1.3em;
+            color: var(--accent);
+        }
+
+        .sidebar-header p {
+            font-size: 0.8em;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        .new-btn {
+            margin: 12px 16px;
+            padding: 10px;
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        .new-btn:hover { opacity: 0.85; }
+
+        .settings-section {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .settings-section label {
+            display: block;
+            font-size: 0.75em;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .settings-section select {
+            width: 100%;
+            padding: 6px 8px;
+            background: var(--surface2);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.85em;
+            margin-bottom: 8px;
+        }
+
+        .history-section {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .history-section h3 {
+            padding: 8px;
+            font-size: 0.8em;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .history-item {
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 4px;
+            transition: background 0.15s;
+        }
+
+        .history-item:hover { background: var(--surface2); }
+        .history-item.active { background: var(--surface2); border-left: 3px solid var(--accent); }
+
+        .history-item .query { font-size: 0.85em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .history-item .meta { font-size: 0.7em; color: var(--text-dim); margin-top: 3px; }
+
+        /* Main area */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .main-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+        }
+
+        .main-header h2 { font-size: 1.1em; color: var(--accent); }
+
+        /* Input area */
+        .input-area {
+            padding: 16px 24px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .input-area input {
+            flex: 1;
+            padding: 10px 14px;
+            background: var(--surface2);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.95em;
+            outline: none;
+        }
+
+        .input-area input:focus { border-color: var(--accent); }
+
+        .run-btn {
+            padding: 10px 20px;
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9em;
+            white-space: nowrap;
+        }
+
+        .run-btn:hover { opacity: 0.85; }
+        .run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* Results area */
+        .results {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        /* Progress bar */
+        .progress-bar {
+            height: 4px;
+            background: var(--surface2);
+            border-radius: 2px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent), var(--accent2));
+            border-radius: 2px;
+            transition: width 0.5s ease;
+            width: 0%;
+        }
+
+        /* Node cards */
+        .node-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+
+        .node-header {
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .node-header:hover { background: var(--surface2); }
+
+        .node-icon { font-size: 1.2em; }
+        .node-name { font-weight: 600; font-size: 0.9em; flex: 1; }
+        .node-badge {
+            font-size: 0.75em;
+            padding: 2px 8px;
+            border-radius: 12px;
+            background: var(--surface2);
+            color: var(--text-dim);
+        }
+
+        .node-badge.pass { background: rgba(158, 206, 106, 0.15); color: var(--green); }
+        .node-badge.retry { background: rgba(247, 118, 142, 0.15); color: var(--red); }
+
+        .node-chevron {
+            color: var(--text-dim);
+            transition: transform 0.2s;
+        }
+
+        .node-card.expanded .node-chevron { transform: rotate(90deg); }
+
+        .node-body {
+            display: none;
+            padding: 0 16px 16px;
+        }
+
+        .node-card.expanded .node-body { display: block; }
+
+        /* Content styles */
+        .stat-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+
+        .stat {
+            background: var(--surface2);
+            padding: 12px 16px;
+            border-radius: 8px;
+            text-align: center;
+            min-width: 100px;
+        }
+
+        .stat .value { font-size: 1.5em; font-weight: 700; color: var(--accent); }
+        .stat .label { font-size: 0.75em; color: var(--text-dim); margin-top: 2px; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85em;
+            margin-top: 8px;
+        }
+
+        th {
+            text-align: left;
+            padding: 8px 10px;
+            background: var(--surface2);
+            color: var(--text-dim);
+            font-weight: 600;
+            font-size: 0.8em;
+            text-transform: uppercase;
+        }
+
+        td {
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .limitation-item {
+            padding: 10px;
+            background: var(--surface2);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .limitation-item .track {
+            font-size: 0.7em;
+            padding: 2px 6px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-bottom: 4px;
+        }
+
+        .track.author { background: rgba(158, 206, 106, 0.15); color: var(--green); }
+        .track.structural { background: rgba(122, 162, 247, 0.15); color: var(--accent); }
+
+        .limitation-item .claim { font-size: 0.85em; margin-top: 4px; }
+        .limitation-item .evidence { font-size: 0.75em; color: var(--text-dim); margin-top: 4px; font-style: italic; }
+
+        .gap-card {
+            background: var(--surface2);
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-left: 4px solid var(--accent);
+        }
+
+        .gap-card.top { border-left-color: var(--yellow); }
+
+        .gap-card h4 { font-size: 0.95em; color: var(--accent); margin-bottom: 6px; }
+        .gap-card .statement { font-size: 0.9em; font-weight: 600; margin-bottom: 8px; }
+        .gap-card .elaboration { font-size: 0.82em; color: var(--text-dim); margin-bottom: 8px; }
+        .gap-card .topic { font-size: 0.82em; color: var(--accent2); }
+        .gap-card .papers { font-size: 0.72em; color: var(--text-dim); margin-top: 6px; }
+
+        .report-content {
+            font-size: 0.9em;
+            line-height: 1.7;
+            white-space: pre-wrap;
+        }
+
+        .report-content h1, .report-content h2, .report-content h3 {
+            color: var(--accent);
+            margin: 16px 0 8px;
+        }
+
+        /* Interrupt UI */
+        .interrupt-card {
+            background: var(--surface);
+            border: 2px solid var(--yellow);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .interrupt-card h3 { color: var(--yellow); margin-bottom: 8px; }
+        .interrupt-card .prompt { font-size: 0.9em; color: var(--text); margin-bottom: 12px; padding: 10px; background: var(--surface2); border-radius: 6px; }
+
+        .interrupt-card input {
+            width: 100%;
+            padding: 10px;
+            background: var(--surface2);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            margin-bottom: 10px;
+            outline: none;
+        }
+
+        .interrupt-actions { display: flex; gap: 8px; }
+        .interrupt-actions button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85em;
+        }
+
+        .btn-resume { background: var(--accent); color: var(--bg); }
+        .btn-skip { background: var(--surface2); color: var(--text); border: 1px solid var(--border) !important; }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: var(--text-dim);
+        }
+
+        .empty-state h3 { font-size: 1.2em; color: var(--text); margin-bottom: 8px; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+    <div class="sidebar-header">
+        <h1>GAPAGO</h1>
+        <p>Research GAP Analysis System</p>
+    </div>
+
+    <button class="new-btn" onclick="newAnalysis()">+ New Analysis</button>
+
+    <div class="settings-section">
+        <label>LLM Provider</label>
+        <select id="provider">
+            <option value="azure">Azure OpenAI (GPT-4o)</option>
+            <option value="claude">Claude (Anthropic)</option>
+            <option value="exaone">EXAONE (Local)</option>
+        </select>
+
+        <label>Research Domain</label>
+        <select id="domain">
+            <option value="auto">Auto</option>
+            <option value="ai_cs">AI / Computer Science</option>
+            <option value="biomedical">Biomedical</option>
+            <option value="materials_chemistry">Materials / Chemistry</option>
+            <option value="physics">Physics</option>
+            <option value="general">General</option>
+        </select>
+    </div>
+
+    <div class="history-section" id="historySection">
+        <h3>Analysis History</h3>
+        <!-- Filled dynamically -->
+    </div>
+</aside>
+
+<!-- Main -->
+<div class="main">
+    <div class="main-header">
+        <h2>Research GAP Analyzer</h2>
+    </div>
+
+    <div class="input-area">
+        <input type="text" id="queryInput" placeholder="Enter your research question..."
+               onkeydown="if(event.key==='Enter') startAnalysis()">
+        <button class="run-btn" id="runBtn" onclick="startAnalysis()">Analyze</button>
+    </div>
+
+    <div class="results" id="results">
+        <div class="empty-state" id="emptyState">
+            <h3>Enter a research question to begin</h3>
+            <p>GAPAGO will retrieve papers, extract limitations, and identify research gaps.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+// Global error handler - show errors on screen
+window.onerror = function(msg, url, line, col, error) {
+    document.title = 'JS Error!';
+    const div = document.createElement('div');
+    div.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:12px;background:red;color:white;z-index:9999;font-size:14px';
+    div.textContent = `JS Error (line ${line}): ${msg}`;
+    document.body.prepend(div);
+};
+
+const NODES = [
+    { id: 'query_subgraph', icon: '&#x1F50D;', label: 'Query Analysis' },
+    { id: 'meaning_expand', icon: '&#x1F4D6;', label: 'Meaning Expansion' },
+    { id: 'paper_retrieval', icon: '&#x1F4C4;', label: 'Paper Retrieval' },
+    { id: 'limitation_extract', icon: '&#x26A0;&#xFE0F;', label: 'Limitation Extraction' },
+    { id: 'limitation_eval', icon: '&#x2705;', label: 'Limitation Evaluation' },
+    { id: 'recency_check', icon: '&#x1F550;', label: 'Recency Check' },
+    { id: 'gap_infer', icon: '&#x1F4A1;', label: 'GAP Inference' },
+    { id: 'critic_score', icon: '&#x1F4CA;', label: 'Critic Scoring' },
+    { id: 'final_response', icon: '&#x1F4DD;', label: 'Final Report' },
+];
+
+let currentSessionId = null;
+
+// Ensure button works
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('runBtn').addEventListener('click', startAnalysis);
+    loadHistory();
+});
+
+async function loadHistory() {
+    try {
+        const resp = await fetch('api/history');
+        const items = await resp.json();
+        const section = document.getElementById('historySection');
+        section.innerHTML = '<h3>Analysis History</h3>';
+
+        items.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'history-item';
+            div.onclick = () => loadResult(item.filename);
+
+            const ts = item.timestamp ? new Date(item.timestamp).toLocaleString('ko-KR', {
+                month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+            }) : '';
+
+            div.innerHTML = `
+                <div class="query">${escapeHtml(item.query)}</div>
+                <div class="meta">${ts} &middot; GAP ${item.gaps_count}</div>
+            `;
+            section.appendChild(div);
+        });
+
+        if (items.length === 0) {
+            section.innerHTML += '<div style="padding:12px;color:var(--text-dim);font-size:0.8em">No analysis history yet.</div>';
+        }
+    } catch (e) {
+        console.error('Failed to load history:', e);
+    }
+}
+
+async function loadResult(filename) {
+    try {
+        const resp = await fetch(`api/history/${filename}`);
+        const data = await resp.json();
+        renderSavedResult(data);
+    } catch (e) {
+        console.error('Failed to load result:', e);
+    }
+}
+
+function newAnalysis() {
+    document.getElementById('queryInput').value = '';
+    document.getElementById('results').innerHTML = `
+        <div class="empty-state" id="emptyState">
+            <h3>Enter a research question to begin</h3>
+            <p>GAPAGO will retrieve papers, extract limitations, and identify research gaps.</p>
+        </div>
+    `;
+    document.getElementById('runBtn').disabled = false;
+}
+
+async function startAnalysis() {
+    const query = document.getElementById('queryInput').value.trim();
+    if (!query) {
+        alert('Please enter a research question first.');
+        return;
+    }
+
+    const provider = document.getElementById('provider').value;
+    const domain = document.getElementById('domain').value;
+    const results = document.getElementById('results');
+    const runBtn = document.getElementById('runBtn');
+
+    runBtn.disabled = true;
+    runBtn.textContent = 'Running...';
+
+    // Setup progress and node cards
+    results.innerHTML = '<div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>';
+
+    NODES.forEach(n => {
+        results.innerHTML += `
+            <div class="node-card" id="card-${n.id}">
+                <div class="node-header" onclick="toggleCard('${n.id}')">
+                    <span class="node-icon">${n.icon}</span>
+                    <span class="node-name">${n.label}</span>
+                    <span class="node-badge" id="badge-${n.id}">waiting</span>
+                    <span class="node-chevron">&#x25B6;</span>
+                </div>
+                <div class="node-body" id="body-${n.id}"></div>
+            </div>
+        `;
+    });
+
+    // SSE stream
+    try {
+        const params = new URLSearchParams({ query, provider, domain });
+        const resp = await fetch(`api/analyze?${params}`);
+
+        if (!resp.ok) {
+            const errText = await resp.text();
+            results.innerHTML += `<div style="color:var(--red);padding:16px;">API Error (${resp.status}): ${escapeHtml(errText)}</div>`;
+            return;
+        }
+
+        await processStream(resp);
+    } catch (e) {
+        results.innerHTML += `<div style="color:var(--red);padding:16px;">Fetch Error: ${escapeHtml(e.message)}</div>`;
+    }
+
+    runBtn.disabled = false;
+    runBtn.textContent = 'Analyze';
+}
+
+async function processStream(resp) {
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let completedCount = 0;
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+                const data = JSON.parse(line.slice(6));
+                handleEvent(data);
+
+                if (data.event === 'node') {
+                    completedCount++;
+                    const pct = Math.min((completedCount / NODES.length) * 100, 100);
+                    document.getElementById('progressFill').style.width = pct + '%';
+                }
+            } catch (e) {
+                console.warn('Parse error:', e, line);
+            }
+        }
+    }
+}
+
+function handleEvent(data) {
+    if (data.event === 'node') {
+        renderNodeResult(data);
+    } else if (data.event === 'interrupt') {
+        currentSessionId = data.session_id;
+        showInterrupt(data.clarify_prompt);
+    } else if (data.event === 'complete') {
+        document.getElementById('progressFill').style.width = '100%';
+        loadHistory();  // Refresh sidebar
+    } else if (data.event === 'error') {
+        const results = document.getElementById('results');
+        results.innerHTML += `<div style="color:var(--red);padding:16px;">Pipeline error: ${escapeHtml(data.message)}</div>`;
+    }
+}
+
+function renderNodeResult(data) {
+    const node = data.node;
+    const card = document.getElementById(`card-${node}`);
+    const body = document.getElementById(`body-${node}`);
+    const badge = document.getElementById(`badge-${node}`);
+
+    if (!card || !body) return;
+
+    badge.textContent = 'done';
+    badge.className = 'node-badge pass';
+    card.classList.add('expanded');
+
+    let html = '';
+
+    switch (node) {
+        case 'query_subgraph':
+            if (data.refined_query) html += `<div class="stat-row"><div class="stat"><div class="value" style="font-size:0.9em">${escapeHtml(data.refined_query)}</div><div class="label">Refined Query</div></div></div>`;
+            if (data.keywords?.length) html += `<p style="color:var(--text-dim);font-size:0.85em">Keywords: ${data.keywords.map(k => `<code>${escapeHtml(k)}</code>`).join(', ')}</p>`;
+            break;
+
+        case 'meaning_expand':
+            if (data.expansion) html += `<div style="font-size:0.85em;white-space:pre-wrap;max-height:200px;overflow-y:auto">${escapeHtml(data.expansion)}</div>`;
+            break;
+
+        case 'paper_retrieval':
+            html += `<div class="stat-row"><div class="stat"><div class="value">${data.papers_count || 0}</div><div class="label">Papers</div></div><div class="stat"><div class="value">${data.web_results_count || 0}</div><div class="label">Web Results</div></div></div>`;
+            if (data.papers?.length) {
+                html += '<table><thead><tr><th>Title</th><th>Year</th><th>Authors</th></tr></thead><tbody>';
+                data.papers.forEach(p => {
+                    html += `<tr><td>${escapeHtml(p.title)}</td><td>${p.year}</td><td>${(p.authors||[]).join(', ')}</td></tr>`;
+                });
+                html += '</tbody></table>';
+            }
+            break;
+
+        case 'limitation_extract':
+            html += `<div class="stat-row"><div class="stat"><div class="value">${data.limitations_count || 0}</div><div class="label">Limitations</div></div></div>`;
+            (data.limitations || []).forEach(lim => {
+                const trackClass = lim.track === 'author_stated' ? 'author' : 'structural';
+                const trackLabel = lim.track === 'author_stated' ? 'Author-Stated' : 'Structural';
+                html += `<div class="limitation-item"><span class="track ${trackClass}">${trackLabel}</span> <span style="font-size:0.7em;color:var(--text-dim)">${escapeHtml(lim.source_section||'')}</span><div class="claim">${escapeHtml(lim.claim)}</div><div class="evidence">${escapeHtml(lim.evidence_quote||'')}</div></div>`;
+            });
+            break;
+
+        case 'limitation_eval':
+            const decision = data.decision || 'N/A';
+            const decClass = decision === 'PASS' ? 'pass' : 'retry';
+            badge.textContent = decision;
+            badge.className = `node-badge ${decClass}`;
+            html += `<div class="stat-row"><div class="stat"><div class="value">${decision}</div><div class="label">Decision</div></div><div class="stat"><div class="value">${data.limitations_count || 0}</div><div class="label">Passed</div></div></div>`;
+            (data.eval_warnings || []).forEach(w => {
+                html += `<div style="color:var(--yellow);font-size:0.82em;padding:4px 0">${escapeHtml(w)}</div>`;
+            });
+            break;
+
+        case 'recency_check':
+            const rs = data.recency_status || {};
+            html += `<div class="stat-row"><div class="stat"><div class="value" style="color:var(--red)">${rs.unresolved||0}</div><div class="label">Unresolved</div></div><div class="stat"><div class="value" style="color:var(--yellow)">${rs.partial||0}</div><div class="label">Partial</div></div><div class="stat"><div class="value" style="color:var(--green)">${rs.resolved||0}</div><div class="label">Resolved</div></div></div>`;
+            if (data.summary) html += `<div style="font-size:0.85em;color:var(--text-dim)">${escapeHtml(data.summary)}</div>`;
+            break;
+
+        case 'gap_infer':
+            html += `<div class="stat-row"><div class="stat"><div class="value">${data.gaps_count || 0}</div><div class="label">Research GAPs</div></div></div>`;
+            (data.gaps || []).forEach((gap, i) => {
+                const isTop = i === 0;
+                const axisType = gap.axis_type === 'fixed' ? 'Fixed' : 'Dynamic';
+                html += `<div class="gap-card ${isTop ? 'top' : ''}">
+                    <h4>${isTop ? '&#x2B50;' : '&#x1F4A1;'} GAP #${i+1} &mdash; ${axisType}: ${escapeHtml(gap.axis_label||gap.axis||'')} (${gap.repeat_count||0} papers)</h4>
+                    <div class="statement">${escapeHtml(gap.gap_statement||'')}</div>
+                    <div class="elaboration">${escapeHtml(gap.elaboration||'')}</div>
+                    <div class="topic">Proposed: ${escapeHtml(gap.proposed_topic||'')}</div>
+                    <div class="papers">Papers: ${(gap.supporting_papers||[]).slice(0,5).join(', ')}</div>
+                </div>`;
+            });
+            break;
+
+        case 'critic_score':
+            if (data.critic_output) html += `<pre style="font-size:0.8em;white-space:pre-wrap;background:var(--surface2);padding:12px;border-radius:6px;max-height:300px;overflow-y:auto">${escapeHtml(data.critic_output)}</pre>`;
+            break;
+
+        case 'final_response':
+            card.classList.add('expanded');
+            if (data.report) html += `<div class="report-content">${renderMarkdown(data.report)}</div>`;
+            break;
+    }
+
+    body.innerHTML = html;
+}
+
+function showInterrupt(prompt) {
+    const results = document.getElementById('results');
+    const div = document.createElement('div');
+    div.className = 'interrupt-card';
+    div.id = 'interruptCard';
+    div.innerHTML = `
+        <h3>&#x1F50D; Query Clarification Needed</h3>
+        ${prompt ? `<div class="prompt">${escapeHtml(prompt)}</div>` : ''}
+        <input type="text" id="clarifyInput" placeholder="Provide additional details..." onkeydown="if(event.key==='Enter') resumePipeline()">
+        <div class="interrupt-actions">
+            <button class="btn-resume" onclick="resumePipeline()">Continue</button>
+            <button class="btn-skip" onclick="skipClarification()">Proceed as-is</button>
+        </div>
+    `;
+    results.appendChild(div);
+}
+
+async function resumePipeline() {
+    const input = document.getElementById('clarifyInput').value.trim();
+    if (!input) return;
+    await sendClarification(input);
+}
+
+async function skipClarification() {
+    await sendClarification('proceed as is');
+}
+
+async function sendClarification(response) {
+    const card = document.getElementById('interruptCard');
+    if (card) card.remove();
+
+    try {
+        const params = new URLSearchParams({ session_id: currentSessionId, response });
+        const resp = await fetch(`api/clarify?${params}`);
+        await processStream(resp);
+    } catch (e) {
+        console.error('Clarification failed:', e);
+    }
+}
+
+function toggleCard(nodeId) {
+    const card = document.getElementById(`card-${nodeId}`);
+    if (card) card.classList.toggle('expanded');
+}
+
+function renderSavedResult(data) {
+    const results = document.getElementById('results');
+    let html = `<h3 style="margin-bottom:4px">Query: ${escapeHtml(data.query||'')}</h3>`;
+    if (data.refined_query) html += `<p style="color:var(--text-dim);font-size:0.85em;margin-bottom:4px">Refined: ${escapeHtml(data.refined_query)}</p>`;
+    html += `<p style="color:var(--text-dim);font-size:0.75em;margin-bottom:16px">${data.timestamp||''}</p>`;
+
+    // Papers
+    if (data.papers?.length) {
+        html += `<div class="node-card expanded"><div class="node-header" onclick="this.parentElement.classList.toggle('expanded')"><span class="node-icon">&#x1F4C4;</span><span class="node-name">Papers (${data.papers.length})</span><span class="node-chevron">&#x25B6;</span></div><div class="node-body"><table><thead><tr><th>Title</th><th>Year</th></tr></thead><tbody>`;
+        data.papers.forEach(p => { html += `<tr><td>${escapeHtml(p.title||'')}</td><td>${p.year||''}</td></tr>`; });
+        html += '</tbody></table></div></div>';
+    }
+
+    // Limitations
+    if (data.limitations?.length) {
+        html += `<div class="node-card"><div class="node-header" onclick="this.parentElement.classList.toggle('expanded')"><span class="node-icon">&#x26A0;&#xFE0F;</span><span class="node-name">Limitations (${data.limitations.length})</span><span class="node-chevron">&#x25B6;</span></div><div class="node-body">`;
+        data.limitations.forEach(lim => {
+            const trackClass = lim.track === 'author_stated' ? 'author' : 'structural';
+            html += `<div class="limitation-item"><span class="track ${trackClass}">${lim.track||''}</span><div class="claim">${escapeHtml(lim.claim||'')}</div></div>`;
+        });
+        html += '</div></div>';
+    }
+
+    // GAPs
+    if (data.gaps?.length) {
+        html += `<div class="node-card expanded"><div class="node-header" onclick="this.parentElement.classList.toggle('expanded')"><span class="node-icon">&#x1F4A1;</span><span class="node-name">Research GAPs (${data.gaps.length})</span><span class="node-chevron">&#x25B6;</span></div><div class="node-body">`;
+        data.gaps.forEach((gap, i) => {
+            html += `<div class="gap-card ${i===0?'top':''}"><h4>GAP #${i+1} &mdash; ${escapeHtml(gap.axis_label||gap.axis||'')}</h4><div class="statement">${escapeHtml(gap.gap_statement||'')}</div><div class="elaboration">${escapeHtml(gap.elaboration||'')}</div><div class="topic">Proposed: ${escapeHtml(gap.proposed_topic||'')}</div></div>`;
+        });
+        html += '</div></div>';
+    }
+
+    // Final report
+    const finalMsg = (data.messages||[]).find(m => m.name === 'final_response');
+    if (finalMsg) {
+        html += `<div class="node-card expanded"><div class="node-header" onclick="this.parentElement.classList.toggle('expanded')"><span class="node-icon">&#x1F4DD;</span><span class="node-name">Final Report</span><span class="node-chevron">&#x25B6;</span></div><div class="node-body"><div class="report-content">${renderMarkdown(finalMsg.content||'')}</div></div></div>`;
+    }
+
+    results.innerHTML = html;
+}
+
+function renderMarkdown(text) {
+    // Simple markdown: headers, bold, italic, code blocks
+    return text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code style="background:var(--surface2);padding:1px 4px;border-radius:3px">$1</code>')
+        .replace(/\n/g, '<br>');
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+</script>
+</body>
+</html>

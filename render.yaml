@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: gapago
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.10.12"
+      - key: LLM_PROVIDER
+        value: azure
+      # Add these in Render Dashboard > Environment
+      # - key: AZURE_OPENAI_API_KEY
+      # - key: AZURE_OPENAI_ENDPOINT
+      # - key: AZURE_OPENAI_DEPLOYMENT
+      # - key: AZURE_OPENAI_API_VERSION
+      # - key: TAVILY_API_KEY
+      # - key: LANGSMITH_API_KEY
