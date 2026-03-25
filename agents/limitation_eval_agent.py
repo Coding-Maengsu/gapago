@@ -145,9 +145,9 @@ RETRY conditions (ANY triggers RETRY):
 # =====================================================================
 # Call 1 실행
 # =====================================================================
-def _run_call1(limitations: list[dict], refined_query: str) -> list[dict]:
+def _run_call1(limitations: list[dict], refined_query: str, provider: str = None) -> list[dict]:
     """Per-limitation 평가: atomic fact verification + rubric scoring."""
-    llm = get_llm()
+    llm = get_llm(provider=provider)
 
     lim_text = "\n\n".join(
         f"[limitation_id={i}]\n"
@@ -184,9 +184,9 @@ def _run_call1(limitations: list[dict], refined_query: str) -> list[dict]:
 # Call 2 실행
 # =====================================================================
 def _run_call2(limitations: list[dict], call1_results: list[dict],
-               refined_query: str) -> dict:
+               refined_query: str, provider: str = None) -> dict:
     """Set-level 평가: holistic judgment + type classification + PASS/RETRY."""
-    llm = get_llm()
+    llm = get_llm(provider=provider)
 
     # Call 1 결과를 요약해서 전달
     call1_summary = "\n".join(
@@ -368,9 +368,11 @@ def limitation_eval_node(state: AgentState) -> AgentState:
     print(f"\n  ===== Limitation Evaluation (attempt {eval_retry_count + 1}) =====")
     print(f"  [eval] {len(limitations)}개 limitation 평가 시작")
 
+    provider = state.get("llm_provider")
+
     # ── Call 1: Per-limitation scoring ──
     print("  [eval:call1] Atomic verification + Rubric scoring...")
-    call1_results = _run_call1(limitations, refined_query)
+    call1_results = _run_call1(limitations, refined_query, provider=provider)
     print(f"  [eval:call1] {len(call1_results)}개 결과 수신")
 
     # Call 1 실패 시 전체 PASS (평가 생략)
@@ -389,7 +391,7 @@ def limitation_eval_node(state: AgentState) -> AgentState:
 
     # ── Call 2: Holistic judgment ──
     print("  [eval:call2] Holistic judgment + Type classification...")
-    call2_result = _run_call2(limitations, call1_results, refined_query)
+    call2_result = _run_call2(limitations, call1_results, refined_query, provider=provider)
     print(f"  [eval:call2] decision={call2_result.get('decision', 'N/A')}")
 
     # Call 2 실패 시 Call 1만으로 기본 필터링

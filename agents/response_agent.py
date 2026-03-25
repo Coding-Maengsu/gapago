@@ -6,8 +6,6 @@ from tools import build_role_tools
 from prompts.system import make_system_prompt
 from llm import get_llm
 
-llm = get_llm()
-
 ROLE_TOOLS = build_role_tools()
 RESPONSE_TOOLS = ROLE_TOOLS["RESPONSE_TOOLS"]
 
@@ -57,11 +55,14 @@ RESPONSE_SYSTEM_PROMPT = (
     "End your output with exactly: FINAL ANSWER\n"
 )
 
-final_response_agent = create_agent(
-    model=llm,
-    tools=RESPONSE_TOOLS,
-    system_prompt=make_system_prompt(RESPONSE_SYSTEM_PROMPT),
-)
+def _build_response_agent(provider: str = None):
+    """Build the final response agent with the specified LLM provider."""
+    llm = get_llm(provider=provider)
+    return create_agent(
+        model=llm,
+        tools=RESPONSE_TOOLS,
+        system_prompt=make_system_prompt(RESPONSE_SYSTEM_PROMPT),
+    )
 
 
 def _build_data_context(state: AgentState) -> str:
@@ -109,6 +110,8 @@ def _build_data_context(state: AgentState) -> str:
 
 
 def final_response_node(state: AgentState) -> AgentState:
+    final_response_agent = _build_response_agent(provider=state.get("llm_provider"))
+
     # 구조화 데이터를 messages에 주입
     data_context = _build_data_context(state)
     enriched_state = dict(state)
