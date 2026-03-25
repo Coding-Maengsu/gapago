@@ -190,7 +190,7 @@ async def analyze(query: str, provider: str = "azure", domain: str = "auto", use
                             interrupted = True
                         if isinstance(values, dict):
                             for msg in values.get("messages", []):
-                                if getattr(msg, "name", None) == "scope_prompt":
+                                if getattr(msg, "name", None) == "clarify_prompt":
                                     clarify_prompt = msg.content
                     continue
 
@@ -240,9 +240,22 @@ async def clarify(session_id: str, response: str):
     query = session["query"]
     user_id = session.get("user_id", "")
 
-    # Inject user response
+    # Inject user response into the interrupted subgraph
+    # Get the current state to find the subgraph task config
+    current_state = graph.get_state(config_dict, subgraphs=True)
+    # Find the innermost subgraph state (where interrupt happened)
+    target_config = config_dict
+    state_stack = current_state
+    while state_stack and state_stack.tasks:
+        task = state_stack.tasks[0]
+        if hasattr(task, "state") and task.state:
+            target_config = task.state.config
+            state_stack = task.state
+        else:
+            break
+
     graph.update_state(
-        config_dict,
+        target_config,
         {"messages": [HumanMessage(content=response)]},
     )
 
@@ -260,7 +273,7 @@ async def clarify(session_id: str, response: str):
                             interrupted = True
                         if isinstance(values, dict):
                             for msg in values.get("messages", []):
-                                if getattr(msg, "name", None) == "scope_prompt":
+                                if getattr(msg, "name", None) == "clarify_prompt":
                                     clarify_prompt = msg.content
                     continue
 
