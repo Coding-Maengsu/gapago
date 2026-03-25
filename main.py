@@ -214,6 +214,15 @@ def run():
         else:
             print("\n질문을 더 구체화할 필요가 있습니다. 추가 정보를 입력해주세요.")
 
+        # clarify_prompt 텍스트에서 번호별 direction 파싱 (TOO_BROAD 숫자 선택 지원)
+        # 예: "  1. CNN-based image classification\n     └ ..."
+        import re
+        prompt_candidates = {}
+        if latest_clarify_prompt:
+            for m in re.finditer(r"^\s{0,4}(\d)\.\s+(.+)$", latest_clarify_prompt, re.MULTILINE):
+                num, direction = m.group(1), m.group(2).strip()
+                prompt_candidates[num] = direction
+
         user_response = ""
         while not user_response:
             user_response = input(
@@ -221,6 +230,13 @@ def run():
             ).strip()  ## ex. domain adaptation for fault detection in smart factory
             if not user_response:
                 print("보완 답변을 입력해야 다음 단계로 진행할 수 있습니다.")
+                continue
+
+            # 숫자 입력 시 해당 번호의 direction으로 자동 치환
+            if user_response in prompt_candidates:
+                selected_direction = prompt_candidates[user_response]
+                print(f"  → [{selected_direction}] 선택됨")
+                user_response = selected_direction
 
         # 사용자 답변을 messages에 추가
         app.update_state(
