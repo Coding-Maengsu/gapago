@@ -729,13 +729,14 @@ def build_markdown_report(gapago_eval: dict, baseline_evals: list, gapago_gaps_r
     }
 
     for metric, (label, stars) in metrics_info.items():
-        w  = gapago_eval["weights_used"].get(metric, METRIC_WEIGHTS.get(metric, 0))
         gs = gapago_eval["scores"][metric].get("score")
 
         if gs is None:
             bl_scores_str = " | ".join("skipped" for _ in baseline_evals)
-            lines.append(f"| {label} ({stars}) | {w:.2f} | skipped | {bl_scores_str} | — |")
+            lines.append(f"| {label} ({stars}) | N/A | skipped | {bl_scores_str} | — |")
             continue
+
+        w = gapago_eval["weights_used"].get(metric, 0)
 
         bl_scores = [be["scores"][metric].get("score", 0.0) for be in baseline_evals]
         bl_scores_str = " | ".join(f"{s:.4f}" for s in bl_scores)
