@@ -74,7 +74,7 @@ def _serialize_messages(state_values: dict) -> list[dict]:
     return out
 
 
-def _save_result(query: str, state_values: dict) -> str:
+def _save_result(query: str, state_values: dict, user_id: str = "") -> str:
     messages_out = _serialize_messages(state_values)
 
     # papers 정보 추출
@@ -92,6 +92,7 @@ def _save_result(query: str, state_values: dict) -> str:
     result = {
         "query": query,
         "timestamp": datetime.now().isoformat(),
+        "user_id": user_id,
         "refined_query": state_values.get("refined_query", ""),
         "keywords": state_values.get("keywords", []),
         "papers": papers_out,
@@ -121,13 +122,16 @@ async def get_providers():
 
 
 @app.get("/api/history")
-async def get_history():
-    """List saved analysis results."""
+async def get_history(user_id: str = ""):
+    """List saved analysis results, filtered by user_id."""
     files = sorted(OUTPUT_DIR.glob("gapago_result_*.json"), reverse=True)
     items = []
     for f in files:
         try:
             data = json.loads(f.read_text(encoding="utf-8"))
+            # Filter by user_id if provided
+            if user_id and data.get("user_id", "") != user_id:
+                continue
             items.append(HistoryItem(
                 filename=f.name,
                 query=data.get("query", "(no query)"),
@@ -150,7 +154,7 @@ async def get_history_detail(filename: str):
 
 
 @app.get("/api/analyze")
-async def analyze(query: str, provider: str = "azure", domain: str = "auto"):
+async def analyze(query: str, provider: str = "azure", domain: str = "auto", user_id: str = ""):
     """
     Start a new analysis pipeline. Streams node-by-node results as SSE.
     Uses GET to avoid proxy POST blocking.
@@ -207,14 +211,15 @@ async def analyze(query: str, provider: str = "azure", domain: str = "auto"):
                 _sessions[session_id] = {
                     "graph": graph,
                     "config": config_dict,
-                    "query": req.query,
+                    "query": query,
+                    "user_id": user_id,
                 }
                 yield f"data: {json.dumps({'event': 'interrupt', 'session_id': session_id, 'clarify_prompt': clarify_prompt or ''}, ensure_ascii=False)}\n\n"
             else:
                 # Pipeline complete
                 final_state = graph.get_state(config_dict)
                 state_values = final_state.values if final_state else {}
-                fname = _save_result(query, state_values)
+                fname = _save_result(query, state_values, user_id)
                 yield f"data: {json.dumps({'event': 'complete', 'filename': fname}, ensure_ascii=False)}\n\n"
 
         except Exception as e:
@@ -233,6 +238,7 @@ async def clarify(session_id: str, response: str):
     graph = session["graph"]
     config_dict = session["config"]
     query = session["query"]
+    user_id = session.get("user_id", "")
 
     # Inject user response
     graph.update_state(
@@ -273,7 +279,7 @@ async def clarify(session_id: str, response: str):
             else:
                 final_state = graph.get_state(config_dict)
                 state_values = final_state.values if final_state else {}
-                fname = _save_result(query, state_values)
+                fname = _save_result(query, state_values, user_id)
                 # Cleanup session
                 _sessions.pop(session_id, None)
                 yield f"data: {json.dumps({'event': 'complete', 'filename': fname}, ensure_ascii=False)}\n\n"

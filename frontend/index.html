@@ -445,6 +445,17 @@
 </div>
 
 <script>
+// User ID (persistent per browser)
+function getUserId() {
+    let uid = localStorage.getItem('gapago_user_id');
+    if (!uid) {
+        uid = 'u_' + Math.random().toString(36).slice(2, 10);
+        localStorage.setItem('gapago_user_id', uid);
+    }
+    return uid;
+}
+const USER_ID = getUserId();
+
 // Global error handler - show errors on screen
 window.onerror = function(msg, url, line, col, error) {
     document.title = 'JS Error!';
@@ -476,7 +487,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadHistory() {
     try {
-        const resp = await fetch('api/history');
+        const resp = await fetch(`api/history?user_id=${USER_ID}`);
         const items = await resp.json();
         const section = document.getElementById('historySection');
         section.innerHTML = '<h3>Analysis History</h3>';
@@ -560,7 +571,7 @@ async function startAnalysis() {
 
     // SSE stream
     try {
-        const params = new URLSearchParams({ query, provider, domain });
+        const params = new URLSearchParams({ query, provider, domain, user_id: USER_ID });
         const resp = await fetch(`api/analyze?${params}`);
 
         if (!resp.ok) {
