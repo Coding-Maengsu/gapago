@@ -806,6 +806,8 @@ function setInputEnabled(enabled) {
     document.getElementById('queryInput').disabled = !enabled;
     document.getElementById('runBtn').disabled = !enabled;
     document.getElementById('runBtn').textContent = enabled ? 'Analyze' : 'Running...';
+    document.getElementById('provider').disabled = !enabled;
+    document.getElementById('domain').disabled = !enabled;
 }
 
 function newAnalysis() {
