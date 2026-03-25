@@ -266,11 +266,109 @@ def _load_scienceon_full_text(paper: Paper) -> dict:
     return {}
 
 
+def _load_scienceon_pdf_from_url(paper: Paper, url: str, label: str) -> dict:
+    """ScienceON의 FulltextURL 또는 ContentURL에서 PDF를 다운로드하여 섹션 분리."""
+    if not url:
+        return {}
+    try:
+        resp = requests.get(url, headers=_REQUEST_HEADERS, timeout=30, allow_redirects=True)
+        resp.raise_for_status()
+
+        # 직접 PDF인 경우
+        if resp.content[:4] == b"%PDF":
+            full_text = _extract_text_from_pdf_bytes(resp.content)
+            if len(full_text) >= 200:
+                sections = _split_sections(full_text)
+                print(f"  [fulltext:{label}] '{paper.title[:50]}' → {list(sections.keys())}")
+                return sections
+
+        # HTML 페이지인 경우: PDF 링크를 찾아서 재시도
+        content_type = resp.headers.get("content-type", "")
+        if "html" in content_type:
+            pdf_patterns = [
+                r'href=["\']([^"\']*\.pdf[^"\']*)["\']',
+                r'href=["\']([^"\']*\/pdf[^"\']*)["\']',
+                r'href=["\']([^"\']*fulltext[^"\']*)["\']',
+            ]
+            for pattern in pdf_patterns:
+                matches = re.findall(pattern, resp.text, re.IGNORECASE)
+                for pdf_url in matches:
+                    if not pdf_url.startswith("http"):
+                        from urllib.parse import urljoin
+                        pdf_url = urljoin(resp.url, pdf_url)
+                    try:
+                        pdf_resp = requests.get(pdf_url, headers=_REQUEST_HEADERS, timeout=30)
+                        pdf_resp.raise_for_status()
+                        if pdf_resp.content[:4] == b"%PDF":
+                            full_text = _extract_text_from_pdf_bytes(pdf_resp.content)
+                            if len(full_text) >= 200:
+                                sections = _split_sections(full_text)
+                                print(f"  [fulltext:{label}] '{paper.title[:50]}' (via HTML) → {list(sections.keys())}")
+                                return sections
+                    except Exception:
+                        continue
+
+    except Exception as e:
+        print(f"  [fulltext:{label}] 다운로드 실패: {paper.title[:50]} ({e})")
+
+    return {}
+
+
+def _load_scienceon_patent_full_text(paper: Paper) -> dict:
+    """ScienceON 특허 원문 로드. ContentURL에서 PDF/HTML을 시도."""
+    raw = {}
+    if hasattr(paper, "full_text_sections") and isinstance(paper.full_text_sections, dict):
+        raw = paper.full_text_sections
+
+    # FulltextURL 우선, ContentURL fallback
+    for url_key in ("fulltext_url", "FulltextURL", "content_url", "ContentURL"):
+        url = raw.get(url_key, "")
+        if url:
+            sections = _load_scienceon_pdf_from_url(paper, url, "scienceon_patent")
+            if sections:
+                return sections
+
+    # paper.url fallback
+    if paper.url:
+        sections = _load_scienceon_pdf_from_url(paper, paper.url, "scienceon_patent")
+        if sections:
+            return sections
+
+    print(f"  [fulltext:scienceon_patent] 원문 접근 불가 → abstract fallback: {paper.title[:50]}")
+    return {}
+
+
+def _load_scienceon_report_full_text(paper: Paper) -> dict:
+    """ScienceON 국가 R&D 보고서 원문 로드. FulltextURL에서 PDF 다운로드."""
+    raw = {}
+    if hasattr(paper, "full_text_sections") and isinstance(paper.full_text_sections, dict):
+        raw = paper.full_text_sections
+
+    # FulltextURL 우선, ContentURL fallback
+    for url_key in ("fulltext_url", "FulltextURL", "content_url", "ContentURL"):
+        url = raw.get(url_key, "")
+        if url:
+            sections = _load_scienceon_pdf_from_url(paper, url, "scienceon_report")
+            if sections:
+                return sections
+
+    # paper.url fallback
+    if paper.url:
+        sections = _load_scienceon_pdf_from_url(paper, paper.url, "scienceon_report")
+        if sections:
+            return sections
+
+    print(f"  [fulltext:scienceon_report] 원문 접근 불가 → abstract fallback: {paper.title[:50]}")
+    return {}
+
+
 def _load_full_text_sections(paper: Paper) -> dict:
     """
     논문 소스별로 full text를 로드하고 섹션으로 분리.
-    - arXiv → ArxivLoader
-    - ScienceON → DOI 경유 PDF 다운로드
+    - arXiv → a5iv HTML / ArxivLoader PDF
+    - ScienceON 논문 → DOI 경유 PDF 다운로드
+    - ScienceON 특허 → ContentURL에서 PDF/HTML
+    - ScienceON 보고서 → FulltextURL에서 PDF
     - 그 외 → abstract fallback (빈 dict)
     """
     if paper.full_text_sections and any(
@@ -282,6 +380,12 @@ def _load_full_text_sections(paper: Paper) -> dict:
 
     if pid.startswith("arxiv:"):
         return _load_arxiv_full_text(paper)
+
+    if pid.startswith("scienceon_patent:"):
+        return _load_scienceon_patent_full_text(paper)
+
+    if pid.startswith("scienceon_report:"):
+        return _load_scienceon_report_full_text(paper)
 
     if pid.startswith("scienceon:"):
         return _load_scienceon_full_text(paper)
