@@ -36,7 +36,7 @@ app.add_middleware(
 OUTPUT_DIR = Path("outputs")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
 # ── In-memory session store (active pipelines) ─────────────────────
 _sessions: dict = {}
@@ -381,9 +381,22 @@ def _build_node_payload(node: str, values: dict) -> dict:
 
 
 # ── Static frontend ─────────────────────────────────────────────────
+@app.get("/debug/paths")
+async def debug_paths():
+    """Temporary debug endpoint."""
+    index = FRONTEND_DIR / "index.html"
+    return {
+        "FRONTEND_DIR": str(FRONTEND_DIR),
+        "index_exists": index.exists(),
+        "cwd": str(Path.cwd()),
+        "__file__": str(Path(__file__).resolve()),
+        "dir_listing": [str(p.name) for p in FRONTEND_DIR.parent.iterdir()] if FRONTEND_DIR.parent.exists() else "parent not found",
+    }
+
+
 @app.get("/")
 async def root():
     index = FRONTEND_DIR / "index.html"
     if index.exists():
-        return FileResponse(str(index))
-    return {"message": "GAPAGO API is running. Frontend not found at ./frontend/"}
+        return FileResponse(str(index), media_type="text/html")
+    return {"message": f"Frontend not found. FRONTEND_DIR={FRONTEND_DIR}, exists={FRONTEND_DIR.exists()}"}
