@@ -909,7 +909,13 @@ function handleEvent(data) {
         showInterrupt(data.clarify_prompt);
     } else if (data.event === 'complete') {
         clearInterval(_thinkingInterval);
-        updateStepper(2, 'final_response');
+        // 모든 스텝을 done 상태로 변경
+        for (let i = 0; i < 3; i++) {
+            const step = document.getElementById(`step-${i}`);
+            const line = document.getElementById(`line-${i}`);
+            if (step) step.className = 'step done';
+            if (line) line.className = 'step-line done';
+        }
         const totalSecs = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
         const tm = Math.floor(totalSecs / 60), ts = totalSecs % 60;
         document.getElementById('statusMsg').innerHTML = `<span style="color:var(--green);font-weight:600">Analysis complete</span><div class="elapsed">${tm > 0 ? tm + 'm ' : ''}${ts}s total</div>`;
