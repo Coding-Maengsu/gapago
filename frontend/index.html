@@ -4,27 +4,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GAPAGO - Research GAP Analyzer</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg: #f8f9fc;
+            --bg: #f5f6fa;
             --surface: #ffffff;
-            --surface2: #f1f3f9;
-            --border: #e2e6ef;
-            --text: #1e293b;
-            --text-dim: #64748b;
-            --text-light: #94a3b8;
-            --accent: #4f6df5;
-            --accent-light: #eef1fe;
-            --accent2: #8b5cf6;
-            --green: #10b981;
-            --green-light: #ecfdf5;
-            --yellow: #f59e0b;
-            --yellow-light: #fffbeb;
-            --red: #ef4444;
-            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-            --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
-            --shadow-md: 0 4px 6px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04);
+            --surface2: #f0f2f8;
+            --surface3: #e8eaf3;
+            --border: #dfe3ed;
+            --border-light: #eceef5;
+            --text: #1a1f36;
+            --text-dim: #5e6687;
+            --text-light: #8e94ab;
+            --accent: #5469d4;
+            --accent-hover: #4255b8;
+            --accent-light: #eef0fb;
+            --accent-bg: #f6f7fe;
+            --accent2: #7c5cbf;
+            --green: #0fba81;
+            --green-light: #eafaf4;
+            --yellow: #e8920b;
+            --yellow-light: #fef8ec;
+            --red: #e54e4e;
+            --red-light: #fef0f0;
+            --shadow-sm: 0 1px 2px rgba(26,31,54,0.04);
+            --shadow: 0 2px 8px rgba(26,31,54,0.06);
+            --shadow-md: 0 4px 16px rgba(26,31,54,0.08);
+            --radius: 10px;
+            --radius-lg: 14px;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -36,107 +43,115 @@
             display: flex;
             height: 100vh;
             overflow: hidden;
+            font-size: 14px;
+            -webkit-font-smoothing: antialiased;
         }
 
-        /* Sidebar */
+        /* ── Sidebar ── */
         .sidebar {
-            width: 260px;
+            width: 272px;
             background: var(--surface);
-            border-right: 1px solid var(--border);
+            border-right: 1px solid var(--border-light);
             display: flex;
             flex-direction: column;
             flex-shrink: 0;
         }
 
         .sidebar-header {
-            padding: 20px;
-            border-bottom: 1px solid var(--border);
+            padding: 20px 18px;
+            border-bottom: 1px solid var(--border-light);
         }
 
         .sidebar-header h1 {
-            font-size: 1.2em;
+            font-size: 1.15em;
             font-weight: 700;
             color: var(--accent);
-            letter-spacing: -0.3px;
+            letter-spacing: -0.4px;
         }
 
         .sidebar-header p {
-            font-size: 0.75em;
-            color: var(--text-dim);
-            margin-top: 2px;
+            font-size: 0.72em;
+            color: var(--text-light);
+            margin-top: 1px;
+            font-weight: 400;
         }
 
         .new-btn {
-            margin: 12px 16px;
-            padding: 9px;
+            margin: 14px 14px 10px;
+            padding: 10px;
             background: var(--accent);
             color: #fff;
             border: none;
-            border-radius: 8px;
+            border-radius: var(--radius);
             cursor: pointer;
             font-weight: 600;
-            font-size: 0.85em;
-            transition: background 0.15s;
+            font-size: 0.82em;
+            font-family: inherit;
+            transition: background 0.15s, box-shadow 0.15s;
+            letter-spacing: 0.1px;
         }
 
-        .new-btn:hover { background: #3d5bd9; }
+        .new-btn:hover { background: var(--accent-hover); box-shadow: 0 2px 8px rgba(84,105,212,0.25); }
 
         .settings-section {
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--border);
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border-light);
         }
 
         .settings-section label {
             display: block;
-            font-size: 0.7em;
-            color: var(--text-dim);
+            font-size: 0.68em;
+            color: var(--text-light);
             margin-bottom: 3px;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.6px;
         }
 
         .settings-section select {
             width: 100%;
-            padding: 6px 8px;
+            padding: 7px 10px;
             background: var(--surface2);
             color: var(--text);
             border: 1px solid var(--border);
-            border-radius: 6px;
-            font-size: 0.82em;
+            border-radius: 8px;
+            font-size: 0.8em;
             margin-bottom: 8px;
             font-family: inherit;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.15s;
         }
+        .settings-section select:focus { border-color: var(--accent); }
 
         .history-section {
             flex: 1;
             overflow-y: auto;
-            padding: 8px;
+            padding: 6px 8px;
         }
 
         .history-section h3 {
-            padding: 8px;
-            font-size: 0.7em;
+            padding: 10px 8px 6px;
+            font-size: 0.68em;
             color: var(--text-light);
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.6px;
         }
 
         .history-item {
             padding: 10px 12px;
             border-radius: 8px;
             cursor: pointer;
-            margin-bottom: 2px;
-            transition: background 0.15s;
+            margin-bottom: 1px;
+            transition: background 0.12s;
         }
 
         .history-item:hover { background: var(--surface2); }
+        .history-item .query { font-size: 0.8em; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+        .history-item .meta { font-size: 0.68em; color: var(--text-light); margin-top: 2px; }
 
-        .history-item .query { font-size: 0.82em; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .history-item .meta { font-size: 0.7em; color: var(--text-light); margin-top: 2px; }
-
-        /* Main area */
+        /* ── Main ── */
         .main {
             flex: 1;
             display: flex;
@@ -144,19 +159,18 @@
             overflow: hidden;
         }
 
-        /* Input area */
         .input-area {
-            padding: 24px 32px 20px;
+            padding: 20px 36px 18px;
             background: var(--surface);
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid var(--border-light);
         }
 
-        .input-area h2 {
-            font-size: 1.1em;
-            font-weight: 700;
-            color: var(--text);
-            margin-bottom: 12px;
-            letter-spacing: -0.3px;
+        .input-header {
+            font-size: 0.72em;
+            font-weight: 500;
+            color: var(--text-light);
+            margin-bottom: 10px;
+            letter-spacing: 0.2px;
         }
 
         .input-row {
@@ -167,69 +181,67 @@
 
         .input-row input {
             flex: 1;
-            padding: 11px 14px;
+            padding: 12px 16px;
             background: var(--surface2);
             color: var(--text);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            font-size: 0.9em;
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 0.88em;
             font-family: inherit;
             outline: none;
-            transition: border-color 0.15s;
+            transition: border-color 0.15s, box-shadow 0.15s;
         }
 
         .input-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+        .input-row input:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .run-btn {
-            padding: 11px 24px;
+            padding: 12px 28px;
             background: var(--accent);
             color: #fff;
             border: none;
-            border-radius: 10px;
+            border-radius: var(--radius);
             cursor: pointer;
             font-weight: 600;
-            font-size: 0.9em;
+            font-size: 0.88em;
             font-family: inherit;
             white-space: nowrap;
-            transition: background 0.15s;
+            transition: background 0.15s, box-shadow 0.15s;
+            letter-spacing: 0.1px;
         }
 
-        .run-btn:hover { background: #3d5bd9; }
-        .run-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .run-btn:hover { background: var(--accent-hover); box-shadow: 0 2px 8px rgba(84,105,212,0.25); }
+        .run-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
 
-        /* Results area */
+        /* ── Results ── */
         .results {
             flex: 1;
             overflow-y: auto;
-            padding: 24px 32px;
+            padding: 28px 36px;
         }
 
-        /* Stepper */
+        /* ── Stepper ── */
         .stepper {
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 0;
-            margin-bottom: 28px;
+            margin-bottom: 24px;
             padding: 0 20px;
         }
 
-        .step {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+        .step { display: flex; align-items: center; gap: 8px; }
 
         .step-dot {
-            width: 32px;
-            height: 32px;
+            width: 30px;
+            height: 30px;
             border-radius: 50%;
             background: var(--surface2);
             border: 2px solid var(--border);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.75em;
+            font-size: 0.72em;
             font-weight: 700;
             color: var(--text-light);
             transition: all 0.3s;
@@ -248,231 +260,230 @@
             color: #fff;
         }
 
-        .step-label {
-            font-size: 0.78em;
-            font-weight: 500;
-            color: var(--text-light);
-        }
-
+        .step-label { font-size: 0.76em; font-weight: 500; color: var(--text-light); }
         .step.active .step-label { color: var(--accent); font-weight: 600; }
         .step.done .step-label { color: var(--green); }
 
         .step-line {
-            width: 60px;
+            width: 56px;
             height: 2px;
             background: var(--border);
             margin: 0 8px;
             transition: background 0.3s;
         }
-
         .step-line.done { background: var(--green); }
 
         @keyframes pulse {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(79,109,245,0.3); }
-            50% { box-shadow: 0 0 0 8px rgba(79,109,245,0); }
+            0%, 100% { box-shadow: 0 0 0 0 rgba(84,105,212,0.25); }
+            50% { box-shadow: 0 0 0 8px rgba(84,105,212,0); }
         }
 
-        /* Status message */
+        /* ── Status ── */
         .status-msg {
             text-align: center;
-            font-size: 0.85em;
+            font-size: 0.88em;
+            font-weight: 500;
             color: var(--text-dim);
-            margin-bottom: 24px;
+            margin-bottom: 20px;
         }
+        .status-msg .detail { font-size: 0.78em; font-weight: 400; color: var(--text-light); margin-top: 3px; transition: opacity 0.3s; }
+        .status-msg .elapsed { font-size: 0.7em; color: var(--text-light); margin-top: 4px; opacity: 0.5; }
 
-        .status-msg .detail { font-size: 0.8em; color: var(--text-light); margin-top: 2px; transition: opacity 0.3s; }
-        .status-msg .elapsed { font-size: 0.72em; color: var(--text-light); margin-top: 4px; opacity: 0.6; }
-
-        /* Result tabs */
+        /* ── Tabs ── */
         .tabs {
             display: flex;
-            gap: 4px;
+            gap: 2px;
             margin-bottom: 20px;
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 0;
+            border-bottom: 1.5px solid var(--border-light);
         }
 
         .tab {
             padding: 10px 20px;
-            font-size: 0.85em;
+            font-size: 0.82em;
             font-weight: 500;
-            color: var(--text-dim);
+            color: var(--text-light);
             cursor: pointer;
             border: none;
             background: none;
             font-family: inherit;
-            border-bottom: 2px solid transparent;
-            margin-bottom: -1px;
+            border-bottom: 2.5px solid transparent;
+            margin-bottom: -1.5px;
             transition: all 0.15s;
         }
 
-        .tab:hover { color: var(--text); }
+        .tab:hover { color: var(--text-dim); }
         .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
-
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
-        /* Papers table */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.85em;
-        }
+        /* ── Papers table ── */
+        table { width: 100%; border-collapse: collapse; font-size: 0.84em; }
 
         th {
             text-align: left;
-            padding: 10px 12px;
+            padding: 10px 14px;
             background: var(--surface2);
-            color: var(--text-dim);
+            color: var(--text-light);
             font-weight: 600;
-            font-size: 0.78em;
+            font-size: 0.75em;
             text-transform: uppercase;
-            letter-spacing: 0.3px;
+            letter-spacing: 0.4px;
         }
+        th:first-child { border-radius: var(--radius) 0 0 0; }
+        th:last-child { border-radius: 0 var(--radius) 0 0; }
 
-        th:first-child { border-radius: 8px 0 0 0; }
-        th:last-child { border-radius: 0 8px 0 0; }
+        td { padding: 11px 14px; border-bottom: 1px solid var(--border-light); }
+        tr:hover { background: var(--accent-bg); }
+        td a { color: var(--accent); text-decoration: none; font-weight: 500; }
+        td a:hover { text-decoration: underline; }
 
-        td {
-            padding: 10px 12px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        tr:hover { background: var(--surface2); }
-
-        /* GAP cards */
+        /* ── GAP cards ── */
         .gap-card {
             background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 14px;
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-lg);
+            padding: 22px;
+            margin-bottom: 12px;
             box-shadow: var(--shadow-sm);
             border-left: 4px solid var(--accent);
-            transition: box-shadow 0.15s;
+            transition: box-shadow 0.15s, transform 0.1s;
         }
-
-        .gap-card:hover { box-shadow: var(--shadow-md); }
+        .gap-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
         .gap-card.top { border-left-color: var(--yellow); }
 
         .gap-rank {
             display: inline-block;
-            font-size: 0.7em;
+            font-size: 0.68em;
             font-weight: 700;
-            padding: 2px 8px;
-            border-radius: 4px;
+            padding: 3px 10px;
+            border-radius: 5px;
             background: var(--accent-light);
             color: var(--accent);
-            margin-bottom: 8px;
+            margin-bottom: 10px;
+            letter-spacing: 0.3px;
         }
-
         .gap-card.top .gap-rank { background: var(--yellow-light); color: var(--yellow); }
 
-        .gap-card .axis { font-size: 0.75em; color: var(--text-dim); margin-bottom: 4px; }
-        .gap-card .statement { font-size: 0.95em; font-weight: 600; color: var(--text); margin-bottom: 10px; line-height: 1.5; }
-        .gap-card .elaboration { font-size: 0.85em; color: var(--text-dim); line-height: 1.6; margin-bottom: 10px; }
-        .gap-card .topic { font-size: 0.82em; color: var(--accent2); font-weight: 500; }
+        .gap-card .axis { font-size: 0.73em; color: var(--text-light); margin-bottom: 6px; }
+        .gap-card .statement { font-size: 0.94em; font-weight: 600; color: var(--text); margin-bottom: 10px; line-height: 1.55; }
+        .gap-card .elaboration { font-size: 0.84em; color: var(--text-dim); line-height: 1.65; margin-bottom: 10px; }
+        .gap-card .topic { font-size: 0.8em; color: var(--accent2); font-weight: 500; }
         .gap-card .papers-info { font-size: 0.72em; color: var(--text-light); margin-top: 8px; }
 
-        /* Report */
-        .report-content {
-            font-size: 0.9em;
-            line-height: 1.8;
-            color: var(--text);
-        }
-
-        .report-content h1 { font-size: 1.3em; color: var(--text); margin: 28px 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--accent); font-weight: 700; }
-        .report-content h2 { font-size: 1.1em; color: var(--text); margin: 24px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); font-weight: 600; }
-        .report-content h3 { font-size: 0.95em; color: var(--accent); margin: 18px 0 8px; font-weight: 600; }
+        /* ── Report ── */
+        .report-content { font-size: 0.9em; line-height: 1.85; color: var(--text); }
+        .report-content h1 { font-size: 1.25em; color: var(--text); margin: 28px 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--accent); font-weight: 700; }
+        .report-content h2 { font-size: 1.08em; color: var(--text); margin: 24px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); font-weight: 600; }
+        .report-content h3 { font-size: 0.94em; color: var(--accent); margin: 18px 0 8px; font-weight: 600; }
         .report-content strong { color: var(--text); }
-        .report-content code { background: var(--surface2); padding: 1px 5px; border-radius: 4px; font-size: 0.88em; }
-        .report-content ul, .report-content ol { padding-left: 20px; margin: 8px 0; }
-        .report-content li { margin-bottom: 4px; }
-        .report-content blockquote { border-left: 3px solid var(--accent); padding: 8px 16px; margin: 12px 0; background: var(--accent-light); border-radius: 0 8px 8px 0; font-style: italic; color: var(--text-dim); }
-        .report-content hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+        .report-content code { background: var(--surface2); padding: 2px 6px; border-radius: 4px; font-size: 0.86em; }
+        .report-content ul, .report-content ol { padding-left: 22px; margin: 8px 0; }
+        .report-content li { margin-bottom: 4px; line-height: 1.7; }
+        .report-content blockquote { border-left: 3px solid var(--accent); padding: 10px 18px; margin: 14px 0; background: var(--accent-bg); border-radius: 0 var(--radius) var(--radius) 0; font-style: italic; color: var(--text-dim); }
+        .report-content hr { border: none; border-top: 1px solid var(--border-light); margin: 24px 0; }
 
-        .report-actions {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 16px;
-        }
+        .report-actions { display: flex; gap: 8px; margin-bottom: 18px; }
         .report-actions button {
-            padding: 6px 14px;
-            font-size: 0.8em;
+            padding: 7px 16px;
+            font-size: 0.78em;
             font-family: inherit;
             border: 1px solid var(--border);
-            border-radius: 6px;
+            border-radius: 8px;
             background: var(--surface);
             color: var(--text-dim);
             cursor: pointer;
             font-weight: 500;
             transition: all 0.15s;
         }
-        .report-actions button:hover { background: var(--surface2); color: var(--text); }
+        .report-actions button:hover { background: var(--surface2); color: var(--text); border-color: var(--accent); }
 
-        /* Interrupt */
+        /* ── Interrupt ── */
         .interrupt-card {
             background: var(--surface);
             border: 2px solid var(--yellow);
-            border-radius: 12px;
-            padding: 20px;
+            border-radius: var(--radius-lg);
+            padding: 22px;
             margin-bottom: 16px;
             box-shadow: var(--shadow);
         }
-
-        .interrupt-card h3 { color: var(--yellow); margin-bottom: 8px; font-size: 0.95em; }
-        .interrupt-card .prompt { font-size: 0.88em; color: var(--text); margin-bottom: 12px; padding: 12px; background: var(--yellow-light); border-radius: 8px; }
-
+        .interrupt-card h3 { color: var(--yellow); margin-bottom: 10px; font-size: 0.92em; }
+        .interrupt-card .prompt { font-size: 0.84em; color: var(--text); margin-bottom: 14px; padding: 14px; background: var(--yellow-light); border-radius: var(--radius); line-height: 1.6; }
         .interrupt-card input {
             width: 100%;
-            padding: 10px 12px;
+            padding: 11px 14px;
             background: var(--surface2);
             color: var(--text);
-            border: 1px solid var(--border);
+            border: 1.5px solid var(--border);
             border-radius: 8px;
-            margin-bottom: 10px;
+            margin-bottom: 12px;
             font-family: inherit;
+            font-size: 0.86em;
             outline: none;
+            transition: border-color 0.15s;
         }
-
+        .interrupt-card input:focus { border-color: var(--yellow); }
         .interrupt-actions { display: flex; gap: 8px; }
         .interrupt-actions button {
-            padding: 8px 18px;
+            padding: 9px 20px;
             border: none;
             border-radius: 8px;
             cursor: pointer;
             font-weight: 600;
-            font-size: 0.85em;
+            font-size: 0.82em;
             font-family: inherit;
+            transition: all 0.15s;
         }
-
         .btn-resume { background: var(--accent); color: #fff; }
-        .btn-skip { background: var(--surface2); color: var(--text-dim); }
+        .btn-resume:hover { background: var(--accent-hover); }
+        .btn-skip { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); }
+        .btn-skip:hover { background: var(--surface3); }
 
-        /* Empty state */
-        .empty-state {
-            text-align: center;
-            padding: 100px 20px;
-        }
-
-        .empty-state h3 { font-size: 1.1em; color: var(--text); font-weight: 600; margin-bottom: 6px; }
-        .empty-state p { font-size: 0.85em; color: var(--text-dim); }
-        .example-queries { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+        /* ── Empty state ── */
+        .empty-state { text-align: center; padding: 80px 20px 60px; }
+        .empty-state h3 { font-size: 1.15em; color: var(--text); font-weight: 700; margin-bottom: 8px; letter-spacing: -0.3px; }
+        .empty-state .subtitle { font-size: 0.86em; color: var(--text-dim); line-height: 1.6; max-width: 480px; margin: 0 auto; }
+        .example-queries { display: flex; flex-direction: column; gap: 6px; align-items: center; margin-top: 28px; }
+        .example-queries .label { font-size: 0.72em; color: var(--text-light); margin-bottom: 4px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
         .example-btn {
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: 8px;
-            padding: 8px 16px;
+            padding: 9px 18px;
             font-size: 0.82em;
-            color: var(--accent);
+            color: var(--text-dim);
             cursor: pointer;
             font-family: inherit;
             transition: all 0.15s;
-            max-width: 500px;
+            max-width: 520px;
+            width: 100%;
         }
-        .example-btn:hover { background: var(--accent-light); border-color: var(--accent); }
+        .example-btn:hover { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
 
-        /* Scrollbar */
+        /* ── Error banner ── */
+        .error-banner {
+            background: var(--red-light);
+            border: 1px solid var(--red);
+            border-radius: var(--radius);
+            padding: 16px 20px;
+            margin-top: 16px;
+            text-align: center;
+        }
+        .error-banner .msg { color: var(--red); font-size: 0.88em; font-weight: 500; margin-bottom: 10px; }
+        .error-banner button {
+            padding: 8px 20px;
+            background: var(--red);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.82em;
+            font-family: inherit;
+            transition: opacity 0.15s;
+        }
+        .error-banner button:hover { opacity: 0.85; }
+
+        /* ── Scrollbar ── */
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -484,7 +495,7 @@
 <aside class="sidebar">
     <div class="sidebar-header">
         <div style="display:flex;align-items:center;gap:10px;">
-            <img src="logo.png" alt="GAPAGO" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">
+            <img src="logo.png" alt="GAPAGO" style="width:34px;height:34px;border-radius:50%;object-fit:cover;">
             <div>
                 <h1>GAPAGO</h1>
                 <p>Research GAP Analyzer</p>
@@ -520,7 +531,7 @@
 <!-- Main -->
 <div class="main">
     <div class="input-area">
-        <h2>Research GAP Analyzer</h2>
+        <div class="input-header">Describe your research direction or topic</div>
         <div class="input-row">
             <input type="text" id="queryInput" placeholder="e.g. Domain adaptation for fault detection in smart manufacturing"
                    onkeydown="if(event.key==='Enter') startAnalysis()">
@@ -530,11 +541,15 @@
 
     <div class="results" id="results">
         <div class="empty-state">
-            <img src="logo.png" alt="GAPAGO" style="width:80px;height:80px;border-radius:50%;object-fit:cover;margin-bottom:16px;opacity:0.85;">
-            <h3>Enter a research question to begin</h3>
-            <p>GAPAGO retrieves papers, extracts limitations, and identifies research gaps.</p>
+            <img src="logo.png" alt="GAPAGO" style="width:72px;height:72px;border-radius:50%;object-fit:cover;margin-bottom:20px;opacity:0.9;">
+            <h3>GAPAGO</h3>
+            <p class="subtitle">
+                논문 아이디어 탐색이 어려우셨나요?<br>
+                연구 방향을 입력하면 관련 논문을 검색하고, 한계점을 분석하여<br>
+                새로운 연구 기회(Research GAP)를 자동으로 발견해 드립니다.
+            </p>
             <div class="example-queries">
-                <p style="font-size:0.75em;color:var(--text-light);margin-bottom:8px;margin-top:20px;">Try an example:</p>
+                <span class="label">Try an example</span>
                 <button class="example-btn" onclick="fillQuery('Domain adaptation for fault detection in smart manufacturing')">Domain adaptation for fault detection in smart manufacturing</button>
                 <button class="example-btn" onclick="fillQuery('Multimodal emotion recognition using speech and facial expressions')">Multimodal emotion recognition using speech and facial expressions</button>
                 <button class="example-btn" onclick="fillQuery('LLM-based automated code review systems')">LLM-based automated code review systems</button>
@@ -554,12 +569,11 @@ const USER_ID = getUserId();
 
 window.onerror = function(msg, url, line) {
     const d = document.createElement('div');
-    d.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:10px;background:#ef4444;color:#fff;z-index:9999;font-size:13px';
+    d.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:10px;background:#e54e4e;color:#fff;z-index:9999;font-size:13px';
     d.textContent = `Error (line ${line}): ${msg}`;
     document.body.prepend(d);
 };
 
-// Pipeline stages mapping
 const STAGE_MAP = {
     query_subgraph: 0, meaning_expand: 0, paper_retrieval: 0,
     limitation_extract: 1, limitation_eval: 1, recency_check: 1, gap_infer: 1, critic_score: 1,
@@ -585,9 +599,25 @@ const THINKING_MESSAGES = [
 ];
 let _thinkingInterval = null;
 let _startTime = null;
-
 let currentSessionId = null;
 let pipelineData = { papers: [], gaps: [], report: '' };
+
+const EMPTY_STATE_HTML = `
+    <div class="empty-state">
+        <img src="logo.png" alt="GAPAGO" style="width:72px;height:72px;border-radius:50%;object-fit:cover;margin-bottom:20px;opacity:0.9;">
+        <h3>GAPAGO</h3>
+        <p class="subtitle">
+            논문 아이디어 탐색이 어려우셨나요?<br>
+            연구 방향을 입력하면 관련 논문을 검색하고, 한계점을 분석하여<br>
+            새로운 연구 기회(Research GAP)를 자동으로 발견해 드립니다.
+        </p>
+        <div class="example-queries">
+            <span class="label">Try an example</span>
+            <button class="example-btn" onclick="fillQuery('Domain adaptation for fault detection in smart manufacturing')">Domain adaptation for fault detection in smart manufacturing</button>
+            <button class="example-btn" onclick="fillQuery('Multimodal emotion recognition using speech and facial expressions')">Multimodal emotion recognition using speech and facial expressions</button>
+            <button class="example-btn" onclick="fillQuery('LLM-based automated code review systems')">LLM-based automated code review systems</button>
+        </div>
+    </div>`;
 
 document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('runBtn').addEventListener('click', startAnalysis);
@@ -608,7 +638,7 @@ async function loadHistory() {
             div.innerHTML = `<div class="query">${esc(item.query)}</div><div class="meta">${ts} &middot; ${item.gaps_count} GAPs</div>`;
             section.appendChild(div);
         });
-        if (!items.length) section.innerHTML += '<div style="padding:12px;color:var(--text-light);font-size:0.8em">No history yet.</div>';
+        if (!items.length) section.innerHTML += '<div style="padding:14px;color:var(--text-light);font-size:0.78em">No history yet.</div>';
     } catch (e) { console.error(e); }
 }
 
@@ -625,41 +655,32 @@ function fillQuery(q) {
     document.getElementById('queryInput').focus();
 }
 
+function setInputEnabled(enabled) {
+    document.getElementById('queryInput').disabled = !enabled;
+    document.getElementById('runBtn').disabled = !enabled;
+    document.getElementById('runBtn').textContent = enabled ? 'Analyze' : 'Running...';
+}
+
 function newAnalysis() {
     document.getElementById('queryInput').value = '';
     clearInterval(_thinkingInterval);
-    document.getElementById('results').innerHTML = `
-        <div class="empty-state">
-            <img src="logo.png" alt="GAPAGO" style="width:80px;height:80px;border-radius:50%;object-fit:cover;margin-bottom:16px;opacity:0.85;">
-            <h3>Enter a research question to begin</h3>
-            <p>GAPAGO retrieves papers, extracts limitations, and identifies research gaps.</p>
-            <div class="example-queries">
-                <p style="font-size:0.75em;color:var(--text-light);margin-bottom:8px;margin-top:20px;">Try an example:</p>
-                <button class="example-btn" onclick="fillQuery('Domain adaptation for fault detection in smart manufacturing')">Domain adaptation for fault detection in smart manufacturing</button>
-                <button class="example-btn" onclick="fillQuery('Multimodal emotion recognition using speech and facial expressions')">Multimodal emotion recognition using speech and facial expressions</button>
-                <button class="example-btn" onclick="fillQuery('LLM-based automated code review systems')">LLM-based automated code review systems</button>
-            </div>
-        </div>`;
-    document.getElementById('runBtn').disabled = false;
-    document.getElementById('runBtn').textContent = 'Analyze';
+    document.getElementById('results').innerHTML = EMPTY_STATE_HTML;
+    setInputEnabled(true);
 }
 
 async function startAnalysis() {
     const query = document.getElementById('queryInput').value.trim();
-    if (!query) { alert('Please enter a research question.'); return; }
+    if (!query) { document.getElementById('queryInput').focus(); return; }
 
     const provider = document.getElementById('provider').value;
     const domain = document.getElementById('domain').value;
     const results = document.getElementById('results');
-    const runBtn = document.getElementById('runBtn');
 
-    runBtn.disabled = true;
-    runBtn.textContent = 'Running...';
+    setInputEnabled(false);
     pipelineData = { papers: [], gaps: [], report: '' };
     _startTime = Date.now();
     clearInterval(_thinkingInterval);
 
-    // Build stepper + status + tabs
     results.innerHTML = `
         <div class="stepper" id="stepper">
             <div class="step active" id="step-0"><div class="step-dot">1</div><span class="step-label">Searching</span></div>
@@ -668,7 +689,7 @@ async function startAnalysis() {
             <div class="step-line" id="line-1"></div>
             <div class="step" id="step-2"><div class="step-dot">3</div><span class="step-label">Done</span></div>
         </div>
-        <div class="status-msg" id="statusMsg">Starting pipeline...<div class="detail" id="statusDetail"></div></div>
+        <div class="status-msg" id="statusMsg">Starting pipeline...<div class="detail"></div></div>
         <div id="resultArea" style="display:none">
             <div class="tabs" id="tabBar">
                 <button class="tab active" onclick="switchTab('papers')">Papers</button>
@@ -685,17 +706,26 @@ async function startAnalysis() {
         const params = new URLSearchParams({ query, provider, domain, user_id: USER_ID });
         const resp = await fetch(`api/analyze?${params}`);
         if (!resp.ok) {
-            results.innerHTML += `<div style="color:var(--red);padding:16px;text-align:center">API Error (${resp.status}): ${esc(await resp.text())}</div>`;
-            runBtn.disabled = false; runBtn.textContent = 'Analyze';
+            showError(`API Error (${resp.status}): ${await resp.text()}`);
+            setInputEnabled(true);
             return;
         }
         await processStream(resp);
     } catch (e) {
-        results.innerHTML += `<div style="color:var(--red);padding:16px;text-align:center">Error: ${esc(e.message)}</div>`;
+        showError(e.message);
     }
 
-    runBtn.disabled = false;
-    runBtn.textContent = 'Analyze';
+    setInputEnabled(true);
+}
+
+function showError(message) {
+    clearInterval(_thinkingInterval);
+    const results = document.getElementById('results');
+    results.innerHTML += `
+        <div class="error-banner">
+            <div class="msg">${esc(message)}</div>
+            <button onclick="newAnalysis()">Try Again</button>
+        </div>`;
 }
 
 async function processStream(resp) {
@@ -730,11 +760,11 @@ function handleEvent(data) {
         const totalSecs = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
         const tm = Math.floor(totalSecs / 60), ts = totalSecs % 60;
         document.getElementById('statusMsg').innerHTML = `<span style="color:var(--green);font-weight:600">Analysis complete</span><div class="elapsed">${tm > 0 ? tm + 'm ' : ''}${ts}s total</div>`;
-        clearInterval(_thinkingInterval);
         renderResults();
         loadHistory();
     } else if (data.event === 'error') {
-        document.getElementById('statusMsg').innerHTML = `<span style="color:var(--red)">Error: ${esc(data.message)}</span>`;
+        clearInterval(_thinkingInterval);
+        showError(data.message);
     }
 }
 
@@ -742,59 +772,56 @@ function updateStepper(activeStage, node) {
     for (let i = 0; i < 3; i++) {
         const step = document.getElementById(`step-${i}`);
         const line = document.getElementById(`line-${i}`);
-        step.className = i < activeStage ? 'step done' : (i === activeStage ? 'step active' : 'step');
+        if (step) step.className = i < activeStage ? 'step done' : (i === activeStage ? 'step active' : 'step');
         if (i < activeStage && line) line.className = 'step-line done';
     }
     const detail = STAGE_DETAILS[node] || '';
     const elapsed = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
-    const mins = Math.floor(elapsed / 60);
-    const secs = elapsed % 60;
-    const timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
-    document.getElementById('statusMsg').innerHTML = `${STAGE_LABELS[Math.min(activeStage, 2)]}...<div class="detail">${detail}</div><div class="elapsed">${timeStr} elapsed</div>`;
+    const m = Math.floor(elapsed / 60), s = elapsed % 60;
+    const statusEl = document.getElementById('statusMsg');
+    if (statusEl) statusEl.innerHTML = `${STAGE_LABELS[Math.min(activeStage, 2)]}...<div class="detail">${detail}</div><div class="elapsed">${m > 0 ? m + 'm ' : ''}${s}s elapsed</div>`;
 
-    // Reset thinking rotation
     clearInterval(_thinkingInterval);
     _thinkingInterval = setInterval(() => {
         const el = document.querySelector('#statusMsg .detail');
-        if (el) {
-            const msg = THINKING_MESSAGES[Math.floor(Math.random() * THINKING_MESSAGES.length)];
-            el.textContent = msg;
-        }
-        // Update elapsed time
+        if (el) el.textContent = THINKING_MESSAGES[Math.floor(Math.random() * THINKING_MESSAGES.length)];
         const elapsedNow = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
-        const m = Math.floor(elapsedNow / 60), s = elapsedNow % 60;
+        const mm = Math.floor(elapsedNow / 60), ss = elapsedNow % 60;
         const elEl = document.querySelector('#statusMsg .elapsed');
-        if (elEl) elEl.textContent = `${m > 0 ? m + 'm ' : ''}${s}s elapsed`;
+        if (elEl) elEl.textContent = `${mm > 0 ? mm + 'm ' : ''}${ss}s elapsed`;
     }, 8000);
 }
 
 function collectData(data) {
-    if (data.node === 'paper_retrieval' && data.papers) {
-        pipelineData.papers = data.papers;
-    }
-    if (data.node === 'gap_infer' && data.gaps) {
-        pipelineData.gaps = data.gaps;
-    }
-    if (data.node === 'final_response' && data.report) {
-        pipelineData.report = data.report;
-    }
+    if (data.node === 'paper_retrieval' && data.papers) pipelineData.papers = data.papers;
+    if (data.node === 'gap_infer' && data.gaps) pipelineData.gaps = data.gaps;
+    if (data.node === 'final_response' && data.report) pipelineData.report = data.report;
 }
 
 function renderResults() {
     const area = document.getElementById('resultArea');
     area.style.display = 'block';
 
+    // Update tab labels with counts
+    const tabBar = document.getElementById('tabBar');
+    if (tabBar) {
+        tabBar.innerHTML = `
+            <button class="tab" onclick="switchTab('papers')">Papers (${pipelineData.papers.length})</button>
+            <button class="tab active" onclick="switchTab('gaps')">Research GAPs (${pipelineData.gaps.length})</button>
+            <button class="tab" onclick="switchTab('report')">Report</button>`;
+    }
+
     // Papers tab
     let papersHtml = '';
     if (pipelineData.papers.length) {
         papersHtml = `<table><thead><tr><th>#</th><th>Title</th><th>Year</th><th>Authors</th></tr></thead><tbody>`;
         pipelineData.papers.forEach((p, i) => {
-            const titleCell = p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">${esc(p.title)}</a>` : esc(p.title);
-            papersHtml += `<tr><td>${i+1}</td><td>${titleCell}</td><td>${p.year}</td><td style="color:var(--text-dim)">${(p.authors||[]).slice(0,3).join(', ')}</td></tr>`;
+            const titleCell = p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>` : esc(p.title);
+            papersHtml += `<tr><td>${i+1}</td><td>${titleCell}</td><td>${p.year||''}</td><td>${(p.authors||[]).slice(0,3).join(', ')}</td></tr>`;
         });
         papersHtml += '</tbody></table>';
     } else {
-        papersHtml = '<p style="color:var(--text-dim);padding:20px;text-align:center">No papers retrieved.</p>';
+        papersHtml = '<p style="color:var(--text-light);padding:24px;text-align:center">No papers retrieved.</p>';
     }
     document.getElementById('tab-papers').innerHTML = papersHtml;
 
@@ -814,7 +841,7 @@ function renderResults() {
             </div>`;
         });
     } else {
-        gapsHtml = '<p style="color:var(--text-dim);padding:20px;text-align:center">No gaps identified.</p>';
+        gapsHtml = '<p style="color:var(--text-light);padding:24px;text-align:center">No gaps identified.</p>';
     }
     document.getElementById('tab-gaps').innerHTML = gapsHtml;
 
@@ -827,7 +854,7 @@ function renderResults() {
             </div>
             <div class="report-content">${renderMarkdown(pipelineData.report)}</div>`;
     } else {
-        document.getElementById('tab-report').innerHTML = '<p style="color:var(--text-dim);padding:20px;text-align:center">No report generated.</p>';
+        document.getElementById('tab-report').innerHTML = '<p style="color:var(--text-light);padding:24px;text-align:center">No report generated.</p>';
     }
 
     switchTab('gaps');
@@ -836,8 +863,8 @@ function renderResults() {
 function switchTab(name) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-    document.querySelector(`.tab-content#tab-${name}`).classList.add('active');
-    // Highlight tab button
+    const content = document.querySelector(`.tab-content#tab-${name}`);
+    if (content) content.classList.add('active');
     const tabs = document.querySelectorAll('.tab');
     const idx = { papers: 0, gaps: 1, report: 2 }[name];
     if (tabs[idx]) tabs[idx].classList.add('active');
@@ -845,7 +872,8 @@ function switchTab(name) {
 
 function showInterrupt(prompt) {
     const results = document.getElementById('results');
-    document.getElementById('statusMsg').innerHTML = '<span style="color:var(--yellow);font-weight:600">Waiting for your input...</span>';
+    const statusEl = document.getElementById('statusMsg');
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--yellow);font-weight:600">Waiting for your input...</span>';
     const div = document.createElement('div');
     div.className = 'interrupt-card';
     div.id = 'interruptCard';
@@ -878,7 +906,7 @@ async function sendClarification(response) {
         const params = new URLSearchParams({ session_id: currentSessionId, response });
         const resp = await fetch(`api/clarify?${params}`);
         await processStream(resp);
-    } catch (e) { console.error(e); }
+    } catch (e) { showError(e.message); }
 }
 
 function renderSavedResult(data) {
@@ -891,9 +919,9 @@ function renderSavedResult(data) {
 
     results.innerHTML = `
         <div style="margin-bottom:20px">
-            <h3 style="font-size:1em;font-weight:600;margin-bottom:4px">${esc(data.query||'')}</h3>
-            ${data.refined_query ? `<p style="color:var(--text-dim);font-size:0.82em">Refined: ${esc(data.refined_query)}</p>` : ''}
-            <p style="color:var(--text-light);font-size:0.72em;margin-top:2px">${data.timestamp||''}</p>
+            <h3 style="font-size:1em;font-weight:600;margin-bottom:4px;color:var(--text)">${esc(data.query||'')}</h3>
+            ${data.refined_query ? `<p style="color:var(--text-dim);font-size:0.8em">Refined: ${esc(data.refined_query)}</p>` : ''}
+            <p style="color:var(--text-light);font-size:0.7em;margin-top:3px">${data.timestamp||''}</p>
         </div>
         <div id="resultArea">
             <div class="tabs" id="tabBar">
