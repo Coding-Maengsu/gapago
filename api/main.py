@@ -87,6 +87,7 @@ def _save_result(query: str, state_values: dict, user_id: str = "") -> str:
             "title": d.get("title", ""),
             "year": d.get("year", 0),
             "authors": d.get("authors", []),
+            "url": d.get("url", ""),
         })
 
     result = {
@@ -332,6 +333,7 @@ def _build_node_payload(node: str, values: dict) -> dict:
                 "title": d.get("title", ""),
                 "year": d.get("year", ""),
                 "authors": (d.get("authors") or [])[:3],
+                "url": d.get("url", ""),
             })
         payload["web_results_count"] = len(values.get("web_results", []))
 
@@ -403,6 +405,14 @@ async def debug_paths():
         "__file__": str(Path(__file__).resolve()),
         "dir_listing": [str(p.name) for p in FRONTEND_DIR.parent.iterdir()] if FRONTEND_DIR.parent.exists() else "parent not found",
     }
+
+
+@app.get("/logo.png")
+async def logo():
+    logo_path = FRONTEND_DIR / "logo.png"
+    if logo_path.exists():
+        return FileResponse(str(logo_path), media_type="image/png")
+    raise HTTPException(404, "Logo not found")
 
 
 @app.get("/")

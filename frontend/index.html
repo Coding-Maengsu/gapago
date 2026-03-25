@@ -280,7 +280,8 @@
             margin-bottom: 24px;
         }
 
-        .status-msg .detail { font-size: 0.8em; color: var(--text-light); margin-top: 2px; }
+        .status-msg .detail { font-size: 0.8em; color: var(--text-light); margin-top: 2px; transition: opacity 0.3s; }
+        .status-msg .elapsed { font-size: 0.72em; color: var(--text-light); margin-top: 4px; opacity: 0.6; }
 
         /* Result tabs */
         .tabs {
@@ -380,11 +381,34 @@
             color: var(--text);
         }
 
-        .report-content h1 { font-size: 1.3em; color: var(--text); margin: 20px 0 10px; font-weight: 700; }
-        .report-content h2 { font-size: 1.1em; color: var(--text); margin: 18px 0 8px; font-weight: 600; }
-        .report-content h3 { font-size: 0.95em; color: var(--accent); margin: 14px 0 6px; font-weight: 600; }
+        .report-content h1 { font-size: 1.3em; color: var(--text); margin: 28px 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--accent); font-weight: 700; }
+        .report-content h2 { font-size: 1.1em; color: var(--text); margin: 24px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); font-weight: 600; }
+        .report-content h3 { font-size: 0.95em; color: var(--accent); margin: 18px 0 8px; font-weight: 600; }
         .report-content strong { color: var(--text); }
         .report-content code { background: var(--surface2); padding: 1px 5px; border-radius: 4px; font-size: 0.88em; }
+        .report-content ul, .report-content ol { padding-left: 20px; margin: 8px 0; }
+        .report-content li { margin-bottom: 4px; }
+        .report-content blockquote { border-left: 3px solid var(--accent); padding: 8px 16px; margin: 12px 0; background: var(--accent-light); border-radius: 0 8px 8px 0; font-style: italic; color: var(--text-dim); }
+        .report-content hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+        .report-actions {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .report-actions button {
+            padding: 6px 14px;
+            font-size: 0.8em;
+            font-family: inherit;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--surface);
+            color: var(--text-dim);
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.15s;
+        }
+        .report-actions button:hover { background: var(--surface2); color: var(--text); }
 
         /* Interrupt */
         .interrupt-card {
@@ -431,9 +455,22 @@
             padding: 100px 20px;
         }
 
-        .empty-state .icon { font-size: 3em; margin-bottom: 16px; opacity: 0.3; }
         .empty-state h3 { font-size: 1.1em; color: var(--text); font-weight: 600; margin-bottom: 6px; }
         .empty-state p { font-size: 0.85em; color: var(--text-dim); }
+        .example-queries { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+        .example-btn {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 0.82em;
+            color: var(--accent);
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
+            max-width: 500px;
+        }
+        .example-btn:hover { background: var(--accent-light); border-color: var(--accent); }
 
         /* Scrollbar */
         ::-webkit-scrollbar { width: 5px; }
@@ -446,8 +483,13 @@
 <!-- Sidebar -->
 <aside class="sidebar">
     <div class="sidebar-header">
-        <h1>GAPAGO</h1>
-        <p>Research GAP Analyzer</p>
+        <div style="display:flex;align-items:center;gap:10px;">
+            <img src="logo.png" alt="GAPAGO" style="width:36px;height:36px;border-radius:50%;">
+            <div>
+                <h1>GAPAGO</h1>
+                <p>Research GAP Analyzer</p>
+            </div>
+        </div>
     </div>
 
     <button class="new-btn" onclick="newAnalysis()">+ New Analysis</button>
@@ -488,9 +530,15 @@
 
     <div class="results" id="results">
         <div class="empty-state">
-            <div class="icon">&#x1F50D;</div>
+            <img src="logo.png" alt="GAPAGO" style="width:80px;height:80px;border-radius:50%;margin-bottom:16px;opacity:0.85;">
             <h3>Enter a research question to begin</h3>
             <p>GAPAGO retrieves papers, extracts limitations, and identifies research gaps.</p>
+            <div class="example-queries">
+                <p style="font-size:0.75em;color:var(--text-light);margin-bottom:8px;margin-top:20px;">Try an example:</p>
+                <button class="example-btn" onclick="fillQuery('Domain adaptation for fault detection in smart manufacturing')">Domain adaptation for fault detection in smart manufacturing</button>
+                <button class="example-btn" onclick="fillQuery('Multimodal emotion recognition using speech and facial expressions')">Multimodal emotion recognition using speech and facial expressions</button>
+                <button class="example-btn" onclick="fillQuery('LLM-based automated code review systems')">LLM-based automated code review systems</button>
+            </div>
         </div>
     </div>
 </div>
@@ -519,16 +567,24 @@ const STAGE_MAP = {
 };
 const STAGE_LABELS = ['Searching', 'Analyzing', 'Done'];
 const STAGE_DETAILS = {
-    query_subgraph: 'Refining your query...',
-    meaning_expand: 'Expanding search terms...',
-    paper_retrieval: 'Retrieving papers...',
-    limitation_extract: 'Extracting limitations...',
-    limitation_eval: 'Evaluating quality...',
-    recency_check: 'Checking recency...',
-    gap_infer: 'Identifying research gaps...',
-    critic_score: 'Scoring results...',
-    final_response: 'Generating report...',
+    query_subgraph: 'Refining your query to find the best papers...',
+    meaning_expand: 'Expanding search terms for broader coverage...',
+    paper_retrieval: 'Searching academic databases for relevant papers...',
+    limitation_extract: 'Reading papers and extracting limitations...',
+    limitation_eval: 'Evaluating extracted limitations for quality...',
+    recency_check: 'Checking if limitations are still relevant...',
+    gap_infer: 'Synthesizing gaps across multiple papers...',
+    critic_score: 'Reviewing results for accuracy — thinking deeper...',
+    final_response: 'Writing your research gap report...',
 };
+const THINKING_MESSAGES = [
+    'Thinking deeply for better results...',
+    'Carefully reviewing the data...',
+    'Cross-referencing findings...',
+    'Almost there — refining the analysis...',
+];
+let _thinkingInterval = null;
+let _startTime = null;
 
 let currentSessionId = null;
 let pipelineData = { papers: [], gaps: [], report: '' };
@@ -564,9 +620,26 @@ async function loadResult(filename) {
     } catch (e) { console.error(e); }
 }
 
+function fillQuery(q) {
+    document.getElementById('queryInput').value = q;
+    document.getElementById('queryInput').focus();
+}
+
 function newAnalysis() {
     document.getElementById('queryInput').value = '';
-    document.getElementById('results').innerHTML = `<div class="empty-state"><div class="icon">&#x1F50D;</div><h3>Enter a research question to begin</h3><p>GAPAGO retrieves papers, extracts limitations, and identifies research gaps.</p></div>`;
+    clearInterval(_thinkingInterval);
+    document.getElementById('results').innerHTML = `
+        <div class="empty-state">
+            <img src="logo.png" alt="GAPAGO" style="width:80px;height:80px;border-radius:50%;margin-bottom:16px;opacity:0.85;">
+            <h3>Enter a research question to begin</h3>
+            <p>GAPAGO retrieves papers, extracts limitations, and identifies research gaps.</p>
+            <div class="example-queries">
+                <p style="font-size:0.75em;color:var(--text-light);margin-bottom:8px;margin-top:20px;">Try an example:</p>
+                <button class="example-btn" onclick="fillQuery('Domain adaptation for fault detection in smart manufacturing')">Domain adaptation for fault detection in smart manufacturing</button>
+                <button class="example-btn" onclick="fillQuery('Multimodal emotion recognition using speech and facial expressions')">Multimodal emotion recognition using speech and facial expressions</button>
+                <button class="example-btn" onclick="fillQuery('LLM-based automated code review systems')">LLM-based automated code review systems</button>
+            </div>
+        </div>`;
     document.getElementById('runBtn').disabled = false;
     document.getElementById('runBtn').textContent = 'Analyze';
 }
@@ -583,6 +656,8 @@ async function startAnalysis() {
     runBtn.disabled = true;
     runBtn.textContent = 'Running...';
     pipelineData = { papers: [], gaps: [], report: '' };
+    _startTime = Date.now();
+    clearInterval(_thinkingInterval);
 
     // Build stepper + status + tabs
     results.innerHTML = `
@@ -650,8 +725,12 @@ function handleEvent(data) {
         currentSessionId = data.session_id;
         showInterrupt(data.clarify_prompt);
     } else if (data.event === 'complete') {
+        clearInterval(_thinkingInterval);
         updateStepper(2, 'final_response');
-        document.getElementById('statusMsg').innerHTML = '<span style="color:var(--green);font-weight:600">Analysis complete</span>';
+        const totalSecs = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
+        const tm = Math.floor(totalSecs / 60), ts = totalSecs % 60;
+        document.getElementById('statusMsg').innerHTML = `<span style="color:var(--green);font-weight:600">Analysis complete</span><div class="elapsed">${tm > 0 ? tm + 'm ' : ''}${ts}s total</div>`;
+        clearInterval(_thinkingInterval);
         renderResults();
         loadHistory();
     } else if (data.event === 'error') {
@@ -666,9 +745,27 @@ function updateStepper(activeStage, node) {
         step.className = i < activeStage ? 'step done' : (i === activeStage ? 'step active' : 'step');
         if (i < activeStage && line) line.className = 'step-line done';
     }
-    // Update status detail
     const detail = STAGE_DETAILS[node] || '';
-    document.getElementById('statusMsg').innerHTML = `${STAGE_LABELS[Math.min(activeStage, 2)]}...<div class="detail">${detail}</div>`;
+    const elapsed = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
+    const mins = Math.floor(elapsed / 60);
+    const secs = elapsed % 60;
+    const timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+    document.getElementById('statusMsg').innerHTML = `${STAGE_LABELS[Math.min(activeStage, 2)]}...<div class="detail">${detail}</div><div class="elapsed">${timeStr} elapsed</div>`;
+
+    // Reset thinking rotation
+    clearInterval(_thinkingInterval);
+    _thinkingInterval = setInterval(() => {
+        const el = document.querySelector('#statusMsg .detail');
+        if (el) {
+            const msg = THINKING_MESSAGES[Math.floor(Math.random() * THINKING_MESSAGES.length)];
+            el.textContent = msg;
+        }
+        // Update elapsed time
+        const elapsedNow = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
+        const m = Math.floor(elapsedNow / 60), s = elapsedNow % 60;
+        const elEl = document.querySelector('#statusMsg .elapsed');
+        if (elEl) elEl.textContent = `${m > 0 ? m + 'm ' : ''}${s}s elapsed`;
+    }, 8000);
 }
 
 function collectData(data) {
@@ -692,7 +789,8 @@ function renderResults() {
     if (pipelineData.papers.length) {
         papersHtml = `<table><thead><tr><th>#</th><th>Title</th><th>Year</th><th>Authors</th></tr></thead><tbody>`;
         pipelineData.papers.forEach((p, i) => {
-            papersHtml += `<tr><td>${i+1}</td><td>${esc(p.title)}</td><td>${p.year}</td><td style="color:var(--text-dim)">${(p.authors||[]).slice(0,3).join(', ')}</td></tr>`;
+            const titleCell = p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">${esc(p.title)}</a>` : esc(p.title);
+            papersHtml += `<tr><td>${i+1}</td><td>${titleCell}</td><td>${p.year}</td><td style="color:var(--text-dim)">${(p.authors||[]).slice(0,3).join(', ')}</td></tr>`;
         });
         papersHtml += '</tbody></table>';
     } else {
@@ -721,9 +819,16 @@ function renderResults() {
     document.getElementById('tab-gaps').innerHTML = gapsHtml;
 
     // Report tab
-    document.getElementById('tab-report').innerHTML = pipelineData.report
-        ? `<div class="report-content">${renderMarkdown(pipelineData.report)}</div>`
-        : '<p style="color:var(--text-dim);padding:20px;text-align:center">No report generated.</p>';
+    if (pipelineData.report) {
+        document.getElementById('tab-report').innerHTML = `
+            <div class="report-actions">
+                <button onclick="copyReport()">Copy to clipboard</button>
+                <button onclick="downloadReport()">Download (.md)</button>
+            </div>
+            <div class="report-content">${renderMarkdown(pipelineData.report)}</div>`;
+    } else {
+        document.getElementById('tab-report').innerHTML = '<p style="color:var(--text-dim);padding:20px;text-align:center">No report generated.</p>';
+    }
 
     switchTab('gaps');
 }
@@ -808,13 +913,36 @@ function renderSavedResult(data) {
 function renderMarkdown(text) {
     return text
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/^---$/gm, '<hr>')
         .replace(/^### (.+)$/gm, '<h3>$1</h3>')
         .replace(/^## (.+)$/gm, '<h2>$1</h2>')
         .replace(/^# (.+)$/gm, '<h1>$1</h1>')
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.+?)\*/g, '<em>$1</em>')
         .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+        .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
         .replace(/\n/g, '<br>');
+}
+
+function copyReport() {
+    navigator.clipboard.writeText(pipelineData.report).then(() => {
+        const btn = document.querySelector('.report-actions button');
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = orig, 1500);
+    });
+}
+
+function downloadReport() {
+    const blob = new Blob([pipelineData.report], { type: 'text/markdown' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'gapago_report.md';
+    a.click();
+    URL.revokeObjectURL(a.href);
 }
 
 function esc(str) {
