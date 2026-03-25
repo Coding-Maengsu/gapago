@@ -477,6 +477,8 @@ def limitation_extract_node(state: AgentState) -> AgentState:
                 print(f"  ⚠️ Paper 변환 실패: {e}")
                 continue
 
+    provider = state.get("llm_provider")
+
     all_limitations = []
     fulltext_fail_count = 0
     llm_fail_count = 0
@@ -488,7 +490,7 @@ def limitation_extract_node(state: AgentState) -> AgentState:
                   "fulltext_failed": False, "llm_failed": False, "content": "[]"}
 
         # 스레드 내에서 LLM 인스턴스 획득 (provider 변경 반영)
-        llm = get_llm()
+        llm = get_llm(provider=provider)
 
         # full text 로드
         sections = _load_full_text_sections(paper)

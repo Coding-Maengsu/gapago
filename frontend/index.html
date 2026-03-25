@@ -442,8 +442,9 @@
         .empty-state { text-align: center; padding: 80px 20px 60px; }
         .empty-state h3 { font-size: 1.15em; color: var(--text); font-weight: 700; margin-bottom: 8px; letter-spacing: -0.3px; }
         .empty-state .subtitle { font-size: 0.86em; color: var(--text-dim); line-height: 1.6; max-width: 480px; margin: 0 auto; }
-        .example-queries { display: flex; flex-direction: column; gap: 6px; align-items: center; margin-top: 28px; }
+        .example-queries { display: flex; flex-direction: column; gap: 6px; align-items: center; margin-top: 28px; max-width: 520px; margin-left: auto; margin-right: auto; }
         .example-queries .label { font-size: 0.72em; color: var(--text-light); margin-bottom: 4px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+        .example-category { font-size: 0.7em; color: var(--accent); font-weight: 600; margin-top: 10px; margin-bottom: 2px; letter-spacing: 0.3px; align-self: flex-start; }
         .example-btn {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -628,23 +629,7 @@
         </div>
     </div>
 
-    <div class="results" id="results">
-        <div class="empty-state">
-            <img src="logo.png" alt="GAPAGO" style="width:72px;height:72px;border-radius:50%;object-fit:cover;margin-bottom:20px;opacity:0.9;">
-            <h3>GAPAGO</h3>
-            <p class="subtitle">
-                논문 아이디어 탐색이 어려우셨나요?<br>
-                연구 방향을 입력하면 관련 논문을 검색하고, 한계점을 분석하여<br>
-                새로운 연구 기회(Research GAP)를 자동으로 발견해 드립니다.
-            </p>
-            <div class="example-queries">
-                <span class="label">Try an example</span>
-                <button class="example-btn" onclick="fillQuery('Domain adaptation for fault detection in smart manufacturing')">Domain adaptation for fault detection in smart manufacturing</button>
-                <button class="example-btn" onclick="fillQuery('Multimodal emotion recognition using speech and facial expressions')">Multimodal emotion recognition using speech and facial expressions</button>
-                <button class="example-btn" onclick="fillQuery('LLM-based automated code review systems')">LLM-based automated code review systems</button>
-            </div>
-        </div>
-    </div>
+    <div class="results" id="results"></div>
 </div>
 
 <script>
@@ -691,7 +676,80 @@ let _startTime = null;
 let currentSessionId = null;
 let pipelineData = { papers: [], gaps: [], report: '' };
 
-const EMPTY_STATE_HTML = `
+const EXAMPLE_CATEGORIES = {
+    'AI / Machine Learning': [
+        'LLM-based automated code review systems',
+        'Federated learning for privacy-preserving medical AI',
+        'Vision-language models for zero-shot object detection',
+        'Reinforcement learning from human feedback in dialogue systems',
+        'Neural architecture search for edge deployment',
+        'Multimodal emotion recognition using speech and facial expressions',
+    ],
+    'Biomedical / Healthcare': [
+        'Single-cell RNA sequencing for cancer subtype classification',
+        'Drug-drug interaction prediction using graph neural networks',
+        'AI-assisted early detection of Alzheimer\'s disease from neuroimaging',
+        'CRISPR off-target effect prediction with deep learning',
+        'Wearable biosensors for continuous glucose monitoring',
+        'Digital twin models for personalized cancer treatment planning',
+    ],
+    'Materials / Energy': [
+        'Machine learning for novel battery electrolyte discovery',
+        'Perovskite solar cell stability prediction using computational methods',
+        'Generative models for metamaterial design optimization',
+        'Hydrogen storage in metal-organic frameworks',
+        'Thermal management of high-power electronics using phase-change materials',
+        'Sustainable polymer recycling via catalytic depolymerization',
+    ],
+    'Robotics / Manufacturing': [
+        'Domain adaptation for fault detection in smart manufacturing',
+        'Sim-to-real transfer in robotic manipulation tasks',
+        'Multi-robot coordination for warehouse logistics',
+        'Digital twin-based predictive maintenance in Industry 4.0',
+        'Soft robotics actuators for minimally invasive surgery',
+        'Human-robot collaboration safety in shared workspaces',
+    ],
+    'Environment / Earth Science': [
+        'Satellite imagery and deep learning for deforestation monitoring',
+        'Physics-informed neural networks for climate modeling',
+        'Microplastic detection in marine environments using spectroscopy',
+        'Urban heat island mitigation through green infrastructure planning',
+        'AI-driven wildfire spread prediction from multi-sensor data',
+        'Carbon capture efficiency optimization in direct air capture systems',
+    ],
+    'Quantum / Physics': [
+        'Quantum error correction for near-term noisy quantum devices',
+        'Variational quantum eigensolvers for molecular simulation',
+        'Topological insulator applications in spintronics',
+        'Machine learning potentials for molecular dynamics simulation',
+        'Photonic integrated circuits for quantum communication',
+        'Plasma confinement optimization in compact fusion reactors',
+    ],
+};
+
+function getRandomExamples(perCategory = 2) {
+    const cats = Object.keys(EXAMPLE_CATEGORIES);
+    // Pick a random subset of 3-4 categories
+    const shuffled = cats.sort(() => Math.random() - 0.5);
+    const selected = shuffled.slice(0, 4);
+    const examples = [];
+    selected.forEach(cat => {
+        const qs = [...EXAMPLE_CATEGORIES[cat]].sort(() => Math.random() - 0.5).slice(0, perCategory);
+        examples.push({ category: cat, queries: qs });
+    });
+    return examples;
+}
+
+function getEmptyStateHTML() {
+    const examples = getRandomExamples(2);
+    let buttonsHTML = '';
+    examples.forEach(({ category, queries }) => {
+        buttonsHTML += `<span class="example-category">${esc(category)}</span>`;
+        queries.forEach(q => {
+            buttonsHTML += `<button class="example-btn" onclick="fillQuery('${q.replace(/'/g, "\\'")}')">${esc(q)}</button>`;
+        });
+    });
+    return `
     <div class="empty-state">
         <img src="logo.png" alt="GAPAGO" style="width:72px;height:72px;border-radius:50%;object-fit:cover;margin-bottom:20px;opacity:0.9;">
         <h3>GAPAGO</h3>
@@ -702,13 +760,13 @@ const EMPTY_STATE_HTML = `
         </p>
         <div class="example-queries">
             <span class="label">Try an example</span>
-            <button class="example-btn" onclick="fillQuery('Domain adaptation for fault detection in smart manufacturing')">Domain adaptation for fault detection in smart manufacturing</button>
-            <button class="example-btn" onclick="fillQuery('Multimodal emotion recognition using speech and facial expressions')">Multimodal emotion recognition using speech and facial expressions</button>
-            <button class="example-btn" onclick="fillQuery('LLM-based automated code review systems')">LLM-based automated code review systems</button>
+            ${buttonsHTML}
         </div>
     </div>`;
+}
 
 document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('results').innerHTML = getEmptyStateHTML();
     document.getElementById('runBtn').addEventListener('click', startAnalysis);
     loadHistory();
 });
@@ -753,7 +811,7 @@ function setInputEnabled(enabled) {
 function newAnalysis() {
     document.getElementById('queryInput').value = '';
     clearInterval(_thinkingInterval);
-    document.getElementById('results').innerHTML = EMPTY_STATE_HTML;
+    document.getElementById('results').innerHTML = getEmptyStateHTML();
     setInputEnabled(true);
 }
 

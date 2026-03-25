@@ -202,6 +202,7 @@ class AgentState(TypedDict):
     papers: List[dict]
     web_results: List[dict]  # 웹 검색 결과 (논문 풀과 분리, recency_check에서 사용)
     research_domain: str     # 연구 도메인 (auto/ai_cs/biomedical/materials_chemistry/physics/general)
+    llm_provider: str        # LLM 프로바이더 (azure/claude/gemini/exaone)
 
     # ==================================================================
     # -3- LIMITATION AGENT

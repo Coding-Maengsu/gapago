@@ -10,9 +10,6 @@ from llm import get_llm
 from states import AgentState
 
 
-llm = get_llm()
-
-
 def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", (text or "")).strip()
 
@@ -75,6 +72,8 @@ def _extract_query_context(state: AgentState) -> dict[str, Any]:
 
 
 def meaning_expand_node(state: AgentState) -> AgentState:
+    llm = get_llm(provider=state.get("llm_provider"))
+
     ctx = _extract_query_context(state)
     refined_query = ctx["refined_query"]
     keywords = ctx["keywords"]

@@ -184,9 +184,6 @@ async def analyze(query: str, provider: str = "azure", domain: str = "auto", use
     Start a new analysis pipeline. Streams node-by-node results as SSE.
     Uses GET to avoid proxy POST blocking.
     """
-    os.environ["LLM_PROVIDER"] = provider
-    get_llm.cache_clear()
-
     session_id = str(uuid.uuid4())
     graph = build_graph()
     config_dict = {
@@ -198,6 +195,7 @@ async def analyze(query: str, provider: str = "azure", domain: str = "auto", use
         "messages": [HumanMessage(content=query)],
         "max_iterations": 3,
         "research_domain": domain,
+        "llm_provider": provider,
     }
 
     async def event_stream():
@@ -205,7 +203,7 @@ async def analyze(query: str, provider: str = "azure", domain: str = "auto", use
         clarify_prompt = None
 
         try:
-            for event in graph.stream(inputs, config_dict, subgraphs=True):
+            async for event in graph.astream(inputs, config_dict, subgraphs=True):
                 path, update = event
 
                 # Subgraph internal events
@@ -287,7 +285,7 @@ async def clarify(session_id: str, response: str):
         clarify_prompt = None
 
         try:
-            for event in graph.stream(None, config_dict, subgraphs=True):
+            async for event in graph.astream(None, config_dict, subgraphs=True):
                 path, update = event
 
                 if path:

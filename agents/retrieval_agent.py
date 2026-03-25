@@ -10,16 +10,11 @@ from llm import get_llm
 from config import Configuration
 from utils.parse_json import parse_json
 
-llm = get_llm()
-
 ROLE_TOOLS = build_role_tools()
 RETRIEVAL_TOOLS = ROLE_TOOLS["RETRIEVAL_TOOLS"]
 
-paper_retrieval_agent = create_agent(
-    llm,
-    tools=RETRIEVAL_TOOLS,
-    system_prompt=make_system_prompt(
-        """ROLE: Paper Retrieval Agent
+_RETRIEVAL_SYSTEM_PROMPT = make_system_prompt(
+    """ROLE: Paper Retrieval Agent
 You are a retrieval orchestrator. Your job is to SELECT and CALL the most appropriate search tools.
 
 Available tools:
@@ -52,8 +47,17 @@ Output JSON with fields:
 - notes: list[str]
 Do NOT infer limitations or gaps.
 """
-    ),
 )
+
+
+def _build_retrieval_agent(provider: str = None):
+    """Build the paper retrieval agent with the specified LLM provider."""
+    llm = get_llm(provider=provider)
+    return create_agent(
+        llm,
+        tools=RETRIEVAL_TOOLS,
+        system_prompt=_RETRIEVAL_SYSTEM_PROMPT,
+    )
 
 
 def _parse_papers_from_ai_message(content: str) -> list[dict]:
@@ -183,7 +187,7 @@ Return a JSON object:
 IMPORTANT: Return ONLY the JSON object. Select exactly {top_k} papers (or fewer if fewer are truly relevant)."""
 
 
-def _llm_rerank(papers: list[dict], query: str, top_k: int) -> list[dict]:
+def _llm_rerank(papers: list[dict], query: str, top_k: int, provider: str = None) -> list[dict]:
     """LLM Reranker: BM25 필터링된 논문에서 GAP 분석에 가장 적합한 논문 선별."""
     if len(papers) <= top_k:
         return papers
@@ -203,7 +207,7 @@ def _llm_rerank(papers: list[dict], query: str, top_k: int) -> list[dict]:
     )
 
     try:
-        llm = get_llm()
+        llm = get_llm(provider=provider)
         response = llm.invoke([HumanMessage(content=prompt)])
         content = response.content if hasattr(response, "content") else str(response)
         parsed = parse_json(content)
@@ -242,6 +246,9 @@ def _llm_rerank(papers: list[dict], query: str, top_k: int) -> list[dict]:
 
 
 def paper_retrieval_node(state: AgentState) -> AgentState:
+    provider = state.get("llm_provider")
+    paper_retrieval_agent = _build_retrieval_agent(provider=provider)
+
     messages = state.get("messages", [])
     print(f"  [DEBUG] 전체 messages 수: {len(messages)}")
     for i, m in enumerate(messages):
@@ -296,7 +303,7 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
 
     # ✅ LLM Reranker 2차 선별 (정밀)
     if raw_papers and query and len(raw_papers) > cfg.reranker_top_k:
-        raw_papers = _llm_rerank(raw_papers, query, top_k=cfg.reranker_top_k)
+        raw_papers = _llm_rerank(raw_papers, query, top_k=cfg.reranker_top_k, provider=provider)
     print(f"  [DEBUG] LLM Reranker 2nd stage: {len(raw_papers)} papers")
 
     # ✅ Paper 객체로 변환
