@@ -64,6 +64,20 @@ def _format_timestamp(ts: str) -> str:
 # =====================================================================
 # 유틸
 # =====================================================================
+def _clean_report_markdown(text: str) -> str:
+    """
+    response_agent 출력의 마크다운을 정리.
+    - 유니코드 구분선(────)을 마크다운 hr(---)로 교체
+    - 마크다운 테이블 앞뒤 공백 확보
+    """
+    import re
+    # 유니코드 수평선 → markdown hr
+    text = re.sub(r'[─━═]{4,}', '---', text)
+    # FINAL ANSWER 태그 제거
+    text = re.sub(r'FINAL ANSWER\s*$', '', text, flags=re.MULTILINE)
+    return text.strip()
+
+
 def _get_node_label(name: str) -> tuple[str, str]:
     """노드 이름 → (아이콘, 한글 라벨)"""
     labels = {
@@ -520,7 +534,7 @@ _Supporting papers: {', '.join(gap.get('supporting_papers', [])[:5])}_
             for msg in msgs:
                 content = getattr(msg, "content", "")
                 if content:
-                    st.markdown(content)
+                    st.markdown(_clean_report_markdown(content))
 
 
 def _save_result(query: str, state_values: dict):
@@ -533,11 +547,25 @@ def _save_result(query: str, state_values: dict):
             "content": getattr(msg, "content", ""),
         })
 
+    # papers 직렬화 (dataclass/Pydantic 객체도 dict로 변환)
+    papers_out = []
+    for p in state_values.get("papers", []):
+        if isinstance(p, dict):
+            papers_out.append(p)
+        else:
+            papers_out.append({
+                "paper_id": getattr(p, "paper_id", ""),
+                "title": getattr(p, "title", ""),
+                "year": getattr(p, "year", ""),
+                "authors": getattr(p, "authors", []),
+            })
+
     result = {
         "query": query,
         "timestamp": datetime.now().isoformat(),
         "refined_query": state_values.get("refined_query", ""),
         "keywords": state_values.get("keywords", []),
+        "papers": papers_out,
         "limitations": state_values.get("limitations", []),
         "gaps": state_values.get("gaps", []),
         "web_results": state_values.get("web_results", []),
@@ -562,11 +590,27 @@ def _show_loaded_result(data: dict):
         st.caption(f"Refined: {data['refined_query']}")
     st.caption(f"Timestamp: {data.get('timestamp', '')}")
 
-    # Papers (messages에서 추출)
-    with st.expander("📄 Paper Retrieval", expanded=False):
-        paper_msgs = [m for m in data.get("messages", []) if m.get("name") == "paper_retrieval"]
-        if paper_msgs:
-            st.text(paper_msgs[0].get("content", "")[:500])
+    # Papers — state에 저장된 구조화 데이터 우선, 없으면 messages에서 추출
+    papers = data.get("papers", [])
+    with st.expander(f"📄 Paper Retrieval ({len(papers)}편)", expanded=False):
+        if papers:
+            import pandas as pd
+            rows = []
+            for p in papers:
+                if isinstance(p, dict):
+                    rows.append({
+                        "ID": p.get("paper_id", "")[:25],
+                        "Title": p.get("title", "")[:70],
+                        "Year": p.get("year", ""),
+                        "Source": p.get("paper_id", "").split(":")[0] if ":" in p.get("paper_id", "") else "",
+                    })
+            if rows:
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        else:
+            # fallback: messages에서 텍스트 추출
+            paper_msgs = [m for m in data.get("messages", []) if m.get("name") == "paper_retrieval"]
+            if paper_msgs:
+                st.markdown(paper_msgs[0].get("content", "")[:2000])
 
     # Limitations
     limitations = data.get("limitations", [])
@@ -629,8 +673,9 @@ def _show_loaded_result(data: dict):
     # Final Report
     final_msgs = [m for m in data.get("messages", []) if m.get("name") == "final_response"]
     if final_msgs:
-        with st.expander("📝 Final Report", expanded=False):
-            st.markdown(final_msgs[0].get("content", ""))
+        with st.expander("📝 Final Report", expanded=True):
+            cleaned = _clean_report_markdown(final_msgs[0].get("content", ""))
+            st.markdown(cleaned)
 
 
 # =====================================================================
