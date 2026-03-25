@@ -105,6 +105,21 @@ def _parse_papers_from_tool_messages(messages: list) -> list[dict]:
         source = data.get("source", "")
         if source in ("arxiv", "scienceon", "semantic_scholar", "openalex"):
             papers.extend(data.get("results", []))
+        elif source in ("scienceon_patent", "scienceon_report"):
+            # 특허/보고서 결과를 papers 형식으로 정규화
+            for r in data.get("results", []):
+                paper_id = r.get("patent_id") or r.get("report_id") or ""
+                papers.append({
+                    "paper_id": paper_id,
+                    "title": r.get("title", ""),
+                    "abstract": r.get("abstract", ""),
+                    "url": r.get("url", ""),
+                    "year": r.get("year", 0),
+                    "authors": r.get("authors", []) if "authors" in r else [r.get("applicants", "")],
+                    "score_bm25": 0.0,
+                    "source": source,
+                    "full_text_sections": r.get("raw", {}),
+                })
         # web source는 별도 처리 (papers에 합치지 않음)
     return papers
 
