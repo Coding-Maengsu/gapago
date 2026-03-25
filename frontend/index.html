@@ -44,7 +44,8 @@
             display: flex;
             height: 100vh;
             overflow: hidden;
-            font-size: 15px;
+            font-size: 16px;
+            line-height: 1.6;
             -webkit-font-smoothing: antialiased;
         }
 
@@ -182,12 +183,12 @@
 
         .input-row input {
             flex: 1;
-            padding: 12px 16px;
+            padding: 13px 16px;
             background: var(--surface2);
             color: var(--text);
             border: 1.5px solid var(--border);
             border-radius: var(--radius);
-            font-size: 0.94em;
+            font-size: 1em;
             font-family: inherit;
             outline: none;
             transition: border-color 0.15s, box-shadow 0.15s;
@@ -204,7 +205,7 @@
             border-radius: var(--radius);
             cursor: pointer;
             font-weight: 600;
-            font-size: 0.94em;
+            font-size: 1em;
             font-family: inherit;
             white-space: nowrap;
             transition: background 0.15s, box-shadow 0.15s;
@@ -282,7 +283,7 @@
         /* ── Status ── */
         .status-msg {
             text-align: center;
-            font-size: 0.94em;
+            font-size: 1em;
             font-weight: 500;
             color: var(--text-dim);
             margin-bottom: 20px;
@@ -300,7 +301,7 @@
 
         .tab {
             padding: 10px 20px;
-            font-size: 0.9em;
+            font-size: 0.95em;
             font-weight: 500;
             color: var(--text-light);
             cursor: pointer;
@@ -318,7 +319,7 @@
         .tab-content.active { display: block; }
 
         /* ── Papers table ── */
-        table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.94em; }
 
         th {
             text-align: left;
@@ -366,8 +367,8 @@
         .gap-card.top .gap-rank { background: var(--yellow-light); color: var(--yellow); }
 
         .gap-card .axis { font-size: 0.82em; color: var(--text-light); margin-bottom: 6px; }
-        .gap-card .statement { font-size: 1em; font-weight: 600; color: var(--text); margin-bottom: 10px; line-height: 1.6; }
-        .gap-card .elaboration { font-size: 0.9em; color: var(--text-dim); line-height: 1.7; margin-bottom: 10px; }
+        .gap-card .statement { font-size: 1.05em; font-weight: 600; color: var(--text); margin-bottom: 10px; line-height: 1.65; }
+        .gap-card .elaboration { font-size: 0.95em; color: var(--text-dim); line-height: 1.75; margin-bottom: 10px; }
         .gap-card .topic { font-size: 0.86em; color: var(--accent2); font-weight: 500; }
         .gap-card .papers-info { font-size: 0.8em; color: var(--text-light); margin-top: 8px; line-height: 1.6; }
         .gap-card .papers-info .paper-link { color: var(--accent); text-decoration: none; font-weight: 500; }
@@ -375,10 +376,10 @@
         tr.highlight { background: var(--accent-light) !important; transition: background 0.3s; }
 
         /* ── Report ── */
-        .report-content { font-size: 0.95em; line-height: 1.85; color: var(--text); }
-        .report-content h1 { font-size: 1.35em; color: var(--text); margin: 28px 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--accent); font-weight: 700; }
-        .report-content h2 { font-size: 1.15em; color: var(--text); margin: 24px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); font-weight: 600; }
-        .report-content h3 { font-size: 1em; color: var(--accent); margin: 18px 0 8px; font-weight: 600; }
+        .report-content { font-size: 1em; line-height: 1.9; color: var(--text); }
+        .report-content h1 { font-size: 1.4em; color: var(--text); margin: 28px 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--accent); font-weight: 700; }
+        .report-content h2 { font-size: 1.2em; color: var(--text); margin: 24px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); font-weight: 600; }
+        .report-content h3 { font-size: 1.05em; color: var(--accent); margin: 18px 0 8px; font-weight: 600; }
         .report-content strong { color: var(--text); }
         .report-content code { background: var(--surface2); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
         .report-content ul, .report-content ol { padding-left: 22px; margin: 8px 0; }
@@ -444,8 +445,8 @@
 
         /* ── Empty state ── */
         .empty-state { text-align: center; padding: 80px 20px 60px; }
-        .empty-state h3 { font-size: 1.25em; color: var(--text); font-weight: 700; margin-bottom: 8px; letter-spacing: -0.3px; }
-        .empty-state .subtitle { font-size: 0.92em; color: var(--text-dim); line-height: 1.65; max-width: 480px; margin: 0 auto; }
+        .empty-state h3 { font-size: 1.3em; color: var(--text); font-weight: 700; margin-bottom: 8px; letter-spacing: -0.3px; }
+        .empty-state .subtitle { font-size: 0.96em; color: var(--text-dim); line-height: 1.65; max-width: 480px; margin: 0 auto; }
         .example-queries { display: flex; flex-direction: column; gap: 6px; align-items: center; margin-top: 28px; max-width: 520px; margin-left: auto; margin-right: auto; }
         .example-queries .label { font-size: 0.8em; color: var(--text-light); margin-bottom: 4px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
         .example-category { font-size: 0.78em; color: var(--accent); font-weight: 600; margin-top: 10px; margin-bottom: 2px; letter-spacing: 0.3px; align-self: flex-start; }
