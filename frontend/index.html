@@ -740,19 +740,22 @@ function switchTab(name) {
 
 function showInterrupt(prompt) {
     const results = document.getElementById('results');
+    document.getElementById('statusMsg').innerHTML = '<span style="color:var(--yellow);font-weight:600">Waiting for your input...</span>';
     const div = document.createElement('div');
     div.className = 'interrupt-card';
     div.id = 'interruptCard';
+    const formatted = prompt ? esc(prompt).replace(/\n/g, '<br>') : '';
     div.innerHTML = `
         <h3>Query Clarification Needed</h3>
-        ${prompt ? `<div class="prompt">${esc(prompt)}</div>` : ''}
-        <input type="text" id="clarifyInput" placeholder="Provide additional details..." onkeydown="if(event.key==='Enter') resumePipeline()">
+        ${formatted ? `<div class="prompt">${formatted}</div>` : ''}
+        <input type="text" id="clarifyInput" placeholder="번호를 입력하거나 원하는 방향을 직접 입력하세요..." onkeydown="if(event.key==='Enter') resumePipeline()">
         <div class="interrupt-actions">
             <button class="btn-resume" onclick="resumePipeline()">Continue</button>
-            <button class="btn-skip" onclick="skipClarification()">Proceed as-is</button>
+            <button class="btn-skip" onclick="skipClarification()">Skip (proceed as-is)</button>
         </div>
     `;
     results.appendChild(div);
+    document.getElementById('clarifyInput').focus();
 }
 
 async function resumePipeline() {

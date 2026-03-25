@@ -81,13 +81,13 @@ def _save_result(query: str, state_values: dict, user_id: str = "") -> str:
     papers = state_values.get("papers", [])
     papers_out = []
     for p in papers:
-        if isinstance(p, dict):
-            papers_out.append({
-                "paper_id": p.get("paper_id", ""),
-                "title": p.get("title", ""),
-                "year": p.get("year", 0),
-                "authors": p.get("authors", []),
-            })
+        d = p if isinstance(p, dict) else (p.model_dump() if hasattr(p, "model_dump") else p.__dict__)
+        papers_out.append({
+            "paper_id": d.get("paper_id", ""),
+            "title": d.get("title", ""),
+            "year": d.get("year", 0),
+            "authors": d.get("authors", []),
+        })
 
     result = {
         "query": query,
@@ -190,7 +190,7 @@ async def analyze(query: str, provider: str = "azure", domain: str = "auto", use
                             interrupted = True
                         if isinstance(values, dict):
                             for msg in values.get("messages", []):
-                                if getattr(msg, "name", None) == "scope_prompt":
+                                if getattr(msg, "name", None) == "clarify_prompt":
                                     clarify_prompt = msg.content
                     continue
 
@@ -240,9 +240,20 @@ async def clarify(session_id: str, response: str):
     query = session["query"]
     user_id = session.get("user_id", "")
 
-    # Inject user response
+    # Inject user response into the interrupted subgraph
+    current_state = graph.get_state(config_dict, subgraphs=True)
+    target_config = config_dict
+    state_stack = current_state
+    while state_stack and state_stack.tasks:
+        task = state_stack.tasks[0]
+        if hasattr(task, "state") and task.state:
+            target_config = task.state.config
+            state_stack = task.state
+        else:
+            break
+
     graph.update_state(
-        config_dict,
+        target_config,
         {"messages": [HumanMessage(content=response)]},
     )
 
@@ -260,7 +271,7 @@ async def clarify(session_id: str, response: str):
                             interrupted = True
                         if isinstance(values, dict):
                             for msg in values.get("messages", []):
-                                if getattr(msg, "name", None) == "scope_prompt":
+                                if getattr(msg, "name", None) == "clarify_prompt":
                                     clarify_prompt = msg.content
                     continue
 
@@ -315,13 +326,13 @@ def _build_node_payload(node: str, values: dict) -> dict:
         payload["papers_count"] = len(papers)
         payload["papers"] = []
         for p in papers:
-            if isinstance(p, dict):
-                payload["papers"].append({
-                    "paper_id": p.get("paper_id", ""),
-                    "title": p.get("title", ""),
-                    "year": p.get("year", ""),
-                    "authors": p.get("authors", [])[:3],
-                })
+            d = p if isinstance(p, dict) else (p.model_dump() if hasattr(p, "model_dump") else p.__dict__)
+            payload["papers"].append({
+                "paper_id": d.get("paper_id", ""),
+                "title": d.get("title", ""),
+                "year": d.get("year", ""),
+                "authors": (d.get("authors") or [])[:3],
+            })
         payload["web_results_count"] = len(values.get("web_results", []))
 
     elif node == "limitation_extract":
