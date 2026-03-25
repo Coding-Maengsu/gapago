@@ -42,15 +42,19 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 # ── Startup warm-up ──────────────────────────────────────────────────
 @app.on_event("startup")
 async def warmup():
-    """Pre-initialize LLM and graph on startup to reduce first-request latency."""
-    try:
-        print("[startup] Warming up LLM...")
-        get_llm()
-        print("[startup] Warming up graph...")
-        build_graph()
-        print("[startup] Warm-up complete.")
-    except Exception as e:
-        print(f"[startup] Warm-up failed (non-fatal): {e}")
+    """Pre-initialize LLM and graph in background to avoid blocking server start."""
+    async def _warmup():
+        await asyncio.sleep(1)  # Let server start accepting requests first
+        try:
+            print("[startup] Warming up LLM...")
+            get_llm()
+            print("[startup] Warming up graph...")
+            build_graph()
+            print("[startup] Warm-up complete.")
+        except Exception as e:
+            print(f"[startup] Warm-up failed (non-fatal): {e}")
+
+    asyncio.create_task(_warmup())
 
 
 @app.get("/api/health")
