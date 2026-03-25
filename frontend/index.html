@@ -373,7 +373,7 @@
         .gap-card .papers-info { font-size: 0.8em; color: var(--text-light); margin-top: 8px; line-height: 1.6; }
         .gap-card .papers-info .paper-link { color: var(--accent); text-decoration: none; font-weight: 500; }
         .gap-card .papers-info .paper-link:hover { text-decoration: underline; }
-        tr.highlight { background: var(--accent-light) !important; transition: background 0.3s; }
+        tr.highlight { background: rgba(84,105,212,0.15) !important; box-shadow: inset 4px 0 0 var(--accent); transition: background 0.5s, box-shadow 0.5s; }
 
         /* ── Report ── */
         .report-content { font-size: 1em; line-height: 1.9; color: var(--text); }
@@ -1000,8 +1000,7 @@ function renderResults() {
                 <div class="papers-info">Supporting: ${(gap.supporting_papers||[]).slice(0,5).map(pid => {
                     const idx = pipelineData.papers.findIndex(p => p.paper_id === pid);
                     if (idx !== -1) {
-                        const title = esc(pipelineData.papers[idx].title || pid);
-                        return `<a href="#" class="paper-link" onclick="event.preventDefault();switchTab('papers');document.querySelectorAll('#tab-papers tr')[${idx+1}]?.scrollIntoView({behavior:'smooth',block:'center'});document.querySelectorAll('#tab-papers tr')[${idx+1}]?.classList.add('highlight');setTimeout(()=>document.querySelectorAll('#tab-papers tr')[${idx+1}]?.classList.remove('highlight'),2000)">${title}</a>`;
+                        return `<a href="#" class="paper-link" onclick="event.preventDefault();switchTab('papers');document.querySelectorAll('#tab-papers tr').forEach(r=>r.classList.remove('highlight'));document.querySelectorAll('#tab-papers tr')[${idx+1}]?.scrollIntoView({behavior:'smooth',block:'center'});document.querySelectorAll('#tab-papers tr')[${idx+1}]?.classList.add('highlight');setTimeout(()=>document.querySelectorAll('#tab-papers tr')[${idx+1}]?.classList.remove('highlight'),3000)">${esc(pid)}</a>`;
                     }
                     return esc(pid);
                 }).join(', ')}</div>
