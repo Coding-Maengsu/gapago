@@ -48,9 +48,9 @@ GAP_AXES_DYNAMIC_MAX = 2
 
 # ── LLM 헬퍼 ─────────────────────────────────────────────────────────────────
 
-def _llm_invoke(messages: list[dict]) -> str:
+def _llm_invoke(messages: list[dict], provider: str = None) -> str:
     """dict 형태의 messages를 LangChain 메시지로 변환 후 LLM 호출."""
-    llm = get_llm()
+    llm = get_llm(provider=provider)
     lc_messages = []
     for m in messages:
         role = m["role"]
@@ -138,7 +138,7 @@ def _load_fixed_axes() -> dict:
 
 # ── Step 2. 동적 축 생성 ──────────────────────────────────────────────────────
 
-def _generate_dynamic_axes(limitations_text: str, fixed_axes: dict, research_question: str) -> list:
+def _generate_dynamic_axes(limitations_text: str, fixed_axes: dict, research_question: str, provider: str = None) -> list:
     fixed_summary = "\n".join(
         f"  - {k}: {v['description']}" for k, v in fixed_axes.items()
     )
@@ -185,7 +185,7 @@ Output JSON only:
     ]
 
     try:
-        response = _llm_invoke(messages)
+        response = _llm_invoke(messages, provider=provider)
         result = parse_json(response)
         axes = result.get("dynamic_axes", [])
 
@@ -221,7 +221,7 @@ def _build_final_axes(fixed_axes: dict, dynamic_axes: list) -> dict:
 
 # ── Step 4. 배치 분류 ────────────────────────────────────────────────────────
 
-def _classify_limitations_batch(limitations: list, final_axes: dict) -> dict:
+def _classify_limitations_batch(limitations: list, final_axes: dict, provider: str = None) -> dict:
     BATCH_SIZE = 20
     axis_mapping = {}
     fallback = "methodology"
@@ -258,7 +258,7 @@ Output JSON only — map each index to its axis key:
         ]
 
         try:
-            response = _llm_invoke(messages)
+            response = _llm_invoke(messages, provider=provider)
             result = parse_json(response)
             cls_map = result.get("classifications", {})
 
@@ -282,7 +282,7 @@ Output JSON only — map each index to its axis key:
 
 # ── Step 5. 축별 GAP 생성 ────────────────────────────────────────────────────
 
-def _generate_gap_for_axis(ax_key: str, ax_info: dict, ax_lims: list, research_question: str):
+def _generate_gap_for_axis(ax_key: str, ax_info: dict, ax_lims: list, research_question: str, provider: str = None):
     claims_block = "\n".join(
         f"  - [Paper {lim.paper_id}] {lim.claim}" for lim in ax_lims[:8]
     )
@@ -324,7 +324,7 @@ Output JSON only:
     ]
 
     try:
-        response = _llm_invoke(messages)
+        response = _llm_invoke(messages, provider=provider)
         result = parse_json(response)
         return {
             "gap_statement":  result.get("gap_statement",  f"Gap in {ax_key}"),
@@ -347,6 +347,8 @@ def gap_infer_node(state: AgentState) -> AgentState:
     → 이후 축 분류 및 GAP 생성 수행.
     """
     print("\n💡 GAP Inference Node")
+
+    provider = state.get("llm_provider")
 
     # ── limitations 획득: state["limitations"] 우선, 없으면 messages 파싱 ──
     raw_limitations = state.get("limitations", [])
@@ -389,7 +391,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
     # ── Step 2 ──────────────────────────────────────────────────────────────
     all_claims_text = "\n".join(f"[{lim.paper_id}] {lim.claim}" for lim in limitations)
     print(f"  🔄 동적 축 생성 중 (limitations {len(limitations)}개 분석)...")
-    dynamic_axes = _generate_dynamic_axes(all_claims_text, fixed_axes, research_question)
+    dynamic_axes = _generate_dynamic_axes(all_claims_text, fixed_axes, research_question, provider=provider)
 
     if dynamic_axes:
         for ax in dynamic_axes:
@@ -404,7 +406,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
 
     # ── Step 4 ──────────────────────────────────────────────────────────────
     print(f"  🔄 {len(limitations)}개 limitation 배치 분류 중...")
-    axis_mapping = _classify_limitations_batch(limitations, final_axes)
+    axis_mapping = _classify_limitations_batch(limitations, final_axes, provider=provider)
 
     axis_groups = defaultdict(list)
     for idx, lim in enumerate(limitations):
@@ -426,7 +428,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
 
     for ax_key, ax_lims in sorted(active_axes.items(), key=lambda x: -len(x[1])):
         ax_info = final_axes.get(ax_key, {"label": ax_key, "description": "", "type": "fixed"})
-        result = _generate_gap_for_axis(ax_key, ax_info, ax_lims, research_question)
+        result = _generate_gap_for_axis(ax_key, ax_info, ax_lims, research_question, provider=provider)
         if result is None:
             continue
 

@@ -31,8 +31,6 @@ from llm import get_llm
 from prompts.system import make_system_prompt
 from utils.parse_json import parse_json
 
-llm = get_llm()
-
 
 # ── Structured output 스키마 ────────────────────────────────────────────────
 class RefinedQuery(BaseModel):
@@ -57,8 +55,6 @@ class RefinedQuery(BaseModel):
         description="Brief note on what was refined or clarified from the original query."
     )
 
-
-structured_refine_llm = llm.with_structured_output(RefinedQuery)
 
 REFINE_SYSTEM_PROMPT = make_system_prompt(
     "ROLE: Query Refinement Agent (v2)\n"
@@ -121,6 +117,9 @@ def query_refinement_node(state: AgentState) -> AgentState:
         and not ambiguity_signals.get("hard_fail", True)
         and suggested_query
     )
+
+    llm = get_llm(provider=state.get("llm_provider"))
+    structured_refine_llm = llm.with_structured_output(RefinedQuery)
 
     if is_apa_clear and existing_keywords:
         # APA + CLAMBER 모두 문제없음 → suggested_query를 그대로 refined_query로 사용

@@ -148,9 +148,11 @@ RETRY conditions (ANY triggers RETRY):
 # =====================================================================
 # Call 1 실행
 # =====================================================================
-def _run_call1(limitations: list[dict], refined_query: str) -> list[dict]:
+def _run_call1(
+    limitations: list[dict], refined_query: str, provider: str = None
+) -> list[dict]:
     """Per-limitation 평가: atomic fact verification + rubric scoring."""
-    llm = get_llm()
+    llm = get_llm(provider=provider)
 
     # 배치로 나눠서 처리
     all_results = []
@@ -160,7 +162,9 @@ def _run_call1(limitations: list[dict], refined_query: str) -> list[dict]:
         batch_end = min(batch_start + CALL1_BATCH_SIZE, total)
         batch = limitations[batch_start:batch_end]
 
-        print(f"  [eval:call1] Batch {batch_start//CALL1_BATCH_SIZE + 1}: evaluating limitations {batch_start}-{batch_end-1}")
+        print(
+            f"  [eval:call1] Batch {batch_start//CALL1_BATCH_SIZE + 1}: evaluating limitations {batch_start}-{batch_end-1}"
+        )
 
         lim_text = "\n\n".join(
             f"[limitation_id={batch_start + i}]\n"
@@ -174,23 +178,33 @@ def _run_call1(limitations: list[dict], refined_query: str) -> list[dict]:
 
         messages = [
             SystemMessage(content=CALL1_SYSTEM_PROMPT),
-            HumanMessage(content=(
-                f"## Research Query\n{refined_query}\n\n"
-                f"## Limitations to Evaluate ({len(batch)})\n{lim_text}"
-            )),
+            HumanMessage(
+                content=(
+                    f"## Research Query\n{refined_query}\n\n"
+                    f"## Limitations to Evaluate ({len(batch)})\n{lim_text}"
+                )
+            ),
         ]
 
         try:
             response = llm.invoke(messages)
-            content = response.content if hasattr(response, "content") else str(response)
+            content = (
+                response.content if hasattr(response, "content") else str(response)
+            )
             parsed = parse_json(content)
             if isinstance(parsed, list):
                 all_results.extend(parsed)
-                print(f"  [eval:call1] Batch {batch_start//CALL1_BATCH_SIZE + 1}: {len(parsed)} results")
+                print(
+                    f"  [eval:call1] Batch {batch_start//CALL1_BATCH_SIZE + 1}: {len(parsed)} results"
+                )
             else:
-                print(f"  ⚠️ [eval:call1] Batch {batch_start//CALL1_BATCH_SIZE + 1}: 파싱 결과가 list가 아님")
+                print(
+                    f"  ⚠️ [eval:call1] Batch {batch_start//CALL1_BATCH_SIZE + 1}: 파싱 결과가 list가 아님"
+                )
         except Exception as e:
-            print(f"  ⚠️ [eval:call1] Batch {batch_start//CALL1_BATCH_SIZE + 1} LLM 호출 실패: {e}")
+            print(
+                f"  ⚠️ [eval:call1] Batch {batch_start//CALL1_BATCH_SIZE + 1} LLM 호출 실패: {e}"
+            )
             continue
 
     return all_results
@@ -199,10 +213,14 @@ def _run_call1(limitations: list[dict], refined_query: str) -> list[dict]:
 # =====================================================================
 # Call 2 실행
 # =====================================================================
-def _run_call2(limitations: list[dict], call1_results: list[dict],
-               refined_query: str) -> dict:
+def _run_call2(
+    limitations: list[dict],
+    call1_results: list[dict],
+    refined_query: str,
+    provider: str = None,
+) -> dict:
     """Set-level 평가: holistic judgment + type classification + PASS/RETRY."""
-    llm = get_llm()
+    llm = get_llm(provider=provider)
 
     # Call 1 결과를 요약해서 전달
     call1_summary = "\n".join(
@@ -223,11 +241,13 @@ def _run_call2(limitations: list[dict], call1_results: list[dict],
 
     messages = [
         SystemMessage(content=CALL2_SYSTEM_PROMPT),
-        HumanMessage(content=(
-            f"## Research Query\n{refined_query}\n\n"
-            f"## Call 1 Scores (per-limitation)\n{call1_summary}\n\n"
-            f"## Limitations ({len(limitations)})\n{lim_text}"
-        )),
+        HumanMessage(
+            content=(
+                f"## Research Query\n{refined_query}\n\n"
+                f"## Call 1 Scores (per-limitation)\n{call1_summary}\n\n"
+                f"## Limitations ({len(limitations)})\n{lim_text}"
+            )
+        ),
     ]
 
     try:
@@ -246,8 +266,9 @@ def _run_call2(limitations: list[dict], call1_results: list[dict],
 # =====================================================================
 # 후처리: 필터링 + 메타데이터 부착
 # =====================================================================
-def _post_process(limitations: list[dict], call1_results: list[dict],
-                  call2_result: dict) -> tuple[list[dict], list[str], str]:
+def _post_process(
+    limitations: list[dict], call1_results: list[dict], call2_result: dict
+) -> tuple[list[dict], list[str], str]:
     """
     Call 1 + Call 2 결과를 바탕으로 limitations 필터링 및 메타데이터 부착.
     Returns: (filtered_limitations, warnings, decision)
@@ -341,7 +362,11 @@ def _post_process(limitations: list[dict], call1_results: list[dict],
     # 자체 검증으로 RETRY 강제
     total = strong_count + weak_count
     if total > 0:
-        avg_groundedness = sum(groundedness_scores) / len(groundedness_scores) if groundedness_scores else 0
+        avg_groundedness = (
+            sum(groundedness_scores) / len(groundedness_scores)
+            if groundedness_scores
+            else 0
+        )
         avg_fact_score = sum(fact_scores) / len(fact_scores) if fact_scores else 0
         weak_ratio = weak_count / total if total > 0 else 0
 
@@ -371,10 +396,12 @@ def limitation_eval_node(state: AgentState) -> AgentState:
 
     if not limitations:
         return {
-            "messages": [AIMessage(
-                content="No limitations to evaluate.",
-                name="limitation_eval",
-            )],
+            "messages": [
+                AIMessage(
+                    content="No limitations to evaluate.",
+                    name="limitation_eval",
+                )
+            ],
             "sender": "limitation_eval",
             "limitations": [],
             "limitation_eval": {"decision": "PASS", "warnings": [], "skipped": True},
@@ -384,28 +411,39 @@ def limitation_eval_node(state: AgentState) -> AgentState:
     print(f"\n  ===== Limitation Evaluation (attempt {eval_retry_count + 1}) =====")
     print(f"  [eval] {len(limitations)}개 limitation 평가 시작")
 
+    provider = state.get("llm_provider")
+
     # ── Call 1: Per-limitation scoring ──
-    print(f"  [eval:call1] Atomic verification + Rubric scoring (batches of {CALL1_BATCH_SIZE})...")
-    call1_results = _run_call1(limitations, refined_query)
-    print(f"  [eval:call1] Total: {len(call1_results)}/{len(limitations)} results received")
+
+    print("  [eval:call1] Atomic verification + Rubric scoring...")
+    call1_results = _run_call1(limitations, refined_query, provider=provider)
+    print(f"  [eval:call1] {len(call1_results)}개 결과 수신")
 
     # Call 1 실패 시 전체 PASS (평가 생략)
     if not call1_results:
         print("  ⚠️ [eval] Call 1 실패 → 평가 생략, PASS 처리")
         return {
-            "messages": [AIMessage(
-                content=f"Evaluation skipped (Call 1 failed). {len(limitations)} limitations passed through.",
-                name="limitation_eval",
-            )],
+            "messages": [
+                AIMessage(
+                    content=f"Evaluation skipped (Call 1 failed). {len(limitations)} limitations passed through.",
+                    name="limitation_eval",
+                )
+            ],
             "sender": "limitation_eval",
             "limitations": limitations,
-            "limitation_eval": {"decision": "PASS", "warnings": ["Call 1 failed"], "skipped": True},
+            "limitation_eval": {
+                "decision": "PASS",
+                "warnings": ["Call 1 failed"],
+                "skipped": True,
+            },
             "eval_warnings": ["Call 1 failed — evaluation skipped"],
         }
 
     # ── Call 2: Holistic judgment ──
     print("  [eval:call2] Holistic judgment + Type classification...")
-    call2_result = _run_call2(limitations, call1_results, refined_query)
+    call2_result = _run_call2(
+        limitations, call1_results, refined_query, provider=provider
+    )
     print(f"  [eval:call2] decision={call2_result.get('decision', 'N/A')}")
 
     # Call 2 실패 시 Call 1만으로 기본 필터링

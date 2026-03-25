@@ -44,7 +44,7 @@ IMPORTANT:
 
 
 def critic_score_node(state: AgentState) -> AgentState:
-    llm = get_llm()
+    llm = get_llm(provider=state.get("llm_provider"))
     loop_count = state.get("critic_loop_count", 0) or 0
 
     # 최대 루프 횟수 초과 시 강제 ACCEPT
