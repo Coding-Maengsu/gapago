@@ -34,7 +34,6 @@ docstring_parser==0.17.0
 docutils==0.19
 exceptiongroup==1.3.1
 feedparser==6.0.12
-fastapi==0.135.2
 filelock==3.24.0
 filetype==1.2.0
 frozenlist==1.8.0
@@ -198,7 +197,6 @@ tzdata==2025.3
 uritemplate==4.2.0
 urllib3==1.26.20
 uuid_utils==0.14.0
-uvicorn==0.42.0
 validators==0.35.0
 vcrpy==8.1.1
 watchdog==6.0.0
