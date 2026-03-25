@@ -38,6 +38,26 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
+
+# ── Startup warm-up ──────────────────────────────────────────────────
+@app.on_event("startup")
+async def warmup():
+    """Pre-initialize LLM and graph on startup to reduce first-request latency."""
+    try:
+        print("[startup] Warming up LLM...")
+        get_llm()
+        print("[startup] Warming up graph...")
+        build_graph()
+        print("[startup] Warm-up complete.")
+    except Exception as e:
+        print(f"[startup] Warm-up failed (non-fatal): {e}")
+
+
+@app.get("/api/health")
+async def health():
+    """Health check endpoint for uptime monitoring (prevents Render sleep)."""
+    return {"status": "ok"}
+
 # ── In-memory session store (active pipelines) ─────────────────────
 _sessions: dict = {}
 
