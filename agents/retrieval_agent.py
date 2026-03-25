@@ -26,7 +26,9 @@ Available tools:
 - arxiv_api_call_tool: Primary academic paper search (arXiv). Best for CS, physics, math papers.
 - semantic_scholar_search_tool: Broad academic search (Semantic Scholar). Covers all disciplines, good for highly-cited papers.
 - openalex_search_tool: Comprehensive academic search (OpenAlex, 200M+ works). Good for cross-domain and interdisciplinary coverage.
-- scienceon_search_tool: Korean academic paper search (ScienceON/KISTI).
+- scienceon_search_tool: Korean academic paper search (ScienceON/KISTI). Best for Korean-language papers and domestic journal articles.
+- scienceon_patent_search_tool: Korean patent search (ScienceON/KISTI). Returns patent title, abstract, applicants, IPC classification, and application/publication dates. Useful for finding related prior art and technology trends.
+- scienceon_report_search_tool: Korean national R&D report search (ScienceON/KISTI). Returns government-funded research reports with full-text links. Useful for finding national research projects, policy-driven studies, and R&D trends.
 - web_search_tool: General web search for tracking latest trends, news, blog posts, and community discussions. Do NOT use this tool for academic paper retrieval.
 
 Inputs may include a previous Meaning Expansion Agent message containing:
@@ -40,14 +42,17 @@ Rules:
 1) Do not perform meaning expansion yourself.
 2) Use only the available tools above.
 3) For academic paper retrieval, use AT LEAST 2-3 academic search tools together (arxiv + semantic_scholar + openalex) to maximize coverage. Use different query variations per source for diversity.
-4) Use web_search_tool ONLY for discovering latest trends, emerging issues, recent developments, and community discussions related to the research topic. Do NOT use it to search for academic papers.
-5) Normalize academic results into one combined papers list. Keep web trend results separate in web_results.
+4) Use scienceon_patent_search_tool and scienceon_report_search_tool when the topic involves applied technology, engineering, or industry applications. Patent data reveals prior art and technology gaps. R&D reports reveal government-funded research directions and policy-driven gaps.
+5) Use web_search_tool ONLY for discovering latest trends, emerging issues, recent developments, and community discussions related to the research topic. Do NOT use it to search for academic papers.
+6) Normalize academic results into one combined papers list. Keep web trend results separate in web_results. Keep patent and report results separate in patent_results and report_results.
 
 Output JSON with fields:
 - selected_tools: [..]
 - tool_rationale: <string>
 - papers: list of {paper_id,title,year,url,abstract,authors,source}
 - web_results: list of latest trend/issue items from web search (NOT papers)
+- patent_results: list of patent items from scienceon_patent_search_tool
+- report_results: list of R&D report items from scienceon_report_search_tool
 - scienceon_results: list
 - notes: list[str]
 Do NOT infer limitations or gaps.
