@@ -38,8 +38,6 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from states import AgentState, QueryResult
 from llm import get_llm
 
-llm = get_llm()
-
 # =====================================================================================================================
 # 0) 시스템 프롬프트
 # =====================================================================================================================
@@ -184,9 +182,24 @@ def query_analysis_node(state: AgentState) -> AgentState:
 
     user_input = _collect_user_input(state)
 
+    # 숫자 입력 → breadth_candidates 선택으로 치환 (TOO_BROAD 재질문 시)
+    candidates = state.get("breadth_candidates", [])
+    last_human = [m.content.strip() for m in state["messages"] if isinstance(m, HumanMessage)]
+    if candidates and last_human:
+        choice = last_human[-1]
+        if choice.isdigit() and 1 <= int(choice) <= len(candidates):
+            selected = candidates[int(choice) - 1]
+            direction = selected.get("direction", "") if isinstance(selected, dict) else selected.direction
+            user_input = direction
+
+    from prompts.system import get_language_instruction
+    output_language = state.get("output_language", "auto")
+    lang_instruction = get_language_instruction(output_language)
+
+    llm = get_llm(provider=state.get("llm_provider"))
     structured_llm = llm.with_structured_output(QueryResult)
     result: QueryResult = structured_llm.invoke([
-        SystemMessage(content=SYSTEM_PROMPT),
+        SystemMessage(content=SYSTEM_PROMPT + lang_instruction),
         HumanMessage(content=user_input),
     ])
     sa = result.scope_assessment

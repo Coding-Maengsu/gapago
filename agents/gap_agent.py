@@ -67,8 +67,9 @@ RECENCY_WEIGHT = {
 
 # ── LLM 헬퍼 ─────────────────────────────────────────────────────────────────
 
-def _llm_invoke(messages: list[dict]) -> str:
-    llm = get_llm()
+def _llm_invoke(messages: list[dict], provider: str = None) -> str:
+    """dict 형태의 messages를 LangChain 메시지로 변환 후 LLM 호출."""
+    llm = get_llm(provider=provider)
     lc_messages = []
     for m in messages:
         role, content = m["role"], m["content"]
@@ -177,7 +178,7 @@ Output JSON only:
     ]
 
     try:
-        response = _llm_invoke(messages)
+        response = _llm_invoke(messages, provider=provider)
         result = parse_json(response)
         axes = result.get("dynamic_axes", [])
         valid = []
@@ -211,7 +212,7 @@ def _build_final_axes(fixed_axes: dict, dynamic_axes: list) -> dict:
 
 # ── Step 4. 배치 분류 + recency 가중치 적용 ──────────────────────────────────
 
-def _classify_limitations_batch(limitations: list, final_axes: dict) -> dict:
+def _classify_limitations_batch(limitations: list, final_axes: dict, provider: str = None) -> dict:
     BATCH_SIZE = 20
     axis_mapping = {}
     fallback = "methodology"
@@ -247,7 +248,7 @@ Output JSON only:
         ]
 
         try:
-            response = _llm_invoke(messages)
+            response = _llm_invoke(messages, provider=provider)
             result = parse_json(response)
             cls_map = result.get("classifications", {})
             offset = batch_idx * BATCH_SIZE
@@ -604,6 +605,9 @@ Output JSON only:
   "selection_rationale": "<why this is the best: novelty + feasibility + impact>"
 }}
 """
+    from prompts.system import get_language_instruction
+    lang_instruction = get_language_instruction(output_language)
+
     messages = [
         {"role": "system", "content": (
             "You are a creative yet rigorous research mentor. "
@@ -616,7 +620,7 @@ Output JSON only:
     ]
 
     try:
-        response = _llm_invoke(messages)
+        response = _llm_invoke(messages, provider=provider)
         result = parse_json(response)
 
         candidates   = result.get("candidates", [])

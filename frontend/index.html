@@ -1,0 +1,1324 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAPAGO - Research GAP Analyzer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f5f6fa;
+            --surface: #ffffff;
+            --surface2: #f0f2f8;
+            --surface3: #e8eaf3;
+            --border: #dfe3ed;
+            --border-light: #eceef5;
+            --text: #1a1f36;
+            --text-dim: #5e6687;
+            --text-light: #8e94ab;
+            --accent: #5469d4;
+            --accent-hover: #4255b8;
+            --accent-light: #eef0fb;
+            --accent-bg: #f6f7fe;
+            --accent2: #7c5cbf;
+            --green: #0fba81;
+            --green-light: #eafaf4;
+            --yellow: #e8920b;
+            --yellow-light: #fef8ec;
+            --red: #e54e4e;
+            --red-light: #fef0f0;
+            --shadow-sm: 0 1px 2px rgba(26,31,54,0.04);
+            --shadow: 0 2px 8px rgba(26,31,54,0.06);
+            --shadow-md: 0 4px 16px rgba(26,31,54,0.08);
+            --radius: 10px;
+            --radius-lg: 14px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Pretendard Variable', 'Pretendard', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            font-size: 17px;
+            line-height: 1.65;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── Sidebar ── */
+        .sidebar {
+            width: 272px;
+            background: var(--surface);
+            border-right: 1px solid var(--border-light);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .sidebar-header {
+            padding: 20px 18px;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .sidebar-header h1 {
+            font-size: 1.25em;
+            font-weight: 700;
+            color: var(--accent);
+            letter-spacing: -0.4px;
+        }
+
+        .sidebar-header p {
+            font-size: 0.8em;
+            color: var(--text-light);
+            margin-top: 1px;
+            font-weight: 400;
+        }
+
+        .new-btn {
+            margin: 14px 14px 10px;
+            padding: 10px;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.88em;
+            font-family: inherit;
+            transition: background 0.15s, box-shadow 0.15s;
+            letter-spacing: 0.1px;
+        }
+
+        .new-btn:hover { background: var(--accent-hover); box-shadow: 0 2px 8px rgba(84,105,212,0.25); }
+
+        .settings-section {
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .settings-section label {
+            display: block;
+            font-size: 0.75em;
+            color: var(--text-light);
+            margin-bottom: 3px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        .settings-section select {
+            width: 100%;
+            padding: 8px 10px;
+            background: var(--surface2);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.86em;
+            margin-bottom: 8px;
+            font-family: inherit;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .settings-section select:focus { border-color: var(--accent); }
+
+        .history-section {
+            flex: 1;
+            overflow-y: auto;
+            padding: 6px 8px;
+        }
+
+        .history-section h3 {
+            padding: 10px 8px 6px;
+            font-size: 0.75em;
+            color: var(--text-light);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        .history-item {
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 1px;
+            transition: background 0.12s;
+        }
+
+        .history-item:hover { background: var(--surface2); }
+        .history-item .query { font-size: 0.86em; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+        .history-item .meta { font-size: 0.75em; color: var(--text-light); margin-top: 2px; }
+        .history-item .meta .running-badge { color: var(--accent); font-weight: 600; animation: pulse-text 1.5s infinite; }
+        @keyframes pulse-text { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        /* ── Main ── */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .input-area {
+            padding: 20px 36px 18px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .input-header {
+            font-size: 0.82em;
+            font-weight: 500;
+            color: var(--text-light);
+            margin-bottom: 10px;
+            letter-spacing: 0.2px;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .input-row input {
+            flex: 1;
+            padding: 13px 16px;
+            background: var(--surface2);
+            color: var(--text);
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 1em;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        .input-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+        .input-row input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .run-btn {
+            padding: 12px 28px;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1em;
+            font-family: inherit;
+            white-space: nowrap;
+            transition: background 0.15s, box-shadow 0.15s;
+            letter-spacing: 0.1px;
+        }
+
+        .run-btn:hover { background: var(--accent-hover); box-shadow: 0 2px 8px rgba(84,105,212,0.25); }
+        .run-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+
+        .stop-btn {
+            padding: 12px 28px;
+            background: var(--red);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1em;
+            font-family: inherit;
+            white-space: nowrap;
+            transition: background 0.15s, box-shadow 0.15s;
+            letter-spacing: 0.1px;
+        }
+        .stop-btn:hover { background: #c03636; box-shadow: 0 2px 8px rgba(229,78,78,0.25); }
+
+        /* ── Results ── */
+        .results {
+            flex: 1;
+            overflow-y: auto;
+            padding: 28px 36px;
+        }
+
+        /* ── Stepper ── */
+        .stepper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0;
+            margin-bottom: 24px;
+            padding: 0 20px;
+        }
+
+        .step { display: flex; align-items: center; gap: 8px; }
+
+        .step-dot {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: var(--surface2);
+            border: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.78em;
+            font-weight: 700;
+            color: var(--text-light);
+            transition: all 0.3s;
+        }
+
+        .step.active .step-dot {
+            background: var(--accent-light);
+            border-color: var(--accent);
+            color: var(--accent);
+            animation: pulse 1.5s infinite;
+        }
+
+        .step.done .step-dot {
+            background: var(--green);
+            border-color: var(--green);
+            color: #fff;
+        }
+
+        .step-label { font-size: 0.84em; font-weight: 500; color: var(--text-light); }
+        .step.active .step-label { color: var(--accent); font-weight: 600; }
+        .step.done .step-label { color: var(--green); }
+
+        .step-line {
+            width: 56px;
+            height: 2px;
+            background: var(--border);
+            margin: 0 8px;
+            transition: background 0.3s;
+        }
+        .step-line.done { background: var(--green); }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(84,105,212,0.25); }
+            50% { box-shadow: 0 0 0 8px rgba(84,105,212,0); }
+        }
+
+        /* ── Status ── */
+        .status-msg {
+            text-align: center;
+            font-size: 1em;
+            font-weight: 500;
+            color: var(--text-dim);
+            margin-bottom: 20px;
+        }
+        .status-msg .detail { font-size: 0.84em; font-weight: 400; color: var(--text-light); margin-top: 3px; transition: opacity 0.3s; }
+        .status-msg .elapsed { font-size: 0.78em; color: var(--text-light); margin-top: 4px; opacity: 0.5; }
+
+        /* ── Tabs ── */
+        .tabs {
+            display: flex;
+            gap: 2px;
+            margin-bottom: 20px;
+            border-bottom: 1.5px solid var(--border-light);
+        }
+
+        .tab {
+            padding: 10px 20px;
+            font-size: 0.95em;
+            font-weight: 500;
+            color: var(--text-light);
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-family: inherit;
+            border-bottom: 2.5px solid transparent;
+            margin-bottom: -1.5px;
+            transition: all 0.15s;
+        }
+
+        .tab:hover { color: var(--text-dim); }
+        .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* ── Papers table ── */
+        table { width: 100%; border-collapse: collapse; font-size: 0.97em; }
+
+        th {
+            text-align: left;
+            padding: 10px 14px;
+            background: var(--surface2);
+            color: var(--text-light);
+            font-weight: 600;
+            font-size: 0.8em;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        th:first-child { border-radius: var(--radius) 0 0 0; }
+        th:last-child { border-radius: 0 var(--radius) 0 0; }
+
+        td { padding: 11px 14px; border-bottom: 1px solid var(--border-light); }
+        tr:hover { background: var(--accent-bg); }
+        td a { color: var(--accent); text-decoration: none; font-weight: 500; }
+        td a:hover { text-decoration: underline; }
+
+        /* ── GAP cards ── */
+        .gap-card {
+            background: var(--surface);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-lg);
+            padding: 22px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow-sm);
+            border-left: 4px solid var(--accent);
+            transition: box-shadow 0.15s, transform 0.1s;
+        }
+        .gap-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+        .gap-card.top { border-left-color: var(--yellow); }
+
+        .gap-rank {
+            display: inline-block;
+            font-size: 0.76em;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 5px;
+            background: var(--accent-light);
+            color: var(--accent);
+            margin-bottom: 10px;
+            letter-spacing: 0.3px;
+        }
+        .gap-card.top .gap-rank { background: var(--yellow-light); color: var(--yellow); }
+
+        .gap-card .axis { font-size: 0.86em; color: var(--text-light); margin-bottom: 6px; }
+        .gap-card .statement { font-size: 1.12em; font-weight: 700; color: var(--text); margin-bottom: 10px; line-height: 1.65; }
+        .gap-card .elaboration { font-size: 1em; color: var(--text-dim); line-height: 1.75; margin-bottom: 10px; }
+        .gap-card .topic { font-size: 0.96em; color: var(--accent2); font-weight: 600; padding: 10px 14px; background: linear-gradient(135deg, rgba(124,92,191,0.08), rgba(84,105,212,0.08)); border-left: 3px solid var(--accent2); border-radius: 0 8px 8px 0; margin-top: 10px; }
+        .gap-card .papers-info { font-size: 0.84em; color: var(--text-light); margin-top: 8px; line-height: 1.6; }
+        .gap-card .papers-info .paper-link { color: var(--accent); text-decoration: none; font-weight: 500; }
+        .gap-card .papers-info .paper-link:hover { text-decoration: underline; }
+        tr.highlight { background: rgba(84,105,212,0.15) !important; box-shadow: inset 4px 0 0 var(--accent); transition: background 0.5s, box-shadow 0.5s; }
+
+        /* ── Report ── */
+        .report-content { font-size: 1.02em; line-height: 1.55; color: var(--text); }
+        .report-content h1 { font-size: 1.45em; color: var(--text); margin: 20px 0 8px; padding-bottom: 6px; border-bottom: 2px solid var(--accent); font-weight: 700; }
+        .report-content h2 { font-size: 1.25em; color: var(--text); margin: 16px 0 6px; padding: 4px 10px; font-weight: 700; background: linear-gradient(transparent 40%, rgba(99,102,241,0.18) 40%); display: inline-block; border-radius: 3px; }
+        .report-content h3 { font-size: 1.1em; color: var(--accent); margin: 12px 0 6px; font-weight: 600; }
+        .report-content h4 { font-size: 1em; color: var(--text); margin: 14px 0 6px; font-weight: 600; padding: 6px 12px; background: var(--surface2); border-left: 3px solid var(--accent); border-radius: 0 var(--radius) var(--radius) 0; }
+        .report-content strong { color: var(--text); }
+        .report-content table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.92em; }
+        .report-content th { text-align: left; padding: 10px 12px; background: var(--surface2); color: var(--text-dim); font-weight: 600; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.3px; border-bottom: 2px solid var(--border); }
+        .report-content td { padding: 9px 12px; border-bottom: 1px solid var(--border-light); color: var(--text); }
+        .report-content tr:hover { background: var(--accent-bg); }
+        .report-content code { background: var(--surface2); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+        .report-content ul, .report-content ol { padding-left: 22px; margin: 4px 0; }
+        .report-content li { margin-bottom: 3px; line-height: 1.6; }
+        .report-content blockquote { border-left: 3px solid var(--accent); padding: 8px 14px; margin: 8px 0; background: var(--accent-bg); border-radius: 0 var(--radius) var(--radius) 0; font-style: italic; color: var(--text-dim); }
+        .report-content hr { border: none; border-top: 1px solid var(--border-light); margin: 14px 0; }
+        .report-content p { margin: 4px 0; }
+        .report-content br + br { display: none; }
+
+        .report-actions { display: flex; gap: 8px; margin-bottom: 18px; }
+        .report-actions button {
+            padding: 8px 18px;
+            font-size: 0.84em;
+            font-family: inherit;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text-dim);
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.15s;
+        }
+        .report-actions button:hover { background: var(--surface2); color: var(--text); border-color: var(--accent); }
+
+        /* ── Interrupt ── */
+        .interrupt-card {
+            background: var(--surface);
+            border: 2px solid var(--yellow);
+            border-radius: var(--radius-lg);
+            padding: 22px;
+            margin-bottom: 16px;
+            box-shadow: var(--shadow);
+        }
+        .interrupt-card h3 { color: var(--yellow); margin-bottom: 10px; font-size: 1em; }
+        .interrupt-card .prompt { font-size: 0.9em; color: var(--text); margin-bottom: 14px; padding: 14px; background: var(--yellow-light); border-radius: var(--radius); line-height: 1.6; }
+        .interrupt-card input {
+            width: 100%;
+            padding: 11px 14px;
+            background: var(--surface2);
+            color: var(--text);
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 12px;
+            font-family: inherit;
+            font-size: 0.9em;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .interrupt-card input:focus { border-color: var(--yellow); }
+        .interrupt-actions { display: flex; gap: 8px; }
+        .interrupt-actions button {
+            padding: 9px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.88em;
+            font-family: inherit;
+            transition: all 0.15s;
+        }
+        .btn-resume { background: var(--accent); color: #fff; }
+        .btn-resume:hover { background: var(--accent-hover); }
+        .btn-skip { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); }
+        .btn-skip:hover { background: var(--surface3); }
+
+        /* ── Empty state ── */
+        .empty-state { text-align: center; padding: 60px 20px 60px; }
+        .empty-state .subtitle { font-size: 0.96em; color: var(--text-dim); line-height: 1.65; max-width: 520px; margin: 0 auto; }
+        .example-queries { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 32px; max-width: 720px; margin-left: auto; margin-right: auto; }
+        .example-queries .label { grid-column: 1 / -1; font-size: 0.8em; color: var(--text-light); margin-bottom: 0; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
+        .example-card { background: var(--surface); border: 1px solid var(--border-light); border-radius: var(--radius-lg); padding: 16px; display: flex; flex-direction: column; gap: 6px; }
+        .example-card .example-category { font-size: 0.78em; color: var(--accent); font-weight: 600; letter-spacing: 0.3px; margin: 0 0 4px; }
+        .example-btn {
+            background: var(--surface2);
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            padding: 9px 14px;
+            font-size: 0.86em;
+            color: var(--text-dim);
+            cursor: pointer;
+            font-family: inherit;
+            transition: all 0.15s;
+            width: 100%;
+            text-align: left;
+        }
+        .example-btn:hover { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+
+        /* ── Error banner ── */
+        .error-banner {
+            background: var(--red-light);
+            border: 1px solid var(--red);
+            border-radius: var(--radius);
+            padding: 16px 20px;
+            margin-top: 16px;
+            text-align: center;
+        }
+        .error-banner .msg { color: var(--red); font-size: 0.94em; font-weight: 500; margin-bottom: 10px; }
+        .error-banner button {
+            padding: 8px 20px;
+            background: var(--red);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.88em;
+            font-family: inherit;
+            transition: opacity 0.15s;
+        }
+        .error-banner button:hover { opacity: 0.85; }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+        /* ── Mobile ── */
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+
+            .sidebar {
+                width: 100%;
+                flex-direction: row;
+                flex-wrap: wrap;
+                border-right: none;
+                border-bottom: 1px solid var(--border-light);
+                max-height: none;
+                overflow: visible;
+            }
+            .sidebar-header {
+                flex: 1;
+                padding: 12px 14px;
+                border-bottom: none;
+                min-width: 140px;
+            }
+            .sidebar-header h1 { font-size: 1em; }
+            .new-btn {
+                margin: 8px 10px;
+                padding: 8px 14px;
+                font-size: 0.78em;
+                align-self: center;
+            }
+            .settings-section {
+                display: flex;
+                gap: 8px;
+                padding: 8px 14px;
+                border-bottom: none;
+                width: 100%;
+            }
+            .settings-section label { display: none; }
+            .settings-section select { margin-bottom: 0; font-size: 0.76em; }
+            .history-section { display: none; }
+
+            .main { height: calc(100vh - 90px); }
+            .input-area { padding: 14px 16px 12px; }
+            .input-header { font-size: 0.68em; margin-bottom: 8px; }
+            .input-row { gap: 8px; }
+            .input-row input { padding: 10px 12px; font-size: 0.84em; }
+            .run-btn, .stop-btn { padding: 10px 18px; font-size: 0.84em; }
+
+            .results { padding: 16px; }
+
+            .empty-state { padding: 50px 16px 40px; }
+            .empty-state .subtitle { font-size: 0.8em; }
+            .empty-state .subtitle br { display: none; }
+            .example-queries { grid-template-columns: 1fr; margin-top: 20px; }
+            .example-btn { font-size: 0.78em; padding: 8px 14px; }
+
+            .stepper { padding: 0; margin-bottom: 18px; }
+            .step-dot { width: 26px; height: 26px; font-size: 0.68em; }
+            .step-label { font-size: 0.7em; }
+            .step-line { width: 32px; margin: 0 4px; }
+
+            .status-msg { font-size: 0.82em; }
+
+            .tabs { gap: 0; }
+            .tab { padding: 8px 12px; font-size: 0.78em; }
+
+            table { font-size: 0.78em; }
+            th, td { padding: 8px 8px; }
+
+            .gap-card { padding: 16px; margin-bottom: 10px; }
+            .gap-card .statement { font-size: 0.88em; }
+            .gap-card .elaboration { font-size: 0.8em; }
+
+            .report-content { font-size: 0.84em; line-height: 1.7; }
+
+            .interrupt-card { padding: 16px; }
+            .interrupt-card .prompt { font-size: 0.8em; padding: 10px; }
+        }
+
+        @media (max-width: 420px) {
+            .sidebar-header h1 { font-size: 0.9em; }
+            .sidebar-header p { display: none; }
+            .new-btn { font-size: 0.74em; padding: 7px 12px; margin: 6px 8px; }
+            .settings-section { padding: 6px 10px; }
+            .input-area { padding: 10px 12px; }
+            .input-row input { font-size: 0.8em; padding: 9px 10px; }
+            .run-btn, .stop-btn { padding: 9px 14px; font-size: 0.8em; }
+            .results { padding: 12px; }
+            .step-label { display: none; }
+            .step-line { width: 24px; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+    <div class="sidebar-header">
+        <div style="display:flex;align-items:center;gap:10px;">
+            <img src="new_logo.png" alt="GAPAGO" style="width:36px;height:36px;border-radius:8px;object-fit:cover;">
+            <div style="padding-top:2px;">
+                <h1>GAPAGO</h1>
+                <p>Research GAP Analyzer</p>
+            </div>
+        </div>
+    </div>
+
+    <button class="new-btn" onclick="newAnalysis()">+ New Analysis</button>
+
+    <div class="settings-section">
+        <label>LLM Provider</label>
+        <select id="provider">
+            <option value="azure">Azure OpenAI (GPT)</option>
+            <option value="claude">Claude (Anthropic)</option>
+            <option value="exaone">EXAONE (Local)</option>
+        </select>
+        <label>Domain</label>
+        <select id="domain">
+            <option value="auto">Auto-detect</option>
+            <option value="ai_cs">AI / CS</option>
+            <option value="biomedical">Biomedical</option>
+            <option value="materials_chemistry">Materials / Chemistry</option>
+            <option value="physics">Physics</option>
+            <option value="general">General</option>
+        </select>
+        <label>Year Range</label>
+        <select id="yearRange">
+            <option value="auto">Auto (AI 추천)</option>
+            <option value="1y">Latest (1 year)</option>
+            <option value="3y">Recent (3 years)</option>
+            <option value="5y">Broad (5 years)</option>
+        </select>
+        <label>Language</label>
+        <select id="outputLanguage">
+            <option value="auto">Auto (입력 언어 감지)</option>
+            <option value="ko">한국어</option>
+            <option value="en">English</option>
+        </select>
+    </div>
+
+    <div class="history-section" id="historySection">
+        <h3>History</h3>
+    </div>
+</aside>
+
+<!-- Main -->
+<div class="main">
+    <div class="input-area">
+        <div class="input-header">Describe your research direction or topic</div>
+        <div class="input-row">
+            <input type="text" id="queryInput" placeholder="e.g. Domain adaptation for fault detection in smart manufacturing"
+                   onkeydown="if(event.key==='Enter') startAnalysis()">
+            <button class="run-btn" id="runBtn">Analyze</button>
+        </div>
+    </div>
+
+    <div class="results" id="results"></div>
+</div>
+
+<script>
+// User ID
+function getUserId() {
+    let uid = localStorage.getItem('gapago_user_id');
+    if (!uid) { uid = 'u_' + Math.random().toString(36).slice(2, 10); localStorage.setItem('gapago_user_id', uid); }
+    return uid;
+}
+const USER_ID = getUserId();
+
+window.onerror = function(msg, url, line) {
+    const d = document.createElement('div');
+    d.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:10px;background:#e54e4e;color:#fff;z-index:9999;font-size:13px';
+    d.textContent = `Error (line ${line}): ${msg}`;
+    document.body.prepend(d);
+};
+
+const STAGE_MAP = {
+    query_subgraph: 0, meaning_expand: 0, paper_retrieval: 0,
+    limitation_extract: 1, limitation_eval: 1, recency_check: 1, gap_infer: 1, critic_score: 1,
+    final_response: 2
+};
+const STAGE_LABELS = ['Searching', 'Analyzing', 'Done'];
+const STAGE_DETAILS = {
+    query_subgraph: 'Refining your query to find the best papers...',
+    meaning_expand: 'Expanding search terms for broader coverage...',
+    paper_retrieval: 'Searching academic databases for relevant papers...',
+    limitation_extract: 'Reading papers and extracting limitations...',
+    limitation_eval: 'Evaluating extracted limitations for quality...',
+    recency_check: 'Checking if limitations are still relevant...',
+    gap_infer: 'Synthesizing gaps across multiple papers...',
+    critic_score: 'Reviewing results for accuracy — thinking deeper...',
+    final_response: 'Writing your research gap report...',
+};
+const THINKING_MESSAGES = [
+    'Thinking deeply for better results...',
+    'Carefully reviewing the data...',
+    'Cross-referencing findings...',
+    'Almost there — refining the analysis...',
+];
+let _thinkingInterval = null;
+let _startTime = null;
+let currentSessionId = null;
+let pipelineData = { papers: [], gaps: [], report: '' };
+let _activeReader = null;  // current SSE reader for stop cleanup
+
+const EXAMPLE_CATEGORIES = {
+    'AI / Machine Learning': [
+        'LLM-based automated code review systems',
+        'Federated learning for privacy-preserving medical AI',
+        'Vision-language models for zero-shot object detection',
+        'Reinforcement learning from human feedback in dialogue systems',
+        'Neural architecture search for edge deployment',
+        'Multimodal emotion recognition using speech and facial expressions',
+    ],
+    'Biomedical / Healthcare': [
+        'Single-cell RNA sequencing for cancer subtype classification',
+        'Drug-drug interaction prediction using graph neural networks',
+        'AI-assisted early detection of Alzheimer\'s disease from neuroimaging',
+        'CRISPR off-target effect prediction with deep learning',
+        'Wearable biosensors for continuous glucose monitoring',
+        'Digital twin models for personalized cancer treatment planning',
+    ],
+    'Materials / Energy': [
+        'Machine learning for novel battery electrolyte discovery',
+        'Perovskite solar cell stability prediction using computational methods',
+        'Generative models for metamaterial design optimization',
+        'Hydrogen storage in metal-organic frameworks',
+        'Thermal management of high-power electronics using phase-change materials',
+        'Sustainable polymer recycling via catalytic depolymerization',
+    ],
+    'Robotics / Manufacturing': [
+        'Domain adaptation for fault detection in smart manufacturing',
+        'Sim-to-real transfer in robotic manipulation tasks',
+        'Multi-robot coordination for warehouse logistics',
+        'Digital twin-based predictive maintenance in Industry 4.0',
+        'Soft robotics actuators for minimally invasive surgery',
+        'Human-robot collaboration safety in shared workspaces',
+    ],
+    'Environment / Earth Science': [
+        'Satellite imagery and deep learning for deforestation monitoring',
+        'Physics-informed neural networks for climate modeling',
+        'Microplastic detection in marine environments using spectroscopy',
+        'Urban heat island mitigation through green infrastructure planning',
+        'AI-driven wildfire spread prediction from multi-sensor data',
+        'Carbon capture efficiency optimization in direct air capture systems',
+    ],
+    'Quantum / Physics': [
+        'Quantum error correction for near-term noisy quantum devices',
+        'Variational quantum eigensolvers for molecular simulation',
+        'Topological insulator applications in spintronics',
+        'Machine learning potentials for molecular dynamics simulation',
+        'Photonic integrated circuits for quantum communication',
+        'Plasma confinement optimization in compact fusion reactors',
+    ],
+};
+
+function getRandomExamples(perCategory = 2) {
+    const cats = Object.keys(EXAMPLE_CATEGORIES);
+    // Pick a random subset of 3-4 categories
+    const shuffled = cats.sort(() => Math.random() - 0.5);
+    const selected = shuffled.slice(0, 4);
+    const examples = [];
+    selected.forEach(cat => {
+        const qs = [...EXAMPLE_CATEGORIES[cat]].sort(() => Math.random() - 0.5).slice(0, perCategory);
+        examples.push({ category: cat, queries: qs });
+    });
+    return examples;
+}
+
+function getEmptyStateHTML() {
+    const examples = getRandomExamples(2);
+    let cardsHTML = '';
+    examples.forEach(({ category, queries }) => {
+        let btns = queries.map(q =>
+            `<button class="example-btn" onclick="fillQuery('${q.replace(/'/g, "\\'")}')">${esc(q)}</button>`
+        ).join('');
+        cardsHTML += `<div class="example-card"><span class="example-category">${esc(category)}</span>${btns}</div>`;
+    });
+    return `
+    <div class="empty-state">
+        <img src="middle_image.png" alt="GAPAGO" style="max-width:520px;width:90%;height:auto;margin-bottom:24px;opacity:0.9;">
+        <p class="subtitle">
+            논문 아이디어 탐색이 어려우셨나요?<br>
+            연구 방향을 입력하면 관련 논문을 검색하고, 한계점을 분석하여<br>
+            새로운 연구 기회(Research GAP)를 자동으로 발견해 드립니다.
+        </p>
+        <div class="example-queries">
+            <span class="label">Try an example</span>
+            ${cardsHTML}
+        </div>
+    </div>`;
+}
+
+document.addEventListener('DOMContentLoaded', async function() {
+    document.getElementById('results').innerHTML = getEmptyStateHTML();
+    document.getElementById('runBtn').onclick = startAnalysis;
+    await loadHistory();
+
+    // Reconnect to active session after page refresh
+    const savedSessionId = localStorage.getItem('gapago_active_session');
+    if (savedSessionId) {
+        try {
+            const statusResp = await fetch(`api/status/${savedSessionId}`);
+            const statusData = await statusResp.json();
+            if (statusData.status === 'running' || statusData.status === 'interrupted') {
+                currentSessionId = savedSessionId;
+                reconnectToSession(savedSessionId, statusData.query || '');
+            } else {
+                localStorage.removeItem('gapago_active_session');
+            }
+        } catch (e) {
+            localStorage.removeItem('gapago_active_session');
+        }
+    }
+});
+
+async function loadHistory() {
+    try {
+        const resp = await fetch(`api/history?user_id=${USER_ID}`);
+        const items = await resp.json();
+        const section = document.getElementById('historySection');
+        section.innerHTML = '<h3>History</h3>';
+        items.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'history-item';
+            if (item.status === 'running' || item.status === 'interrupted') {
+                div.onclick = () => reconnectToSession(item.session_id, item.query);
+                const ts = item.timestamp ? new Date(item.timestamp).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+                div.innerHTML = `<div class="query">${esc(item.query)}</div><div class="meta"><span class="running-badge">분석 중...</span> &middot; ${ts}</div>`;
+            } else {
+                div.onclick = () => loadResult(item.filename);
+                const ts = item.timestamp ? new Date(item.timestamp).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+                div.innerHTML = `<div class="query">${esc(item.query)}</div><div class="meta">${ts} &middot; ${item.gaps_count} GAPs</div>`;
+            }
+            section.appendChild(div);
+        });
+        if (!items.length) section.innerHTML += '<div style="padding:14px;color:var(--text-light);font-size:0.78em">No history yet.</div>';
+    } catch (e) { console.error(e); }
+}
+
+async function loadResult(filename) {
+    try {
+        const resp = await fetch(`api/history/${filename}`);
+        const data = await resp.json();
+        renderSavedResult(data);
+    } catch (e) { console.error(e); }
+}
+
+function fillQuery(q) {
+    document.getElementById('queryInput').value = q;
+    document.getElementById('queryInput').focus();
+}
+
+function setInputEnabled(enabled) {
+    document.getElementById('queryInput').disabled = !enabled;
+    document.getElementById('provider').disabled = !enabled;
+    document.getElementById('domain').disabled = !enabled;
+    document.getElementById('yearRange').disabled = !enabled;
+    document.getElementById('outputLanguage').disabled = !enabled;
+
+    const runBtn = document.getElementById('runBtn');
+    if (enabled) {
+        runBtn.className = 'run-btn';
+        runBtn.textContent = 'Analyze';
+        runBtn.disabled = false;
+        runBtn.onclick = startAnalysis;
+    } else {
+        runBtn.className = 'stop-btn';
+        runBtn.textContent = 'Stop';
+        runBtn.disabled = false;
+        runBtn.onclick = stopAnalysis;
+    }
+}
+
+function newAnalysis() {
+    document.getElementById('queryInput').value = '';
+    clearInterval(_thinkingInterval);
+    currentSessionId = null;
+    localStorage.removeItem('gapago_active_session');
+    if (_activeReader) { try { _activeReader.cancel(); } catch(e) {} _activeReader = null; }
+    document.getElementById('results').innerHTML = getEmptyStateHTML();
+    setInputEnabled(true);
+}
+
+async function startAnalysis() {
+    const query = document.getElementById('queryInput').value.trim();
+    if (!query) { document.getElementById('queryInput').focus(); return; }
+
+    const provider = document.getElementById('provider').value;
+    const domain = document.getElementById('domain').value;
+    const yearRange = document.getElementById('yearRange').value;
+    const outputLanguage = document.getElementById('outputLanguage').value;
+
+    setInputEnabled(false);
+    pipelineData = { papers: [], gaps: [], report: '' };
+    _startTime = Date.now();
+    clearInterval(_thinkingInterval);
+
+    showPipelineUI();
+
+    try {
+        // Step 1: Start analysis — get session_id
+        const params = new URLSearchParams({ query, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID });
+        const resp = await fetch(`api/analyze?${params}`);
+        if (!resp.ok) {
+            showError(`API Error (${resp.status}): ${await resp.text()}`);
+            setInputEnabled(true);
+            return;
+        }
+        const { session_id } = await resp.json();
+        currentSessionId = session_id;
+        localStorage.setItem('gapago_active_session', session_id);
+
+        // Step 2: Connect to SSE stream
+        await connectToStream(session_id);
+    } catch (e) {
+        showError(e.message);
+    }
+}
+
+async function stopAnalysis() {
+    if (!currentSessionId) return;
+    try {
+        await fetch(`api/stop/${currentSessionId}`);
+    } catch (e) { console.error(e); }
+    if (_activeReader) { try { _activeReader.cancel(); } catch(e) {} _activeReader = null; }
+    clearInterval(_thinkingInterval);
+    localStorage.removeItem('gapago_active_session');
+    document.getElementById('statusMsg').innerHTML = '<span style="color:var(--red);font-weight:600">Analysis stopped</span>';
+    setInputEnabled(true);
+    loadHistory();
+}
+
+function showPipelineUI() {
+    document.getElementById('results').innerHTML = `
+        <div class="stepper" id="stepper">
+            <div class="step active" id="step-0"><div class="step-dot">1</div><span class="step-label">Searching</span></div>
+            <div class="step-line" id="line-0"></div>
+            <div class="step" id="step-1"><div class="step-dot">2</div><span class="step-label">Analyzing</span></div>
+            <div class="step-line" id="line-1"></div>
+            <div class="step" id="step-2"><div class="step-dot">3</div><span class="step-label">Done</span></div>
+        </div>
+        <div class="status-msg" id="statusMsg">Starting pipeline...<div class="detail"></div></div>
+        <div id="resultArea" style="display:none">
+            <div class="tabs" id="tabBar">
+                <button class="tab active" onclick="switchTab('papers')">Papers</button>
+                <button class="tab" onclick="switchTab('gaps')">Research GAPs</button>
+                <button class="tab" onclick="switchTab('report')">Report</button>
+            </div>
+            <div class="tab-content active" id="tab-papers"></div>
+            <div class="tab-content" id="tab-gaps"></div>
+            <div class="tab-content" id="tab-report"></div>
+        </div>
+    `;
+}
+
+async function reconnectToSession(sessionId, query) {
+    currentSessionId = sessionId;
+    localStorage.setItem('gapago_active_session', sessionId);
+    document.getElementById('queryInput').value = query || '';
+    setInputEnabled(false);
+    pipelineData = { papers: [], gaps: [], report: '' };
+    _startTime = Date.now();
+    clearInterval(_thinkingInterval);
+    showPipelineUI();
+    document.getElementById('statusMsg').innerHTML = 'Reconnecting...<div class="detail">Resuming analysis from where it left off</div>';
+    try {
+        await connectToStream(sessionId);
+    } catch (e) {
+        showError(e.message);
+    }
+}
+
+async function connectToStream(sessionId, fromIdx) {
+    const url = fromIdx ? `api/stream/${sessionId}?from_idx=${fromIdx}` : `api/stream/${sessionId}`;
+    const resp = await fetch(url);
+    if (!resp.ok) {
+        showError(`Stream Error (${resp.status}): ${await resp.text()}`);
+        setInputEnabled(true);
+        return;
+    }
+    await processStream(resp);
+}
+
+function showError(message) {
+    clearInterval(_thinkingInterval);
+    const results = document.getElementById('results');
+    results.innerHTML += `
+        <div class="error-banner">
+            <div class="msg">${esc(message)}</div>
+            <button onclick="newAnalysis()">Try Again</button>
+        </div>`;
+}
+
+async function processStream(resp) {
+    const reader = resp.body.getReader();
+    _activeReader = reader;
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try { handleEvent(JSON.parse(line.slice(6))); } catch (e) { console.warn(e); }
+        }
+    }
+}
+
+function handleEvent(data) {
+    if (data.event === 'keepalive') return;
+
+    if (data.event === 'node') {
+        const stage = STAGE_MAP[data.node];
+        if (stage !== undefined) updateStepper(stage, data.node);
+        collectData(data);
+    } else if (data.event === 'interrupt') {
+        currentSessionId = data.session_id;
+        showInterrupt(data.clarify_prompt);
+    } else if (data.event === 'complete') {
+        clearInterval(_thinkingInterval);
+        localStorage.removeItem('gapago_active_session');
+        _activeReader = null;
+        // 모든 스텝을 done 상태로 변경
+        for (let i = 0; i < 3; i++) {
+            const step = document.getElementById(`step-${i}`);
+            const line = document.getElementById(`line-${i}`);
+            if (step) step.className = 'step done';
+            if (line) line.className = 'step-line done';
+        }
+        const totalSecs = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
+        const tm = Math.floor(totalSecs / 60), ts = totalSecs % 60;
+        document.getElementById('statusMsg').innerHTML = `<span style="color:var(--green);font-weight:600">Analysis complete</span><div class="elapsed">${tm > 0 ? tm + 'm ' : ''}${ts}s total</div>`;
+        renderResults();
+        setInputEnabled(true);
+        loadHistory();
+    } else if (data.event === 'stopped') {
+        clearInterval(_thinkingInterval);
+        localStorage.removeItem('gapago_active_session');
+        _activeReader = null;
+        document.getElementById('statusMsg').innerHTML = '<span style="color:var(--red);font-weight:600">Analysis stopped</span>';
+        setInputEnabled(true);
+    } else if (data.event === 'error') {
+        clearInterval(_thinkingInterval);
+        localStorage.removeItem('gapago_active_session');
+        _activeReader = null;
+        showError(data.message);
+        setInputEnabled(true);
+    }
+}
+
+function updateStepper(activeStage, node) {
+    for (let i = 0; i < 3; i++) {
+        const step = document.getElementById(`step-${i}`);
+        const line = document.getElementById(`line-${i}`);
+        if (step) step.className = i < activeStage ? 'step done' : (i === activeStage ? 'step active' : 'step');
+        if (i < activeStage && line) line.className = 'step-line done';
+    }
+    const detail = STAGE_DETAILS[node] || '';
+    const elapsed = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
+    const m = Math.floor(elapsed / 60), s = elapsed % 60;
+    const statusEl = document.getElementById('statusMsg');
+    if (statusEl) statusEl.innerHTML = `${STAGE_LABELS[Math.min(activeStage, 2)]}...<div class="detail">${detail}</div><div class="elapsed">${m > 0 ? m + 'm ' : ''}${s}s elapsed</div>`;
+
+    clearInterval(_thinkingInterval);
+    _thinkingInterval = setInterval(() => {
+        const el = document.querySelector('#statusMsg .detail');
+        if (el) el.textContent = THINKING_MESSAGES[Math.floor(Math.random() * THINKING_MESSAGES.length)];
+        const elapsedNow = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
+        const mm = Math.floor(elapsedNow / 60), ss = elapsedNow % 60;
+        const elEl = document.querySelector('#statusMsg .elapsed');
+        if (elEl) elEl.textContent = `${mm > 0 ? mm + 'm ' : ''}${ss}s elapsed`;
+    }, 8000);
+}
+
+function collectData(data) {
+    if (data.node === 'paper_retrieval' && data.papers) pipelineData.papers = data.papers;
+    if (data.node === 'gap_infer' && data.gaps) pipelineData.gaps = data.gaps;
+    if (data.node === 'final_response' && data.report) pipelineData.report = data.report;
+}
+
+function renderResults() {
+    const area = document.getElementById('resultArea');
+    area.style.display = 'block';
+
+    // Update tab labels with counts
+    const tabBar = document.getElementById('tabBar');
+    if (tabBar) {
+        tabBar.innerHTML = `
+            <button class="tab" onclick="switchTab('papers')">Papers (${pipelineData.papers.length})</button>
+            <button class="tab active" onclick="switchTab('gaps')">Research GAPs (${pipelineData.gaps.length})</button>
+            <button class="tab" onclick="switchTab('report')">Report</button>`;
+    }
+
+    // Papers tab
+    let papersHtml = '';
+    if (pipelineData.papers.length) {
+        papersHtml = `<table><thead><tr><th>#</th><th>Title</th><th>Year</th><th>Authors</th></tr></thead><tbody>`;
+        pipelineData.papers.forEach((p, i) => {
+            const titleCell = p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>` : esc(p.title);
+            papersHtml += `<tr><td>${i+1}</td><td>${titleCell}</td><td>${p.year||''}</td><td>${(p.authors||[]).slice(0,3).join(', ')}</td></tr>`;
+        });
+        papersHtml += '</tbody></table>';
+    } else {
+        papersHtml = '<p style="color:var(--text-light);padding:24px;text-align:center">No papers retrieved.</p>';
+    }
+    document.getElementById('tab-papers').innerHTML = papersHtml;
+
+    // GAPs tab
+    let gapsHtml = '';
+    if (pipelineData.gaps.length) {
+        pipelineData.gaps.forEach((gap, i) => {
+            const isTop = i === 0;
+            const axisType = gap.axis_type === 'fixed' ? 'Fixed' : 'Dynamic';
+            gapsHtml += `<div class="gap-card ${isTop ? 'top' : ''}">
+                <span class="gap-rank">${isTop ? 'TOP GAP' : `GAP #${i+1}`}</span>
+                <div class="axis">${axisType}: ${esc(gap.axis_label||gap.axis||'')} &middot; ${gap.repeat_count||0} papers</div>
+                <div class="statement">${esc(gap.gap_statement||'')}</div>
+                <div class="elaboration">${esc(gap.elaboration||'')}</div>
+                <div class="topic">📌 Proposed Topic: ${esc(gap.proposed_topic||'')}</div>
+                <div class="papers-info">Supporting: ${(gap.supporting_papers||[]).slice(0,5).map(pid => {
+                    const idx = pipelineData.papers.findIndex(p => p.paper_id === pid);
+                    if (idx !== -1) {
+                        return `<a href="#" class="paper-link" onclick="event.preventDefault();switchTab('papers');document.querySelectorAll('#tab-papers tr').forEach(r=>r.classList.remove('highlight'));document.querySelectorAll('#tab-papers tr')[${idx+1}]?.scrollIntoView({behavior:'smooth',block:'center'});document.querySelectorAll('#tab-papers tr')[${idx+1}]?.classList.add('highlight');setTimeout(()=>document.querySelectorAll('#tab-papers tr')[${idx+1}]?.classList.remove('highlight'),3000)">${esc(pid)}</a>`;
+                    }
+                    return esc(pid);
+                }).join(', ')}</div>
+            </div>`;
+        });
+    } else {
+        gapsHtml = '<p style="color:var(--text-light);padding:24px;text-align:center">No gaps identified.</p>';
+    }
+    document.getElementById('tab-gaps').innerHTML = gapsHtml;
+
+    // Report tab
+    if (pipelineData.report) {
+        document.getElementById('tab-report').innerHTML = `
+            <div style="padding:14px 18px;background:var(--accent-bg);border-radius:var(--radius);margin-bottom:16px;font-size:0.9em;color:var(--text-dim);line-height:1.6;font-weight:600;">
+                📋 논문 검색, 한계점 분석, 연구 갭을 종합한 최종 리포트입니다. 각 GAP의 요약은 <a href="#" onclick="event.preventDefault();switchTab('gaps')" style="color:var(--accent);font-weight:600;text-decoration:none;">Research GAPs</a> 탭에서 확인하세요.<br>📥 리포트를 복사하거나 마크다운 파일로 다운로드할 수 있습니다.
+            </div>
+            <div class="report-actions">
+                <button onclick="copyReport()">Copy to clipboard</button>
+                <button onclick="downloadReport()">Download (.md)</button>
+            </div>
+            <div class="report-content">${renderMarkdown(pipelineData.report)}</div>`;
+    } else {
+        document.getElementById('tab-report').innerHTML = '<p style="color:var(--text-light);padding:24px;text-align:center">No report generated.</p>';
+    }
+
+    switchTab('gaps');
+}
+
+function switchTab(name) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    const content = document.querySelector(`.tab-content#tab-${name}`);
+    if (content) content.classList.add('active');
+    const tabs = document.querySelectorAll('.tab');
+    const idx = { papers: 0, gaps: 1, report: 2 }[name];
+    if (tabs[idx]) tabs[idx].classList.add('active');
+}
+
+function showInterrupt(prompt) {
+    const results = document.getElementById('results');
+    const statusEl = document.getElementById('statusMsg');
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--yellow);font-weight:600">Waiting for your input...</span>';
+    const div = document.createElement('div');
+    div.className = 'interrupt-card';
+    div.id = 'interruptCard';
+    const formatted = prompt ? esc(prompt).replace(/\n/g, '<br>') : '';
+    div.innerHTML = `
+        <h3>Query Clarification Needed</h3>
+        ${formatted ? `<div class="prompt">${formatted}</div>` : ''}
+        <input type="text" id="clarifyInput" placeholder="번호를 입력하거나 원하는 방향을 직접 입력하세요..." onkeydown="if(event.key==='Enter') resumePipeline()">
+        <div class="interrupt-actions">
+            <button class="btn-resume" onclick="resumePipeline()">Continue</button>
+            <button class="btn-skip" onclick="skipClarification()">Skip (proceed as-is)</button>
+        </div>
+    `;
+    results.appendChild(div);
+    document.getElementById('clarifyInput').focus();
+}
+
+async function resumePipeline() {
+    const input = document.getElementById('clarifyInput').value.trim();
+    if (!input) return;
+    await sendClarification(input);
+}
+
+async function skipClarification() { await sendClarification('proceed as is'); }
+
+async function sendClarification(response) {
+    const card = document.getElementById('interruptCard');
+    if (card) card.remove();
+    const statusEl = document.getElementById('statusMsg');
+    if (statusEl) statusEl.innerHTML = 'Resuming analysis...<div class="detail">Processing your input...</div>';
+    try {
+        const params = new URLSearchParams({ session_id: currentSessionId, response });
+        const resp = await fetch(`api/clarify?${params}`);
+        if (!resp.ok) { showError(`Clarify Error (${resp.status}): ${await resp.text()}`); return; }
+        const data = await resp.json();
+        // Reconnect to stream, skipping already-consumed events
+        await connectToStream(currentSessionId, data.events_count || 0);
+    } catch (e) { showError(e.message); }
+}
+
+function renderSavedResult(data) {
+    const results = document.getElementById('results');
+    pipelineData = {
+        papers: data.papers || [],
+        gaps: data.gaps || [],
+        report: ((data.messages||[]).find(m => m.name === 'final_response') || {}).content || '',
+    };
+
+    results.innerHTML = `
+        <div style="margin-bottom:20px">
+            <h3 style="font-size:1em;font-weight:600;margin-bottom:4px;color:var(--text)">${esc(data.query||'')}</h3>
+            ${data.refined_query ? `<p style="color:var(--text-dim);font-size:0.8em">Refined: ${esc(data.refined_query)}</p>` : ''}
+            <p style="color:var(--text-light);font-size:0.7em;margin-top:3px">${data.timestamp||''}</p>
+        </div>
+        <div id="resultArea">
+            <div class="tabs" id="tabBar">
+                <button class="tab active" onclick="switchTab('papers')">Papers (${pipelineData.papers.length})</button>
+                <button class="tab" onclick="switchTab('gaps')">Research GAPs (${pipelineData.gaps.length})</button>
+                <button class="tab" onclick="switchTab('report')">Report</button>
+            </div>
+            <div class="tab-content active" id="tab-papers"></div>
+            <div class="tab-content" id="tab-gaps"></div>
+            <div class="tab-content" id="tab-report"></div>
+        </div>
+    `;
+
+    renderResults();
+}
+
+function renderMarkdown(text) {
+    // Remove system tags
+    text = text.replace(/FINAL\s*ANSWER\s*/gi, '');
+    // Remove unicode box-drawing lines (────, ═══, etc.)
+    text = text.replace(/^[─━═┄┅┈┉╌╍]+$/gm, '---');
+    // Escape HTML
+    text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    // Parse tables: find consecutive lines starting with |
+    text = text.replace(/(^\|.+\|$\n?)+/gm, function(tableBlock) {
+        const rows = tableBlock.trim().split('\n').filter(r => r.trim());
+        if (rows.length < 2) return tableBlock;
+
+        let html = '<table>';
+        let headerDone = false;
+        rows.forEach((row) => {
+            const cells = row.split('|').filter((c, j, a) => j > 0 && j < a.length).map(c => c.trim());
+            // Skip separator row (|---|---|)
+            if (cells.every(c => /^[-:\s]+$/.test(c))) { headerDone = true; return; }
+            const tag = !headerDone ? 'th' : 'td';
+            html += '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
+            if (!headerDone) headerDone = true; // first row is header even without separator
+        });
+        html += '</table>';
+        return html;
+    });
+
+    return text
+        .replace(/^---$/gm, '<hr>')
+        .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
+        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+        .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+        .replace(/\n{2,}/g, '<br><br>')
+        .replace(/\n/g, '<br>');
+}
+
+function copyReport() {
+    navigator.clipboard.writeText(pipelineData.report).then(() => {
+        const btn = document.querySelector('.report-actions button');
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = orig, 1500);
+    });
+}
+
+function downloadReport() {
+    const blob = new Blob([pipelineData.report], { type: 'text/markdown' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'gapago_report.md';
+    a.click();
+    URL.revokeObjectURL(a.href);
+}
+
+function esc(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+</script>
+</body>
+</html>

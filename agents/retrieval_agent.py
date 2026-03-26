@@ -10,23 +10,20 @@ from llm import get_llm
 from config import Configuration
 from utils.parse_json import parse_json
 
-llm = get_llm()
-
 ROLE_TOOLS = build_role_tools()
 RETRIEVAL_TOOLS = ROLE_TOOLS["RETRIEVAL_TOOLS"]
 
-paper_retrieval_agent = create_agent(
-    llm,
-    tools=RETRIEVAL_TOOLS,
-    system_prompt=make_system_prompt(
-        """ROLE: Paper Retrieval Agent
+_RETRIEVAL_SYSTEM_PROMPT = make_system_prompt(
+    """ROLE: Paper Retrieval Agent
 You are a retrieval orchestrator. Your job is to SELECT and CALL the most appropriate search tools.
 
 Available tools:
 - arxiv_api_call_tool: Primary academic paper search (arXiv). Best for CS, physics, math papers.
 - semantic_scholar_search_tool: Broad academic search (Semantic Scholar). Covers all disciplines, good for highly-cited papers.
 - openalex_search_tool: Comprehensive academic search (OpenAlex, 200M+ works). Good for cross-domain and interdisciplinary coverage.
-- scienceon_search_tool: Korean academic paper search (ScienceON/KISTI).
+- scienceon_search_tool: Korean academic paper search (ScienceON/KISTI). Best for Korean-language papers and domestic journal articles.
+- scienceon_patent_search_tool: Korean patent search (ScienceON/KISTI). Returns patent title, abstract, applicants, IPC classification, and application/publication dates. Useful for finding related prior art and technology trends.
+- scienceon_report_search_tool: Korean national R&D report search (ScienceON/KISTI). Returns government-funded research reports with full-text links. Useful for finding national research projects, policy-driven studies, and R&D trends.
 - web_search_tool: General web search for tracking latest trends, news, blog posts, and community discussions. Do NOT use this tool for academic paper retrieval.
 
 Inputs may include a previous Meaning Expansion Agent message containing:
@@ -40,20 +37,32 @@ Rules:
 1) Do not perform meaning expansion yourself.
 2) Use only the available tools above.
 3) For academic paper retrieval, use AT LEAST 2-3 academic search tools together (arxiv + semantic_scholar + openalex) to maximize coverage. Use different query variations per source for diversity.
-4) Use web_search_tool ONLY for discovering latest trends, emerging issues, recent developments, and community discussions related to the research topic. Do NOT use it to search for academic papers.
-5) Normalize academic results into one combined papers list. Keep web trend results separate in web_results.
+4) Use scienceon_patent_search_tool and scienceon_report_search_tool when the topic involves applied technology, engineering, or industry applications. Patent data reveals prior art and technology gaps. R&D reports reveal government-funded research directions and policy-driven gaps.
+5) Use web_search_tool ONLY for discovering latest trends, emerging issues, recent developments, and community discussions related to the research topic. Do NOT use it to search for academic papers.
+6) Normalize academic results into one combined papers list. Keep web trend results separate in web_results. Keep patent and report results separate in patent_results and report_results.
 
 Output JSON with fields:
 - selected_tools: [..]
 - tool_rationale: <string>
 - papers: list of {paper_id,title,year,url,abstract,authors,source}
 - web_results: list of latest trend/issue items from web search (NOT papers)
+- patent_results: list of patent items from scienceon_patent_search_tool
+- report_results: list of R&D report items from scienceon_report_search_tool
 - scienceon_results: list
 - notes: list[str]
 Do NOT infer limitations or gaps.
 """
-    ),
 )
+
+
+def _build_retrieval_agent(provider: str = None):
+    """Build the paper retrieval agent with the specified LLM provider."""
+    llm = get_llm(provider=provider)
+    return create_agent(
+        llm,
+        tools=RETRIEVAL_TOOLS,
+        system_prompt=_RETRIEVAL_SYSTEM_PROMPT,
+    )
 
 
 def _parse_papers_from_ai_message(content: str) -> list[dict]:
@@ -100,6 +109,21 @@ def _parse_papers_from_tool_messages(messages: list) -> list[dict]:
         source = data.get("source", "")
         if source in ("arxiv", "scienceon", "semantic_scholar", "openalex"):
             papers.extend(data.get("results", []))
+        elif source in ("scienceon_patent", "scienceon_report"):
+            # 특허/보고서 결과를 papers 형식으로 정규화
+            for r in data.get("results", []):
+                paper_id = r.get("patent_id") or r.get("report_id") or ""
+                papers.append({
+                    "paper_id": paper_id,
+                    "title": r.get("title", ""),
+                    "abstract": r.get("abstract", ""),
+                    "url": r.get("url", ""),
+                    "year": r.get("year", 0),
+                    "authors": r.get("authors", []) if "authors" in r else [r.get("applicants", "")],
+                    "score_bm25": 0.0,
+                    "source": source,
+                    "full_text_sections": r.get("raw", {}),
+                })
         # web source는 별도 처리 (papers에 합치지 않음)
     return papers
 
@@ -183,7 +207,7 @@ Return a JSON object:
 IMPORTANT: Return ONLY the JSON object. Select exactly {top_k} papers (or fewer if fewer are truly relevant)."""
 
 
-def _llm_rerank(papers: list[dict], query: str, top_k: int) -> list[dict]:
+def _llm_rerank(papers: list[dict], query: str, top_k: int, provider: str = None) -> list[dict]:
     """LLM Reranker: BM25 필터링된 논문에서 GAP 분석에 가장 적합한 논문 선별."""
     if len(papers) <= top_k:
         return papers
@@ -203,7 +227,7 @@ def _llm_rerank(papers: list[dict], query: str, top_k: int) -> list[dict]:
     )
 
     try:
-        llm = get_llm()
+        llm = get_llm(provider=provider)
         response = llm.invoke([HumanMessage(content=prompt)])
         content = response.content if hasattr(response, "content") else str(response)
         parsed = parse_json(content)
@@ -241,7 +265,28 @@ def _llm_rerank(papers: list[dict], query: str, top_k: int) -> list[dict]:
         return papers[:top_k]
 
 
+def _resolve_year_range(year_range: str) -> str:
+    """Convert year_range setting to 'YYYY-YYYY' format for tools."""
+    from datetime import datetime
+    current_year = datetime.now().year
+    if year_range == "1y":
+        return f"{current_year - 1}-{current_year}"
+    elif year_range == "3y":
+        return f"{current_year - 3}-{current_year}"
+    elif year_range == "5y":
+        return f"{current_year - 5}-{current_year}"
+    # "auto" or unknown → return empty (agent decides)
+    return ""
+
+
 def paper_retrieval_node(state: AgentState) -> AgentState:
+    provider = state.get("llm_provider")
+    paper_retrieval_agent = _build_retrieval_agent(provider=provider)
+
+    # 연도 필터 처리
+    year_range = state.get("year_range", "auto")
+    resolved_year = _resolve_year_range(year_range)
+
     messages = state.get("messages", [])
     print(f"  [DEBUG] 전체 messages 수: {len(messages)}")
     for i, m in enumerate(messages):
@@ -262,6 +307,22 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
 
     # 가장 최신 메시지 1개만 전달
     query_messages = query_messages[-1:]
+
+    # 연도 필터 정보를 메시지에 주입
+    if resolved_year:
+        year_instruction = HumanMessage(
+            content=f"[YEAR FILTER] 모든 검색 도구에 year='{resolved_year}' 파라미터를 반드시 사용하세요.",
+            name="year_filter",
+        )
+        query_messages = query_messages + [year_instruction]
+    elif year_range == "auto":
+        year_instruction = HumanMessage(
+            content="[YEAR FILTER: AUTO] 연구 분야의 특성을 고려하여 적절한 year 파라미터를 직접 결정하세요. "
+                    "예: AI/LLM 분야는 최근 2-3년, 기초과학은 5-10년 등. "
+                    "year 파라미터 형식: 'YYYY-YYYY' (e.g. '2023-2026').",
+            name="year_filter",
+        )
+        query_messages = query_messages + [year_instruction]
 
     result = paper_retrieval_agent.invoke({
         **state,
@@ -296,7 +357,7 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
 
     # ✅ LLM Reranker 2차 선별 (정밀)
     if raw_papers and query and len(raw_papers) > cfg.reranker_top_k:
-        raw_papers = _llm_rerank(raw_papers, query, top_k=cfg.reranker_top_k)
+        raw_papers = _llm_rerank(raw_papers, query, top_k=cfg.reranker_top_k, provider=provider)
     print(f"  [DEBUG] LLM Reranker 2nd stage: {len(raw_papers)} papers")
 
     # ✅ Paper 객체로 변환

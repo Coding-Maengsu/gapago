@@ -266,11 +266,109 @@ def _load_scienceon_full_text(paper: Paper) -> dict:
     return {}
 
 
+def _load_scienceon_pdf_from_url(paper: Paper, url: str, label: str) -> dict:
+    """ScienceON의 FulltextURL 또는 ContentURL에서 PDF를 다운로드하여 섹션 분리."""
+    if not url:
+        return {}
+    try:
+        resp = requests.get(url, headers=_REQUEST_HEADERS, timeout=30, allow_redirects=True)
+        resp.raise_for_status()
+
+        # 직접 PDF인 경우
+        if resp.content[:4] == b"%PDF":
+            full_text = _extract_text_from_pdf_bytes(resp.content)
+            if len(full_text) >= 200:
+                sections = _split_sections(full_text)
+                print(f"  [fulltext:{label}] '{paper.title[:50]}' → {list(sections.keys())}")
+                return sections
+
+        # HTML 페이지인 경우: PDF 링크를 찾아서 재시도
+        content_type = resp.headers.get("content-type", "")
+        if "html" in content_type:
+            pdf_patterns = [
+                r'href=["\']([^"\']*\.pdf[^"\']*)["\']',
+                r'href=["\']([^"\']*\/pdf[^"\']*)["\']',
+                r'href=["\']([^"\']*fulltext[^"\']*)["\']',
+            ]
+            for pattern in pdf_patterns:
+                matches = re.findall(pattern, resp.text, re.IGNORECASE)
+                for pdf_url in matches:
+                    if not pdf_url.startswith("http"):
+                        from urllib.parse import urljoin
+                        pdf_url = urljoin(resp.url, pdf_url)
+                    try:
+                        pdf_resp = requests.get(pdf_url, headers=_REQUEST_HEADERS, timeout=30)
+                        pdf_resp.raise_for_status()
+                        if pdf_resp.content[:4] == b"%PDF":
+                            full_text = _extract_text_from_pdf_bytes(pdf_resp.content)
+                            if len(full_text) >= 200:
+                                sections = _split_sections(full_text)
+                                print(f"  [fulltext:{label}] '{paper.title[:50]}' (via HTML) → {list(sections.keys())}")
+                                return sections
+                    except Exception:
+                        continue
+
+    except Exception as e:
+        print(f"  [fulltext:{label}] 다운로드 실패: {paper.title[:50]} ({e})")
+
+    return {}
+
+
+def _load_scienceon_patent_full_text(paper: Paper) -> dict:
+    """ScienceON 특허 원문 로드. ContentURL에서 PDF/HTML을 시도."""
+    raw = {}
+    if hasattr(paper, "full_text_sections") and isinstance(paper.full_text_sections, dict):
+        raw = paper.full_text_sections
+
+    # FulltextURL 우선, ContentURL fallback
+    for url_key in ("fulltext_url", "FulltextURL", "content_url", "ContentURL"):
+        url = raw.get(url_key, "")
+        if url:
+            sections = _load_scienceon_pdf_from_url(paper, url, "scienceon_patent")
+            if sections:
+                return sections
+
+    # paper.url fallback
+    if paper.url:
+        sections = _load_scienceon_pdf_from_url(paper, paper.url, "scienceon_patent")
+        if sections:
+            return sections
+
+    print(f"  [fulltext:scienceon_patent] 원문 접근 불가 → abstract fallback: {paper.title[:50]}")
+    return {}
+
+
+def _load_scienceon_report_full_text(paper: Paper) -> dict:
+    """ScienceON 국가 R&D 보고서 원문 로드. FulltextURL에서 PDF 다운로드."""
+    raw = {}
+    if hasattr(paper, "full_text_sections") and isinstance(paper.full_text_sections, dict):
+        raw = paper.full_text_sections
+
+    # FulltextURL 우선, ContentURL fallback
+    for url_key in ("fulltext_url", "FulltextURL", "content_url", "ContentURL"):
+        url = raw.get(url_key, "")
+        if url:
+            sections = _load_scienceon_pdf_from_url(paper, url, "scienceon_report")
+            if sections:
+                return sections
+
+    # paper.url fallback
+    if paper.url:
+        sections = _load_scienceon_pdf_from_url(paper, paper.url, "scienceon_report")
+        if sections:
+            return sections
+
+    print(f"  [fulltext:scienceon_report] 원문 접근 불가 → abstract fallback: {paper.title[:50]}")
+    return {}
+
+
 def _load_full_text_sections(paper: Paper) -> dict:
     """
     논문 소스별로 full text를 로드하고 섹션으로 분리.
-    - arXiv → ArxivLoader
-    - ScienceON → DOI 경유 PDF 다운로드
+    - arXiv → a5iv HTML / ArxivLoader PDF
+    - ScienceON 논문 → DOI 경유 PDF 다운로드
+    - ScienceON 특허 → ContentURL에서 PDF/HTML
+    - ScienceON 보고서 → FulltextURL에서 PDF
     - 그 외 → abstract fallback (빈 dict)
     """
     if paper.full_text_sections and any(
@@ -282,6 +380,12 @@ def _load_full_text_sections(paper: Paper) -> dict:
 
     if pid.startswith("arxiv:"):
         return _load_arxiv_full_text(paper)
+
+    if pid.startswith("scienceon_patent:"):
+        return _load_scienceon_patent_full_text(paper)
+
+    if pid.startswith("scienceon_report:"):
+        return _load_scienceon_report_full_text(paper)
 
     if pid.startswith("scienceon:"):
         return _load_scienceon_full_text(paper)
@@ -477,6 +581,8 @@ def limitation_extract_node(state: AgentState) -> AgentState:
                 print(f"  ⚠️ Paper 변환 실패: {e}")
                 continue
 
+    provider = state.get("llm_provider")
+
     all_limitations = []
     fulltext_fail_count = 0
     llm_fail_count = 0
@@ -488,7 +594,7 @@ def limitation_extract_node(state: AgentState) -> AgentState:
                   "fulltext_failed": False, "llm_failed": False, "content": "[]"}
 
         # 스레드 내에서 LLM 인스턴스 획득 (provider 변경 반영)
-        llm = get_llm()
+        llm = get_llm(provider=provider)
 
         # full text 로드
         sections = _load_full_text_sections(paper)
@@ -557,18 +663,103 @@ def limitation_extract_node(state: AgentState) -> AgentState:
         print(f"  ✓ {paper.paper_id}: {len(result['limitations'])}개 limitation 추출")
         return result
 
-    # 병렬 처리 (I/O 바운드: HTTP + LLM API)
-    max_workers = min(5, len(papers))
-    print(f"  🔄 {len(papers)}편 논문을 {max_workers}개 워커로 병렬 처리 시작")
+    # ── Step 1: Full text 로드 (병렬, LLM 호출 아님) ──
+    print(f"  🔄 {len(papers)}편 논문 full text 로드 중...")
+    paper_sections = {}
+    with ThreadPoolExecutor(max_workers=min(5, len(papers))) as executor:
+        futures = {executor.submit(_load_full_text_sections, p): p for p in papers}
+        for future in as_completed(futures):
+            paper = futures[future]
+            try:
+                sections = future.result()
+            except Exception:
+                sections = {}
+            paper_sections[paper.paper_id] = sections
+            if not sections:
+                fulltext_fail_count += 1
+
+    # ── Step 2: 배치 LLM 호출 (3편씩 묶어서 호출 횟수 감소) ──
+    BATCH_SIZE = 3
+    batches = [papers[i:i + BATCH_SIZE] for i in range(0, len(papers), BATCH_SIZE)]
+    max_workers = min(2, len(batches))
+    print(f"  🔄 {len(papers)}편을 {len(batches)}개 배치로 나눠 {max_workers}개 워커로 처리")
+
+    def _process_batch(batch: list[Paper]) -> dict:
+        """논문 배치를 1회 LLM 호출로 처리."""
+        llm = get_llm(provider=provider)
+        batch_result = {"limitations": [], "errors": [], "llm_failed": False}
+
+        # 배치 프롬프트 구성
+        batch_prompt_parts = []
+        for paper in batch:
+            sections = paper_sections.get(paper.paper_id, {})
+            paper_prompt = _build_prompt(paper, sections)
+            # 배치 시 각 논문 텍스트를 2000자로 제한
+            if len(paper_prompt) > 2000:
+                paper_prompt = paper_prompt[:2000] + "\n... (truncated)"
+            batch_prompt_parts.append(f"=== PAPER: {paper.paper_id} ===\n{paper_prompt}")
+
+        combined_prompt = "\n\n".join(batch_prompt_parts)
+        combined_prompt += (
+            "\n\n=== INSTRUCTION ===\n"
+            "Extract limitations from ALL papers above. "
+            "Return a single JSON list containing limitations from every paper. "
+            "Each item MUST include the correct paper_id."
+        )
+
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": combined_prompt},
+        ]
+
+        try:
+            response = llm.invoke(messages)
+            content = response.content if hasattr(response, "content") else str(response)
+        except Exception as e:
+            batch_result["llm_failed"] = True
+            pids = [p.paper_id for p in batch]
+            batch_result["errors"].append(f"[limitation_extract] LLM batch failed for {pids}: {e}")
+            print(f"  ⚠️ 배치 LLM 호출 실패: {pids} ({e})")
+            # fallback: 개별 호출 시도
+            for paper in batch:
+                single = _process_single_paper(paper)
+                batch_result["limitations"].extend(single["limitations"])
+                batch_result["errors"].extend(single["errors"])
+            return batch_result
+
+        # JSON 파싱
+        parsed = parse_json(content)
+        if not isinstance(parsed, list):
+            parsed = []
+
+        valid_pids = {p.paper_id for p in batch}
+        for item in parsed:
+            try:
+                pid = item.get("paper_id", "")
+                # paper_id가 배치에 없으면 가장 가까운 것으로 매칭
+                if pid not in valid_pids:
+                    pid = batch[0].paper_id
+                lim = LimitationItem(
+                    paper_id=pid,
+                    claim=item.get("claim", ""),
+                    evidence_quote=item.get("evidence_quote", ""),
+                    track=item.get("track", "author_stated"),
+                    source_section=item.get("source_section", ""),
+                )
+                if lim.claim:
+                    batch_result["limitations"].append(lim.model_dump())
+            except Exception as e:
+                batch_result["errors"].append(f"[limitation_extract] LimitationItem parse failed: {e}")
+
+        print(f"  ✓ 배치 ({len(batch)}편): {len(batch_result['limitations'])}개 limitation 추출")
+        return batch_result
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(_process_single_paper, p): p for p in papers}
+        futures = {executor.submit(_process_batch, batch): batch for batch in batches}
         for future in as_completed(futures):
             result = future.result()
             all_limitations.extend(result["limitations"])
             errors.extend(result["errors"])
-            if result["fulltext_failed"]:
-                fulltext_fail_count += 1
             if result["llm_failed"]:
                 llm_fail_count += 1
 
