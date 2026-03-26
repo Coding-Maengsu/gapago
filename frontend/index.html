@@ -616,13 +616,13 @@
 <!-- Sidebar -->
 <aside class="sidebar">
     <div class="sidebar-header">
-        <div style="display:flex;align-items:center;gap:10px;">
+        <a href="#" onclick="event.preventDefault();newAnalysis();" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;cursor:pointer;">
             <img src="new_logo.png" alt="GAPAGO" style="width:36px;height:36px;border-radius:8px;object-fit:cover;">
             <div style="padding-top:2px;">
                 <h1>GAPAGO</h1>
                 <p>Research GAP Analyzer</p>
             </div>
-        </div>
+        </a>
     </div>
 
     <button class="new-btn" onclick="newAnalysis()">+ New Analysis</button>
