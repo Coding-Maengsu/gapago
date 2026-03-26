@@ -990,9 +990,17 @@ function renderResults() {
     }
     document.getElementById('tab-papers').innerHTML = papersHtml;
 
-    // GAPs tab
+    // GAPs tab — response_agent의 GAP 섹션 추출하여 상세 표시
     let gapsHtml = '';
-    if (pipelineData.gaps.length) {
+    if (pipelineData.report) {
+        // "### 3." 이후 GAP 섹션 추출
+        const gapMatch = pipelineData.report.match(/###\s*3\.[\s\S]*/);
+        if (gapMatch) {
+            gapsHtml = `<div class="report-content">${renderMarkdown(gapMatch[0])}</div>`;
+        }
+    }
+    if (!gapsHtml && pipelineData.gaps.length) {
+        // fallback: response_agent 출력이 없으면 gap_infer 카드 표시
         pipelineData.gaps.forEach((gap, i) => {
             const isTop = i === 0;
             const axisType = gap.axis_type === 'fixed' ? 'Fixed' : 'Dynamic';
@@ -1011,22 +1019,44 @@ function renderResults() {
                 }).join(', ')}</div>
             </div>`;
         });
-    } else {
+    }
+    if (!gapsHtml) {
         gapsHtml = '<p style="color:var(--text-light);padding:24px;text-align:center">No gaps identified.</p>';
     }
     document.getElementById('tab-gaps').innerHTML = gapsHtml;
 
-    // Report tab
+    // Report tab — gap_infer 카드 + 전체 리포트 (GAP 섹션 제외)
+    let reportHtml = '';
     if (pipelineData.report) {
-        document.getElementById('tab-report').innerHTML = `
+        // GAP 섹션(### 3.) 이전까지만 추출
+        const reportWithoutGaps = pipelineData.report.replace(/###\s*3\.[\s\S]*/, '').trim();
+        // gap_infer 구조화 데이터를 카드로
+        let gapCardsHtml = '';
+        if (pipelineData.gaps.length) {
+            gapCardsHtml = '<h3>3. Research Gaps (Structured)</h3>';
+            pipelineData.gaps.forEach((gap, i) => {
+                const isTop = i === 0;
+                const axisType = gap.axis_type === 'fixed' ? 'Fixed' : 'Dynamic';
+                gapCardsHtml += `<div class="gap-card ${isTop ? 'top' : ''}">
+                    <span class="gap-rank">${isTop ? 'TOP GAP' : `GAP #${i+1}`}</span>
+                    <div class="axis">${axisType}: ${esc(gap.axis_label||gap.axis||'')} &middot; ${gap.repeat_count||0} papers</div>
+                    <div class="statement">${esc(gap.gap_statement||'')}</div>
+                    <div class="topic">📌 Proposed Topic: ${esc(gap.proposed_topic||'')}</div>
+                    <div class="papers-info">Supporting: ${(gap.supporting_papers||[]).join(', ')}</div>
+                </div>`;
+            });
+        }
+        reportHtml = `
             <div class="report-actions">
                 <button onclick="copyReport()">Copy to clipboard</button>
                 <button onclick="downloadReport()">Download (.md)</button>
             </div>
-            <div class="report-content">${renderMarkdown(pipelineData.report)}</div>`;
+            <div class="report-content">${renderMarkdown(reportWithoutGaps)}</div>
+            ${gapCardsHtml}`;
     } else {
-        document.getElementById('tab-report').innerHTML = '<p style="color:var(--text-light);padding:24px;text-align:center">No report generated.</p>';
+        reportHtml = '<p style="color:var(--text-light);padding:24px;text-align:center">No report generated.</p>';
     }
+    document.getElementById('tab-report').innerHTML = reportHtml;
 
     switchTab('gaps');
 }
