@@ -990,17 +990,9 @@ function renderResults() {
     }
     document.getElementById('tab-papers').innerHTML = papersHtml;
 
-    // GAPs tab — response_agent의 GAP 섹션 추출하여 상세 표시
+    // GAPs tab
     let gapsHtml = '';
-    if (pipelineData.report) {
-        // "### 3." 이후 GAP 섹션 추출
-        const gapMatch = pipelineData.report.match(/###\s*3\.[\s\S]*/);
-        if (gapMatch) {
-            gapsHtml = `<div class="report-content">${renderMarkdown(gapMatch[0])}</div>`;
-        }
-    }
-    if (!gapsHtml && pipelineData.gaps.length) {
-        // fallback: response_agent 출력이 없으면 gap_infer 카드 표시
+    if (pipelineData.gaps.length) {
         pipelineData.gaps.forEach((gap, i) => {
             const isTop = i === 0;
             const axisType = gap.axis_type === 'fixed' ? 'Fixed' : 'Dynamic';
@@ -1019,44 +1011,25 @@ function renderResults() {
                 }).join(', ')}</div>
             </div>`;
         });
-    }
-    if (!gapsHtml) {
+    } else {
         gapsHtml = '<p style="color:var(--text-light);padding:24px;text-align:center">No gaps identified.</p>';
     }
     document.getElementById('tab-gaps').innerHTML = gapsHtml;
 
-    // Report tab — gap_infer 카드 + 전체 리포트 (GAP 섹션 제외)
-    let reportHtml = '';
+    // Report tab
     if (pipelineData.report) {
-        // GAP 섹션(### 3.) 이전까지만 추출
-        const reportWithoutGaps = pipelineData.report.replace(/###\s*3\.[\s\S]*/, '').trim();
-        // gap_infer 구조화 데이터를 카드로
-        let gapCardsHtml = '';
-        if (pipelineData.gaps.length) {
-            gapCardsHtml = '<h3>3. Research Gaps (Structured)</h3>';
-            pipelineData.gaps.forEach((gap, i) => {
-                const isTop = i === 0;
-                const axisType = gap.axis_type === 'fixed' ? 'Fixed' : 'Dynamic';
-                gapCardsHtml += `<div class="gap-card ${isTop ? 'top' : ''}">
-                    <span class="gap-rank">${isTop ? 'TOP GAP' : `GAP #${i+1}`}</span>
-                    <div class="axis">${axisType}: ${esc(gap.axis_label||gap.axis||'')} &middot; ${gap.repeat_count||0} papers</div>
-                    <div class="statement">${esc(gap.gap_statement||'')}</div>
-                    <div class="topic">📌 Proposed Topic: ${esc(gap.proposed_topic||'')}</div>
-                    <div class="papers-info">Supporting: ${(gap.supporting_papers||[]).join(', ')}</div>
-                </div>`;
-            });
-        }
-        reportHtml = `
+        document.getElementById('tab-report').innerHTML = `
+            <div style="padding:14px 18px;background:var(--accent-bg);border-radius:var(--radius);margin-bottom:16px;font-size:0.9em;color:var(--text-dim);line-height:1.6;">
+                논문 검색, 한계점 분석, 연구 갭을 종합한 최종 리포트입니다. 각 GAP의 요약은 <a href="#" onclick="event.preventDefault();switchTab('gaps')" style="color:var(--accent);font-weight:600;text-decoration:none;">Research GAPs</a> 탭에서 확인하세요. 리포트를 복사하거나 마크다운 파일로 다운로드할 수 있습니다.
+            </div>
             <div class="report-actions">
                 <button onclick="copyReport()">Copy to clipboard</button>
                 <button onclick="downloadReport()">Download (.md)</button>
             </div>
-            <div class="report-content">${renderMarkdown(reportWithoutGaps)}</div>
-            ${gapCardsHtml}`;
+            <div class="report-content">${renderMarkdown(pipelineData.report)}</div>`;
     } else {
-        reportHtml = '<p style="color:var(--text-light);padding:24px;text-align:center">No report generated.</p>';
+        document.getElementById('tab-report').innerHTML = '<p style="color:var(--text-light);padding:24px;text-align:center">No report generated.</p>';
     }
-    document.getElementById('tab-report').innerHTML = reportHtml;
 
     switchTab('gaps');
 }
