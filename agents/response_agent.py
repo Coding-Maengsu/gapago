@@ -27,19 +27,19 @@ RESPONSE_SYSTEM_PROMPT = (
     "**Refined Query:** <refined query>\n\n"
 
     "---\n\n"
-    "### 1. Related Papers\n"
+    "### 1. Related Papers\n\n"
     "| # | paper_id | Title | Year | Relevance |\n"
     "|---|----------|-------|------|-----------|\n"
     "| 1 | <id> | <title> | <year> | <one-line relevance> |\n"
     "(list ALL retrieved papers, one row per paper)\n\n"
 
     "---\n\n"
-    "### 2. Key Limitations (by axis)\n"
+    "### 2. Key Limitations (by axis)\n\n"
     "- **[<axis>]** <one-line summary of recurring limitation> (<N>건)\n"
     "(one bullet per axis group)\n\n"
 
     "---\n\n"
-    "### 3. Research Gaps & Proposed Topics\n"
+    "### 3. Research Gaps & Proposed Topics\n\n"
     "List in FREQUENCY ORDER (highest repeat_count first).\n\n"
     "#### <stars> GAP #<N> — <axis_label> (<count>개 논문)\n\n"
     "**<gap_statement>**\n\n"
