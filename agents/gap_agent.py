@@ -26,6 +26,7 @@ from collections import defaultdict
 from states import AgentState, GapCandidate, LimitationItem
 from llm import get_llm
 from utils.parse_json import parse_json
+from utils.progress import report_progress
 from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
 
 
@@ -704,6 +705,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
         limitations = _parse_limitations_from_messages(state.get("messages", []))
 
     output_language = state.get("output_language", "auto")
+    session_id = state.get("session_id", "")
 
     if not limitations:
         print("  ⚠️ No limitations to analyze")
@@ -773,9 +775,10 @@ def gap_infer_node(state: AgentState) -> AgentState:
 
     # ── Step 5b + 5c. 축별 장벽 분석 → 창의적 방향 제안 ────────────────────
     gaps = []
+    total_axes = len(scored_axes)
     print(f"\n  🔄 Step 5b+5c: 장벽 분석 → 창의적 방향 제안...")
 
-    for ax_key, urgency_score, cascade_impact, urgency_rationale in scored_axes:
+    for ax_idx, (ax_key, urgency_score, cascade_impact, urgency_rationale) in enumerate(scored_axes):
         grp     = active_groups[ax_key]
         ax_info = final_axes.get(ax_key, {"label": ax_key, "description": "", "type": "fixed"})
         unresolved_lims = grp["unresolved_lims"]
@@ -783,6 +786,11 @@ def gap_infer_node(state: AgentState) -> AgentState:
         if not unresolved_lims:
             continue
 
+        report_progress(
+            session_id, "gap_infer",
+            f"Analyzing research axis {ax_idx + 1}/{total_axes}: {ax_info.get('label', ax_key)}",
+            current=ax_idx + 1, total=total_axes,
+        )
         print(f"\n  ── [{ax_key}] urgency={urgency_score:.2f} ──")
 
         # Step 5b

@@ -304,10 +304,41 @@
             font-size: 1em;
             font-weight: 500;
             color: var(--text-dim);
-            margin-bottom: 20px;
+            margin-bottom: 8px;
         }
         .status-msg .detail { font-size: 0.84em; font-weight: 400; color: var(--text-light); margin-top: 3px; transition: opacity 0.3s; }
         .status-msg .elapsed { font-size: 0.78em; color: var(--text-light); margin-top: 4px; opacity: 0.5; }
+
+        /* ── Sub-step Timeline ── */
+        .timeline { max-width: 420px; margin: 0 auto 20px; padding: 0 10px; }
+        .tl-item {
+            display: flex; align-items: flex-start; gap: 12px;
+            padding: 7px 0; position: relative;
+            transition: opacity 0.3s;
+        }
+        .tl-item.pending { opacity: 0.35; }
+        .tl-item.active { opacity: 1; }
+        .tl-item.done { opacity: 0.7; }
+
+        .tl-icon {
+            width: 28px; height: 28px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.85em; flex-shrink: 0;
+            background: var(--surface2); border: 2px solid var(--border);
+            transition: all 0.3s;
+        }
+        .tl-item.active .tl-icon { border-color: var(--accent); background: var(--accent-light); animation: pulse 1.5s infinite; }
+        .tl-item.done .tl-icon { border-color: var(--green); background: var(--green); }
+        .tl-item.done .tl-icon::after { content: '✓'; color: #fff; font-size: 0.75em; font-weight: 700; }
+        .tl-item.done .tl-icon .tl-emoji { display: none; }
+
+        .tl-body { flex: 1; min-width: 0; }
+        .tl-label { font-size: 0.88em; font-weight: 600; color: var(--text-dim); line-height: 1.4; }
+        .tl-item.active .tl-label { color: var(--accent); }
+        .tl-item.done .tl-label { color: var(--green); }
+        .tl-detail { font-size: 0.78em; color: var(--text-light); margin-top: 2px; line-height: 1.4; }
+        .tl-progress { width: 100%; height: 4px; background: var(--surface2); border-radius: 2px; margin-top: 5px; overflow: hidden; }
+        .tl-progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.4s ease; }
 
         /* ── Tabs ── */
         .tabs {
@@ -571,12 +602,17 @@
             .example-queries { grid-template-columns: 1fr; margin-top: 20px; }
             .example-btn { font-size: 0.78em; padding: 8px 14px; }
 
-            .stepper { padding: 0; margin-bottom: 18px; }
+            .stepper { padding: 0; margin-bottom: 12px; }
             .step-dot { width: 26px; height: 26px; font-size: 0.68em; }
             .step-label { font-size: 0.7em; }
             .step-line { width: 32px; margin: 0 4px; }
 
             .status-msg { font-size: 0.82em; }
+            .timeline { max-width: 100%; padding: 0 4px; }
+            .tl-item { padding: 5px 0; gap: 8px; }
+            .tl-icon { width: 24px; height: 24px; font-size: 0.75em; }
+            .tl-label { font-size: 0.8em; }
+            .tl-detail { font-size: 0.72em; }
 
             .tabs { gap: 0; }
             .tab { padding: 8px 12px; font-size: 0.78em; }
@@ -613,13 +649,13 @@
 <!-- Sidebar -->
 <aside class="sidebar">
     <div class="sidebar-header">
-        <div style="display:flex;align-items:center;gap:10px;">
+        <a href="#" onclick="event.preventDefault();newAnalysis();" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;cursor:pointer;">
             <img src="new_logo.png" alt="GAPAGO" style="width:36px;height:36px;border-radius:8px;object-fit:cover;">
             <div style="padding-top:2px;">
                 <h1>GAPAGO</h1>
                 <p>Research GAP Analyzer</p>
             </div>
-        </div>
+        </a>
     </div>
 
     <button class="new-btn" onclick="newAnalysis()">+ New Analysis</button>
@@ -630,15 +666,6 @@
             <option value="azure">Azure OpenAI (GPT)</option>
             <option value="claude">Claude (Anthropic)</option>
             <option value="exaone">EXAONE (Local)</option>
-        </select>
-        <label>Domain</label>
-        <select id="domain">
-            <option value="auto">Auto-detect</option>
-            <option value="ai_cs">AI / CS</option>
-            <option value="biomedical">Biomedical</option>
-            <option value="materials_chemistry">Materials / Chemistry</option>
-            <option value="physics">Physics</option>
-            <option value="general">General</option>
         </select>
         <label>Year Range</label>
         <select id="yearRange">
@@ -713,6 +740,17 @@ const THINKING_MESSAGES = [
     'Cross-referencing findings...',
     'Almost there — refining the analysis...',
 ];
+const SUB_STEPS = [
+    { id: 'query',       icon: '🔍', label: '질문 분석 & 검색어 확장', nodes: ['query_subgraph', 'meaning_expand'] },
+    { id: 'retrieval',   icon: '📚', label: '논문 검색',             nodes: ['paper_retrieval'] },
+    { id: 'limitation',  icon: '📖', label: '한계점 추출',            nodes: ['limitation_extract'] },
+    { id: 'eval',        icon: '🔬', label: '한계점 품질 평가',       nodes: ['limitation_eval'] },
+    { id: 'recency',     icon: '🕐', label: '최신성 검증',            nodes: ['recency_check'] },
+    { id: 'gap',         icon: '💡', label: '연구 갭 도출',           nodes: ['gap_infer'] },
+    { id: 'critic',      icon: '🧐', label: '결과 검증',              nodes: ['critic_score'] },
+    { id: 'report',      icon: '📝', label: '리포트 작성',            nodes: ['final_response'] },
+];
+let _completedNodes = new Set();
 let _thinkingInterval = null;
 let _startTime = null;
 let currentSessionId = null;
@@ -870,7 +908,6 @@ function fillQuery(q) {
 function setInputEnabled(enabled) {
     document.getElementById('queryInput').disabled = !enabled;
     document.getElementById('provider').disabled = !enabled;
-    document.getElementById('domain').disabled = !enabled;
     document.getElementById('yearRange').disabled = !enabled;
     document.getElementById('outputLanguage').disabled = !enabled;
 
@@ -892,6 +929,7 @@ function newAnalysis() {
     document.getElementById('queryInput').value = '';
     clearInterval(_thinkingInterval);
     currentSessionId = null;
+    _completedNodes = new Set();
     localStorage.removeItem('gapago_active_session');
     if (_activeReader) { try { _activeReader.cancel(); } catch(e) {} _activeReader = null; }
     document.getElementById('results').innerHTML = getEmptyStateHTML();
@@ -903,7 +941,7 @@ async function startAnalysis() {
     if (!query) { document.getElementById('queryInput').focus(); return; }
 
     const provider = document.getElementById('provider').value;
-    const domain = document.getElementById('domain').value;
+    const domain = 'auto';
     const yearRange = document.getElementById('yearRange').value;
     const outputLanguage = document.getElementById('outputLanguage').value;
 
@@ -948,6 +986,16 @@ async function stopAnalysis() {
 }
 
 function showPipelineUI() {
+    _completedNodes = new Set();
+    const tlHtml = SUB_STEPS.map((s, i) => `
+        <div class="tl-item ${i === 0 ? 'active' : 'pending'}" id="tl-${s.id}">
+            <div class="tl-icon"><span class="tl-emoji">${s.icon}</span></div>
+            <div class="tl-body">
+                <div class="tl-label">${s.label}</div>
+                <div class="tl-detail" id="tl-detail-${s.id}"></div>
+            </div>
+        </div>
+    `).join('');
     document.getElementById('results').innerHTML = `
         <div class="stepper" id="stepper">
             <div class="step active" id="step-0"><div class="step-dot">1</div><span class="step-label">Searching</span></div>
@@ -956,7 +1004,8 @@ function showPipelineUI() {
             <div class="step-line" id="line-1"></div>
             <div class="step" id="step-2"><div class="step-dot">3</div><span class="step-label">Done</span></div>
         </div>
-        <div class="status-msg" id="statusMsg">Starting pipeline...<div class="detail"></div></div>
+        <div class="status-msg" id="statusMsg">Starting pipeline...<div class="elapsed">0s elapsed</div></div>
+        <div class="timeline" id="timeline">${tlHtml}</div>
         <div id="resultArea" style="display:none">
             <div class="tabs" id="tabBar">
                 <button class="tab active" onclick="switchTab('papers')">Papers</button>
@@ -1030,9 +1079,14 @@ async function processStream(resp) {
 function handleEvent(data) {
     if (data.event === 'keepalive') return;
 
+    if (data.event === 'progress') {
+        updateProgress(data);
+        return;
+    }
+
     if (data.event === 'node') {
         const stage = STAGE_MAP[data.node];
-        if (stage !== undefined) updateStepper(stage, data.node);
+        if (stage !== undefined) updateStepper(stage, data.node, data.detail);
         collectData(data);
     } else if (data.event === 'interrupt') {
         currentSessionId = data.session_id;
@@ -1047,6 +1101,21 @@ function handleEvent(data) {
             const line = document.getElementById(`line-${i}`);
             if (step) step.className = 'step done';
             if (line) line.className = 'step-line done';
+        }
+        // 모든 타임라인 항목을 done 상태로 + 접기
+        SUB_STEPS.forEach(s => {
+            const el = document.getElementById(`tl-${s.id}`);
+            if (el) el.className = 'tl-item done';
+        });
+        const tl = document.getElementById('timeline');
+        if (tl) {
+            tl.style.transition = 'max-height 0.5s ease, opacity 0.4s ease';
+            tl.style.maxHeight = tl.scrollHeight + 'px';
+            tl.style.overflow = 'hidden';
+            requestAnimationFrame(() => {
+                tl.style.maxHeight = '0';
+                tl.style.opacity = '0';
+            });
         }
         const totalSecs = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
         const tm = Math.floor(totalSecs / 60), ts = totalSecs % 60;
@@ -1069,28 +1138,90 @@ function handleEvent(data) {
     }
 }
 
-function updateStepper(activeStage, node) {
+function _findSubStep(node) {
+    return SUB_STEPS.findIndex(s => s.nodes.includes(node));
+}
+
+function _refreshTimeline() {
+    SUB_STEPS.forEach((s, i) => {
+        const el = document.getElementById(`tl-${s.id}`);
+        if (!el) return;
+        const allDone = s.nodes.every(n => _completedNodes.has(n));
+        const anyActive = !allDone && s.nodes.some(n => _completedNodes.has(n));
+        // Mark active if: it's explicitly active, or it's the first non-done step
+        if (allDone) {
+            el.className = 'tl-item done';
+        } else if (anyActive) {
+            el.className = 'tl-item active';
+        } else {
+            // Check if previous sub-step is done → this one is next
+            const prevDone = i === 0 || SUB_STEPS[i - 1].nodes.every(n => _completedNodes.has(n));
+            el.className = prevDone ? 'tl-item active' : 'tl-item pending';
+        }
+    });
+}
+
+function _elapsedHtml() {
+    const elapsed = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
+    const m = Math.floor(elapsed / 60), s = elapsed % 60;
+    return `<div class="elapsed">${m > 0 ? m + 'm ' : ''}${s}s elapsed</div>`;
+}
+
+function updateStepper(activeStage, node, detailOverride) {
+    // Top stepper
     for (let i = 0; i < 3; i++) {
         const step = document.getElementById(`step-${i}`);
         const line = document.getElementById(`line-${i}`);
         if (step) step.className = i < activeStage ? 'step done' : (i === activeStage ? 'step active' : 'step');
         if (i < activeStage && line) line.className = 'step-line done';
     }
-    const detail = STAGE_DETAILS[node] || '';
-    const elapsed = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
-    const m = Math.floor(elapsed / 60), s = elapsed % 60;
-    const statusEl = document.getElementById('statusMsg');
-    if (statusEl) statusEl.innerHTML = `${STAGE_LABELS[Math.min(activeStage, 2)]}...<div class="detail">${detail}</div><div class="elapsed">${m > 0 ? m + 'm ' : ''}${s}s elapsed</div>`;
 
+    // Mark node as completed & update timeline
+    _completedNodes.add(node);
+    _refreshTimeline();
+
+    // Show result detail on completed sub-step
+    const ssIdx = _findSubStep(node);
+    if (ssIdx !== -1 && detailOverride) {
+        const detailEl = document.getElementById(`tl-detail-${SUB_STEPS[ssIdx].id}`);
+        if (detailEl) detailEl.textContent = detailOverride;
+    }
+
+    // Status message
+    const statusEl = document.getElementById('statusMsg');
+    if (statusEl) statusEl.innerHTML = `${STAGE_LABELS[Math.min(activeStage, 2)]}...${_elapsedHtml()}`;
+
+    // Elapsed timer
     clearInterval(_thinkingInterval);
     _thinkingInterval = setInterval(() => {
-        const el = document.querySelector('#statusMsg .detail');
-        if (el) el.textContent = THINKING_MESSAGES[Math.floor(Math.random() * THINKING_MESSAGES.length)];
-        const elapsedNow = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
-        const mm = Math.floor(elapsedNow / 60), ss = elapsedNow % 60;
         const elEl = document.querySelector('#statusMsg .elapsed');
-        if (elEl) elEl.textContent = `${mm > 0 ? mm + 'm ' : ''}${ss}s elapsed`;
-    }, 8000);
+        if (elEl) elEl.innerHTML = _elapsedHtml().replace(/<\/?div[^>]*>/g, '');
+    }, 1000);
+}
+
+function updateProgress(data) {
+    const ssIdx = _findSubStep(data.node);
+    if (ssIdx === -1) return;
+    const ss = SUB_STEPS[ssIdx];
+    const detailEl = document.getElementById(`tl-detail-${ss.id}`);
+    if (!detailEl) return;
+
+    let html = data.detail || '';
+    if (data.progress !== undefined) {
+        html += `<div class="tl-progress"><div class="tl-progress-fill" style="width:${data.progress}%"></div></div>`;
+    }
+    detailEl.innerHTML = html;
+
+    // Ensure this sub-step shows as active
+    const el = document.getElementById(`tl-${ss.id}`);
+    if (el && el.classList.contains('pending')) el.className = 'tl-item active';
+
+    // Keep elapsed updating
+    clearInterval(_thinkingInterval);
+    _thinkingInterval = setInterval(() => {
+        const elEl = document.querySelector('#statusMsg .elapsed');
+        if (elEl) elEl.innerHTML = _elapsedHtml().replace(/<\/?div[^>]*>/g, '');
+    }, 1000);
 }
 
 function collectData(data) {
@@ -1135,9 +1266,9 @@ function renderResults() {
             gapsHtml += `<div class="gap-card ${isTop ? 'top' : ''}">
                 <span class="gap-rank">${isTop ? 'TOP GAP' : `GAP #${i+1}`}</span>
                 <div class="axis">${axisType}: ${esc(gap.axis_label||gap.axis||'')} &middot; ${gap.repeat_count||0} papers</div>
-                <div class="statement">${esc(gap.gap_statement||'')}</div>
-                <div class="elaboration">${esc(gap.elaboration||'')}</div>
-                <div class="topic">📌 Proposed Topic: ${esc(gap.proposed_topic||'')}</div>
+                <div class="statement">${richText(gap.gap_statement||'')}</div>
+                <div class="elaboration">${richText(gap.elaboration||'')}</div>
+                <div class="topic">📌 Proposed Topic: ${richText(gap.proposed_topic||'')}</div>
                 <div class="papers-info">Supporting: ${(gap.supporting_papers||[]).slice(0,5).map(pid => {
                     const idx = pipelineData.papers.findIndex(p => p.paper_id === pid);
                     if (idx !== -1) {
@@ -1318,6 +1449,15 @@ function downloadReport() {
 function esc(str) {
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function richText(str) {
+    if (!str) return '';
+    let s = esc(str);
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/(?<!\w)_(.+?)_(?!\w)/g, '<em>$1</em>');
+    s = s.replace(/\n/g, '<br>');
+    return s;
 }
 </script>
 </body>

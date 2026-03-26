@@ -9,6 +9,7 @@ from prompts.system import make_system_prompt
 from llm import get_llm
 from config import Configuration
 from utils.parse_json import parse_json
+from utils.progress import report_progress
 
 ROLE_TOOLS = build_role_tools()
 RETRIEVAL_TOOLS = ROLE_TOOLS["RETRIEVAL_TOOLS"]
@@ -305,6 +306,7 @@ def _resolve_year_range(year_range: str) -> str:
 
 def paper_retrieval_node(state: AgentState) -> AgentState:
     provider = state.get("llm_provider")
+    session_id = state.get("session_id", "")
 
     # state에서 연도 필터 읽기 → 시스템 프롬프트에 반영
     year_range = state.get("year_range", "auto")
@@ -359,7 +361,12 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
             web_results = _parse_web_results_from_ai_message(last_content)
 
     raw_papers = _dedupe_papers(raw_papers)
-    print(f"  [DEBUG] raw_papers count (after dedup): {len(raw_papers)}")
+    total_found = len(raw_papers)
+    print(f"  [DEBUG] raw_papers count (after dedup): {total_found}")
+    report_progress(
+        session_id, "paper_retrieval",
+        f"{total_found}개의 논문을 확인하는 중...",
+    )
 
     # ✅ 연도 필터 (resolved_year가 있으면 범위 밖 논문 제거)
     if resolved_year and "-" in resolved_year:
@@ -387,6 +394,10 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
     if raw_papers and query and len(raw_papers) > cfg.reranker_top_k:
         raw_papers = _llm_rerank(raw_papers, query, top_k=cfg.reranker_top_k, provider=provider)
     print(f"  [DEBUG] LLM Reranker 2nd stage: {len(raw_papers)} papers")
+    report_progress(
+        session_id, "paper_retrieval",
+        f"{total_found}편 중 가장 관련도 높은 {len(raw_papers)}편을 선별했습니다",
+    )
 
     # ✅ Paper 객체로 변환
     papers = []
