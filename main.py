@@ -183,6 +183,17 @@ def run():
     research_domain = domain_map.get(domain_choice, "auto")
     print(f"  → {research_domain} 선택됨")
 
+    # --- 연도 필터 선택 ---
+    print("\n=== 검색 연도 범위 선택 ===")
+    print("  0) auto - LLM이 자동 판단 (기본값)")
+    print("  1) 1y   - 최근 1년")
+    print("  2) 3y   - 최근 3년")
+    print("  3) 5y   - 최근 5년")
+    year_map = {"0": "auto", "1": "1y", "2": "3y", "3": "5y"}
+    year_choice = input("\n선택 (기본값: auto) > ").strip()
+    year_range = year_map.get(year_choice, "auto")
+    print(f"  → {year_range} 선택됨")
+
     # --- 사용자 입력 ---
     default_query = "Domain adaptation"
     user_input = input("\n연구 질문을 입력하세요: ").strip() or default_query
@@ -193,6 +204,7 @@ def run():
         "messages": [HumanMessage(content=user_input)],
         "max_iterations": 3,
         "research_domain": research_domain,
+        "year_range": year_range,
     }
 
     print_divider("[STEP 1] 초기 실행")

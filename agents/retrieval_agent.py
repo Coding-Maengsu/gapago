@@ -13,8 +13,7 @@ from utils.parse_json import parse_json
 ROLE_TOOLS = build_role_tools()
 RETRIEVAL_TOOLS = ROLE_TOOLS["RETRIEVAL_TOOLS"]
 
-_RETRIEVAL_SYSTEM_PROMPT = make_system_prompt(
-    """ROLE: Paper Retrieval Agent
+_RETRIEVAL_PROMPT_TEMPLATE = """ROLE: Paper Retrieval Agent
 You are a retrieval orchestrator. Your job is to SELECT and CALL the most appropriate search tools.
 
 Available tools:
@@ -25,6 +24,8 @@ Available tools:
 - scienceon_patent_search_tool: Korean patent search (ScienceON/KISTI). Returns patent title, abstract, applicants, IPC classification, and application/publication dates. Useful for finding related prior art and technology trends.
 - scienceon_report_search_tool: Korean national R&D report search (ScienceON/KISTI). Returns government-funded research reports with full-text links. Useful for finding national research projects, policy-driven studies, and R&D trends.
 - web_search_tool: General web search for tracking latest trends, news, blog posts, and community discussions. Do NOT use this tool for academic paper retrieval.
+
+{year_instruction}
 
 Inputs may include a previous Meaning Expansion Agent message containing:
 - keywords
@@ -44,7 +45,7 @@ Rules:
 Output JSON with fields:
 - selected_tools: [..]
 - tool_rationale: <string>
-- papers: list of {paper_id,title,year,url,abstract,authors,source}
+- papers: list of {{paper_id,title,year,url,abstract,authors,source}}
 - web_results: list of latest trend/issue items from web search (NOT papers)
 - patent_results: list of patent items from scienceon_patent_search_tool
 - report_results: list of R&D report items from scienceon_report_search_tool
@@ -52,16 +53,39 @@ Output JSON with fields:
 - notes: list[str]
 Do NOT infer limitations or gaps.
 """
-)
 
 
-def _build_retrieval_agent(provider: str = None):
-    """Build the paper retrieval agent with the specified LLM provider."""
+def _build_year_instruction(year_range: str, resolved_year: str) -> str:
+    """Build year filter instruction for system prompt."""
+    if resolved_year:
+        return (
+            f"[YEAR FILTER: {resolved_year}]\n"
+            f"All search tools support a 'year' parameter. You MUST pass year='{resolved_year}' "
+            f"to every academic search tool call (arxiv, semantic_scholar, openalex, scienceon, etc.)."
+        )
+    # auto: let agent decide
+    return (
+        "[YEAR FILTER: AUTO]\n"
+        "All search tools support a 'year' parameter (format: 'YYYY-YYYY', e.g. '2023-2026').\n"
+        "Decide an appropriate year range based on the research field:\n"
+        "- AI/LLM/deep learning: '2023-2026' (fast-moving field)\n"
+        "- Applied engineering: '2021-2026'\n"
+        "- Basic science/medicine: '2018-2026'\n"
+        "You MUST pass the year parameter to every academic search tool call."
+    )
+
+
+def _build_retrieval_agent(provider: str = None, year_range: str = "auto", resolved_year: str = ""):
+    """Build the paper retrieval agent with year filter baked into system prompt."""
     llm = get_llm(provider=provider)
+    year_instruction = _build_year_instruction(year_range, resolved_year)
+    system_prompt = make_system_prompt(
+        _RETRIEVAL_PROMPT_TEMPLATE.format(year_instruction=year_instruction)
+    )
     return create_agent(
         llm,
         tools=RETRIEVAL_TOOLS,
-        system_prompt=_RETRIEVAL_SYSTEM_PROMPT,
+        system_prompt=system_prompt,
     )
 
 
@@ -281,11 +305,17 @@ def _resolve_year_range(year_range: str) -> str:
 
 def paper_retrieval_node(state: AgentState) -> AgentState:
     provider = state.get("llm_provider")
-    paper_retrieval_agent = _build_retrieval_agent(provider=provider)
 
-    # 연도 필터 처리
+    # state에서 연도 필터 읽기 → 시스템 프롬프트에 반영
     year_range = state.get("year_range", "auto")
     resolved_year = _resolve_year_range(year_range)
+    print(f"  [retrieval] year_range={year_range}, resolved_year={resolved_year}")
+
+    paper_retrieval_agent = _build_retrieval_agent(
+        provider=provider,
+        year_range=year_range,
+        resolved_year=resolved_year,
+    )
 
     messages = state.get("messages", [])
     print(f"  [DEBUG] 전체 messages 수: {len(messages)}")
@@ -307,22 +337,6 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
 
     # 가장 최신 메시지 1개만 전달
     query_messages = query_messages[-1:]
-
-    # 연도 필터 정보를 메시지에 주입
-    if resolved_year:
-        year_instruction = HumanMessage(
-            content=f"[YEAR FILTER] 모든 검색 도구에 year='{resolved_year}' 파라미터를 반드시 사용하세요.",
-            name="year_filter",
-        )
-        query_messages = query_messages + [year_instruction]
-    elif year_range == "auto":
-        year_instruction = HumanMessage(
-            content="[YEAR FILTER: AUTO] 연구 분야의 특성을 고려하여 적절한 year 파라미터를 직접 결정하세요. "
-                    "예: AI/LLM 분야는 최근 2-3년, 기초과학은 5-10년 등. "
-                    "year 파라미터 형식: 'YYYY-YYYY' (e.g. '2023-2026').",
-            name="year_filter",
-        )
-        query_messages = query_messages + [year_instruction]
 
     result = paper_retrieval_agent.invoke({
         **state,
@@ -346,6 +360,20 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
 
     raw_papers = _dedupe_papers(raw_papers)
     print(f"  [DEBUG] raw_papers count (after dedup): {len(raw_papers)}")
+
+    # ✅ 연도 필터 (resolved_year가 있으면 범위 밖 논문 제거)
+    if resolved_year and "-" in resolved_year:
+        parts = resolved_year.split("-")
+        from_year = int(parts[0].strip())
+        to_year = int(parts[1].strip()) if parts[1].strip() else 9999
+        before_filter = len(raw_papers)
+        raw_papers = [
+            p for p in raw_papers
+            if not p.get("year") or from_year <= int(p.get("year", 0) or 0) <= to_year
+        ]
+        filtered_count = before_filter - len(raw_papers)
+        if filtered_count:
+            print(f"  [year_filter] {before_filter} → {len(raw_papers)} ({filtered_count}편 범위 밖 제거, {from_year}-{to_year})")
 
     # ✅ BM25 1차 필터 (넓게)
     cfg = Configuration()
