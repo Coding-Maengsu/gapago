@@ -1256,32 +1256,25 @@ function renderSavedResult(data) {
 function renderMarkdown(text) {
     // Remove system tags
     text = text.replace(/FINAL\s*ANSWER\s*/gi, '');
+    // Remove unicode box-drawing lines (────, ═══, etc.)
+    text = text.replace(/^[─━═┄┅┈┉╌╍]+$/gm, '---');
     // Escape HTML
     text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     // Parse tables: find consecutive lines starting with |
-    // Must run BEFORE hr/heading replacements so |---| rows aren't converted to <hr>
     text = text.replace(/(^\|.+\|$\n?)+/gm, function(tableBlock) {
         const rows = tableBlock.trim().split('\n').filter(r => r.trim());
         if (rows.length < 2) return tableBlock;
 
-        // Find header row (first row) and separator row
-        let headerIdx = 0;
-        let sepIdx = -1;
-        for (let i = 0; i < rows.length; i++) {
-            const cells = rows[i].split('|').filter((c, j, a) => j > 0 && j < a.length).map(c => c.trim());
-            if (cells.every(c => /^[-:\s]+$/.test(c))) { sepIdx = i; break; }
-        }
-
         let html = '<table>';
-        rows.forEach((row, i) => {
+        let headerDone = false;
+        rows.forEach((row) => {
             const cells = row.split('|').filter((c, j, a) => j > 0 && j < a.length).map(c => c.trim());
-            // Skip separator row
-            if (cells.every(c => /^[-:\s]+$/.test(c))) return;
-            // Header = row before separator, or first row if no separator found
-            const isHeader = (sepIdx > 0 && i < sepIdx) || (sepIdx === -1 && i === 0);
-            const tag = isHeader ? 'th' : 'td';
+            // Skip separator row (|---|---|)
+            if (cells.every(c => /^[-:\s]+$/.test(c))) { headerDone = true; return; }
+            const tag = !headerDone ? 'th' : 'td';
             html += '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
+            if (!headerDone) headerDone = true; // first row is header even without separator
         });
         html += '</table>';
         return html;
