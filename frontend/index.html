@@ -308,6 +308,9 @@
         }
         .status-msg .detail { font-size: 0.84em; font-weight: 400; color: var(--text-light); margin-top: 3px; transition: opacity 0.3s; }
         .status-msg .elapsed { font-size: 0.78em; color: var(--text-light); margin-top: 4px; opacity: 0.5; }
+        .progress-bar { width: 220px; height: 6px; background: var(--surface2); border-radius: 3px; margin: 10px auto 0; overflow: hidden; }
+        .progress-bar-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.4s ease; }
+        .progress-pct { font-size: 0.72em; color: var(--text-light); margin-top: 3px; opacity: 0.6; }
 
         /* ── Tabs ── */
         .tabs {
@@ -1030,9 +1033,14 @@ async function processStream(resp) {
 function handleEvent(data) {
     if (data.event === 'keepalive') return;
 
+    if (data.event === 'progress') {
+        updateProgress(data);
+        return;
+    }
+
     if (data.event === 'node') {
         const stage = STAGE_MAP[data.node];
-        if (stage !== undefined) updateStepper(stage, data.node);
+        if (stage !== undefined) updateStepper(stage, data.node, data.detail);
         collectData(data);
     } else if (data.event === 'interrupt') {
         currentSessionId = data.session_id;
@@ -1069,14 +1077,14 @@ function handleEvent(data) {
     }
 }
 
-function updateStepper(activeStage, node) {
+function updateStepper(activeStage, node, detailOverride) {
     for (let i = 0; i < 3; i++) {
         const step = document.getElementById(`step-${i}`);
         const line = document.getElementById(`line-${i}`);
         if (step) step.className = i < activeStage ? 'step done' : (i === activeStage ? 'step active' : 'step');
         if (i < activeStage && line) line.className = 'step-line done';
     }
-    const detail = STAGE_DETAILS[node] || '';
+    const detail = detailOverride || STAGE_DETAILS[node] || '';
     const elapsed = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
     const m = Math.floor(elapsed / 60), s = elapsed % 60;
     const statusEl = document.getElementById('statusMsg');
@@ -1091,6 +1099,33 @@ function updateStepper(activeStage, node) {
         const elEl = document.querySelector('#statusMsg .elapsed');
         if (elEl) elEl.textContent = `${mm > 0 ? mm + 'm ' : ''}${ss}s elapsed`;
     }, 8000);
+}
+
+function updateProgress(data) {
+    const statusEl = document.getElementById('statusMsg');
+    if (!statusEl) return;
+
+    const stage = STAGE_MAP[data.node];
+    const stageLabel = STAGE_LABELS[Math.min(stage ?? 1, 2)];
+    const detail = data.detail || '';
+    const elapsed = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
+    const m = Math.floor(elapsed / 60), s = elapsed % 60;
+
+    let progressHtml = '';
+    if (data.progress !== undefined) {
+        progressHtml = `<div class="progress-bar"><div class="progress-bar-fill" style="width:${data.progress}%"></div></div><div class="progress-pct">${data.current}/${data.total} (${data.progress}%)</div>`;
+    }
+
+    statusEl.innerHTML = `${stageLabel}...<div class="detail">${detail}</div>${progressHtml}<div class="elapsed">${m > 0 ? m + 'm ' : ''}${s}s elapsed</div>`;
+
+    // Reset thinking interval — keep elapsed updating
+    clearInterval(_thinkingInterval);
+    _thinkingInterval = setInterval(() => {
+        const elapsedNow = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
+        const mm = Math.floor(elapsedNow / 60), ss = elapsedNow % 60;
+        const elEl = document.querySelector('#statusMsg .elapsed');
+        if (elEl) elEl.textContent = `${mm > 0 ? mm + 'm ' : ''}${ss}s elapsed`;
+    }, 1000);
 }
 
 function collectData(data) {
