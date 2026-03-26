@@ -467,24 +467,24 @@
         .btn-skip:hover { background: var(--surface3); }
 
         /* ── Empty state ── */
-        .empty-state { text-align: center; padding: 80px 20px 60px; }
-        .empty-state h3 { font-size: 1.3em; color: var(--text); font-weight: 700; margin-bottom: 8px; letter-spacing: -0.3px; }
-        .empty-state .subtitle { font-size: 0.96em; color: var(--text-dim); line-height: 1.65; max-width: 480px; margin: 0 auto; }
-        .example-queries { display: flex; flex-direction: column; gap: 6px; align-items: center; margin-top: 28px; max-width: 520px; margin-left: auto; margin-right: auto; }
-        .example-queries .label { font-size: 0.8em; color: var(--text-light); margin-bottom: 4px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
-        .example-category { font-size: 0.78em; color: var(--accent); font-weight: 600; margin-top: 10px; margin-bottom: 2px; letter-spacing: 0.3px; align-self: flex-start; }
+        .empty-state { text-align: center; padding: 60px 20px 60px; }
+        .empty-state .subtitle { font-size: 0.96em; color: var(--text-dim); line-height: 1.65; max-width: 520px; margin: 0 auto; }
+        .example-queries { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 32px; max-width: 720px; margin-left: auto; margin-right: auto; }
+        .example-queries .label { grid-column: 1 / -1; font-size: 0.8em; color: var(--text-light); margin-bottom: 0; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
+        .example-card { background: var(--surface); border: 1px solid var(--border-light); border-radius: var(--radius-lg); padding: 16px; display: flex; flex-direction: column; gap: 6px; }
+        .example-card .example-category { font-size: 0.78em; color: var(--accent); font-weight: 600; letter-spacing: 0.3px; margin: 0 0 4px; }
         .example-btn {
-            background: var(--surface);
-            border: 1px solid var(--border);
+            background: var(--surface2);
+            border: 1px solid var(--border-light);
             border-radius: 8px;
-            padding: 9px 18px;
-            font-size: 0.88em;
+            padding: 9px 14px;
+            font-size: 0.86em;
             color: var(--text-dim);
             cursor: pointer;
             font-family: inherit;
             transition: all 0.15s;
-            max-width: 520px;
             width: 100%;
+            text-align: left;
         }
         .example-btn:hover { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
 
@@ -564,10 +564,9 @@
             .results { padding: 16px; }
 
             .empty-state { padding: 50px 16px 40px; }
-            .empty-state h3 { font-size: 1em; }
             .empty-state .subtitle { font-size: 0.8em; }
             .empty-state .subtitle br { display: none; }
-            .example-queries { margin-top: 20px; }
+            .example-queries { grid-template-columns: 1fr; margin-top: 20px; }
             .example-btn { font-size: 0.78em; padding: 8px 14px; }
 
             .stepper { padding: 0; margin-bottom: 18px; }
@@ -613,8 +612,8 @@
 <aside class="sidebar">
     <div class="sidebar-header">
         <div style="display:flex;align-items:center;gap:10px;">
-            <img src="new_logo.png" alt="GAPAGO" style="width:34px;height:34px;border-radius:8px;object-fit:cover;">
-            <div>
+            <img src="new_logo.png" alt="GAPAGO" style="width:36px;height:36px;border-radius:8px;object-fit:cover;">
+            <div style="padding-top:2px;">
                 <h1>GAPAGO</h1>
                 <p>Research GAP Analyzer</p>
             </div>
@@ -771,17 +770,16 @@ function getRandomExamples(perCategory = 2) {
 
 function getEmptyStateHTML() {
     const examples = getRandomExamples(2);
-    let buttonsHTML = '';
+    let cardsHTML = '';
     examples.forEach(({ category, queries }) => {
-        buttonsHTML += `<span class="example-category">${esc(category)}</span>`;
-        queries.forEach(q => {
-            buttonsHTML += `<button class="example-btn" onclick="fillQuery('${q.replace(/'/g, "\\'")}')">${esc(q)}</button>`;
-        });
+        let btns = queries.map(q =>
+            `<button class="example-btn" onclick="fillQuery('${q.replace(/'/g, "\\'")}')">${esc(q)}</button>`
+        ).join('');
+        cardsHTML += `<div class="example-card"><span class="example-category">${esc(category)}</span>${btns}</div>`;
     });
     return `
     <div class="empty-state">
-        <img src="middle_image.png" alt="GAPAGO" style="max-width:320px;width:80%;height:auto;margin-bottom:20px;opacity:0.9;">
-        <h3>GAPAGO</h3>
+        <img src="middle_image.png" alt="GAPAGO" style="max-width:420px;width:90%;height:auto;margin-bottom:24px;opacity:0.9;">
         <p class="subtitle">
             논문 아이디어 탐색이 어려우셨나요?<br>
             연구 방향을 입력하면 관련 논문을 검색하고, 한계점을 분석하여<br>
@@ -789,7 +787,7 @@ function getEmptyStateHTML() {
         </p>
         <div class="example-queries">
             <span class="label">Try an example</span>
-            ${buttonsHTML}
+            ${cardsHTML}
         </div>
     </div>`;
 }
