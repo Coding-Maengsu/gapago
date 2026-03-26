@@ -634,15 +634,6 @@
             <option value="claude">Claude (Anthropic)</option>
             <option value="exaone">EXAONE (Local)</option>
         </select>
-        <label>Domain</label>
-        <select id="domain">
-            <option value="auto">Auto-detect</option>
-            <option value="ai_cs">AI / CS</option>
-            <option value="biomedical">Biomedical</option>
-            <option value="materials_chemistry">Materials / Chemistry</option>
-            <option value="physics">Physics</option>
-            <option value="general">General</option>
-        </select>
         <label>Year Range</label>
         <select id="yearRange">
             <option value="auto">Auto (AI 추천)</option>
@@ -873,7 +864,6 @@ function fillQuery(q) {
 function setInputEnabled(enabled) {
     document.getElementById('queryInput').disabled = !enabled;
     document.getElementById('provider').disabled = !enabled;
-    document.getElementById('domain').disabled = !enabled;
     document.getElementById('yearRange').disabled = !enabled;
     document.getElementById('outputLanguage').disabled = !enabled;
 
@@ -906,7 +896,7 @@ async function startAnalysis() {
     if (!query) { document.getElementById('queryInput').focus(); return; }
 
     const provider = document.getElementById('provider').value;
-    const domain = document.getElementById('domain').value;
+    const domain = 'auto';
     const yearRange = document.getElementById('yearRange').value;
     const outputLanguage = document.getElementById('outputLanguage').value;
 
