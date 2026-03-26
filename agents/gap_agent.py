@@ -515,6 +515,7 @@ def _generate_creative_directions(
     what_was_tried: list,
     web_results: list,
     cascade_impact: str,
+    output_language: str = "auto",
 ) -> dict:
     """
     Step 5b에서 도출한 장벽과 "이미 시도된 것들"을 출발점으로,
@@ -701,6 +702,8 @@ def gap_infer_node(state: AgentState) -> AgentState:
     else:
         limitations = _parse_limitations_from_messages(state.get("messages", []))
 
+    output_language = state.get("output_language", "auto")
+
     if not limitations:
         print("  ⚠️ No limitations to analyze")
         return {**state, "gaps": []}
@@ -804,6 +807,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
             what_was_tried=barrier["what_was_tried"],
             web_results=web_results,
             cascade_impact=cascade_impact,
+            output_language=output_language,
         )
 
         if direction is None:
