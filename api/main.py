@@ -522,6 +522,22 @@ async def logo():
     raise HTTPException(404, "Logo not found")
 
 
+@app.get("/new_logo.png")
+async def new_logo():
+    path = FRONTEND_DIR / "new_logo.png"
+    if path.exists():
+        return FileResponse(str(path), media_type="image/png")
+    raise HTTPException(404, "new_logo not found")
+
+
+@app.get("/middle_image.png")
+async def middle_image():
+    path = FRONTEND_DIR / "middle_image.png"
+    if path.exists():
+        return FileResponse(str(path), media_type="image/png")
+    raise HTTPException(404, "middle_image not found")
+
+
 @app.get("/")
 async def root():
     index = FRONTEND_DIR / "index.html"
