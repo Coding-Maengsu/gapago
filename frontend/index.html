@@ -1102,11 +1102,21 @@ function handleEvent(data) {
             if (step) step.className = 'step done';
             if (line) line.className = 'step-line done';
         }
-        // 모든 타임라인 항목을 done 상태로
+        // 모든 타임라인 항목을 done 상태로 + 접기
         SUB_STEPS.forEach(s => {
             const el = document.getElementById(`tl-${s.id}`);
             if (el) el.className = 'tl-item done';
         });
+        const tl = document.getElementById('timeline');
+        if (tl) {
+            tl.style.transition = 'max-height 0.5s ease, opacity 0.4s ease';
+            tl.style.maxHeight = tl.scrollHeight + 'px';
+            tl.style.overflow = 'hidden';
+            requestAnimationFrame(() => {
+                tl.style.maxHeight = '0';
+                tl.style.opacity = '0';
+            });
+        }
         const totalSecs = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
         const tm = Math.floor(totalSecs / 60), ts = totalSecs % 60;
         document.getElementById('statusMsg').innerHTML = `<span style="color:var(--green);font-weight:600">Analysis complete</span><div class="elapsed">${tm > 0 ? tm + 'm ' : ''}${ts}s total</div>`;
