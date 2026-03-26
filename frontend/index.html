@@ -394,21 +394,23 @@
         tr.highlight { background: rgba(84,105,212,0.15) !important; box-shadow: inset 4px 0 0 var(--accent); transition: background 0.5s, box-shadow 0.5s; }
 
         /* ── Report ── */
-        .report-content { font-size: 1.02em; line-height: 1.9; color: var(--text); }
-        .report-content h1 { font-size: 1.45em; color: var(--text); margin: 28px 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--accent); font-weight: 700; }
-        .report-content h2 { font-size: 1.25em; color: var(--text); margin: 24px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); font-weight: 600; }
-        .report-content h3 { font-size: 1.1em; color: var(--accent); margin: 18px 0 8px; font-weight: 600; }
-        .report-content h4 { font-size: 1em; color: var(--text); margin: 20px 0 8px; font-weight: 600; padding: 8px 12px; background: var(--surface2); border-left: 3px solid var(--accent); border-radius: 0 var(--radius) var(--radius) 0; }
+        .report-content { font-size: 1.02em; line-height: 1.55; color: var(--text); }
+        .report-content h1 { font-size: 1.45em; color: var(--text); margin: 20px 0 8px; padding-bottom: 6px; border-bottom: 2px solid var(--accent); font-weight: 700; }
+        .report-content h2 { font-size: 1.25em; color: var(--text); margin: 16px 0 6px; padding: 4px 10px; font-weight: 700; background: linear-gradient(transparent 40%, rgba(99,102,241,0.18) 40%); display: inline-block; border-radius: 3px; }
+        .report-content h3 { font-size: 1.1em; color: var(--accent); margin: 12px 0 6px; font-weight: 600; }
+        .report-content h4 { font-size: 1em; color: var(--text); margin: 14px 0 6px; font-weight: 600; padding: 6px 12px; background: var(--surface2); border-left: 3px solid var(--accent); border-radius: 0 var(--radius) var(--radius) 0; }
         .report-content strong { color: var(--text); }
         .report-content table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.92em; }
         .report-content th { text-align: left; padding: 10px 12px; background: var(--surface2); color: var(--text-dim); font-weight: 600; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.3px; border-bottom: 2px solid var(--border); }
         .report-content td { padding: 9px 12px; border-bottom: 1px solid var(--border-light); color: var(--text); }
         .report-content tr:hover { background: var(--accent-bg); }
         .report-content code { background: var(--surface2); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
-        .report-content ul, .report-content ol { padding-left: 22px; margin: 8px 0; }
-        .report-content li { margin-bottom: 5px; line-height: 1.75; }
-        .report-content blockquote { border-left: 3px solid var(--accent); padding: 10px 18px; margin: 14px 0; background: var(--accent-bg); border-radius: 0 var(--radius) var(--radius) 0; font-style: italic; color: var(--text-dim); }
-        .report-content hr { border: none; border-top: 1px solid var(--border-light); margin: 24px 0; }
+        .report-content ul, .report-content ol { padding-left: 22px; margin: 4px 0; }
+        .report-content li { margin-bottom: 3px; line-height: 1.6; }
+        .report-content blockquote { border-left: 3px solid var(--accent); padding: 8px 14px; margin: 8px 0; background: var(--accent-bg); border-radius: 0 var(--radius) var(--radius) 0; font-style: italic; color: var(--text-dim); }
+        .report-content hr { border: none; border-top: 1px solid var(--border-light); margin: 14px 0; }
+        .report-content p { margin: 4px 0; }
+        .report-content br + br { display: none; }
 
         .report-actions { display: flex; gap: 8px; margin-bottom: 18px; }
         .report-actions button {
@@ -1153,7 +1155,7 @@ function renderResults() {
     // Report tab
     if (pipelineData.report) {
         document.getElementById('tab-report').innerHTML = `
-            <div style="padding:14px 18px;background:var(--accent-bg);border-radius:var(--radius);margin-bottom:16px;font-size:0.9em;color:var(--text-dim);line-height:1.6;">
+            <div style="padding:14px 18px;background:var(--accent-bg);border-radius:var(--radius);margin-bottom:16px;font-size:0.9em;color:var(--text-dim);line-height:1.6;font-weight:600;">
                 📋 논문 검색, 한계점 분석, 연구 갭을 종합한 최종 리포트입니다. 각 GAP의 요약은 <a href="#" onclick="event.preventDefault();switchTab('gaps')" style="color:var(--accent);font-weight:600;text-decoration:none;">Research GAPs</a> 탭에서 확인하세요.<br>📥 리포트를 복사하거나 마크다운 파일로 다운로드할 수 있습니다.
             </div>
             <div class="report-actions">
@@ -1256,15 +1258,27 @@ function renderMarkdown(text) {
     text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     // Parse tables: find consecutive lines starting with |
+    // Must run BEFORE hr/heading replacements so |---| rows aren't converted to <hr>
     text = text.replace(/(^\|.+\|$\n?)+/gm, function(tableBlock) {
         const rows = tableBlock.trim().split('\n').filter(r => r.trim());
         if (rows.length < 2) return tableBlock;
+
+        // Find header row (first row) and separator row
+        let headerIdx = 0;
+        let sepIdx = -1;
+        for (let i = 0; i < rows.length; i++) {
+            const cells = rows[i].split('|').filter((c, j, a) => j > 0 && j < a.length).map(c => c.trim());
+            if (cells.every(c => /^[-:\s]+$/.test(c))) { sepIdx = i; break; }
+        }
+
         let html = '<table>';
         rows.forEach((row, i) => {
             const cells = row.split('|').filter((c, j, a) => j > 0 && j < a.length).map(c => c.trim());
-            // Skip separator row (|---|---|)
+            // Skip separator row
             if (cells.every(c => /^[-:\s]+$/.test(c))) return;
-            const tag = i === 0 ? 'th' : 'td';
+            // Header = row before separator, or first row if no separator found
+            const isHeader = (sepIdx > 0 && i < sepIdx) || (sepIdx === -1 && i === 0);
+            const tag = isHeader ? 'th' : 'td';
             html += '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
         });
         html += '</table>';
@@ -1284,7 +1298,7 @@ function renderMarkdown(text) {
         .replace(/^- (.+)$/gm, '<li>$1</li>')
         .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
         .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-        .replace(/\n{2,}/g, '<br><br>')
+        .replace(/\n{2,}/g, '<br>')
         .replace(/\n/g, ' ');
 }
 

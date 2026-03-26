@@ -16,7 +16,11 @@ RESPONSE_SYSTEM_PROMPT = (
     "  - Do NOT use unicode box-drawing characters (─ ━ ═ │ etc.).\n"
     "  - Use --- for horizontal rules.\n"
     "  - Use standard pipe | syntax for tables.\n"
-    "  - Every table MUST have a separator row (|---|---| ...) directly after the header row.\n\n"
+    "  - Every table MUST have a separator row (|---|---| ...) directly after the header row. Never omit it.\n"
+    "  - Table format example:\n"
+    "    | Header1 | Header2 |\n"
+    "    |---------|----------|\n"
+    "    | data1   | data2   |\n\n"
 
     "## Research GAP Analysis Report\n\n"
     "**Query:** <original user query>\n\n"
