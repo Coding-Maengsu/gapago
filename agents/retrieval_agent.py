@@ -265,9 +265,27 @@ def _llm_rerank(papers: list[dict], query: str, top_k: int, provider: str = None
         return papers[:top_k]
 
 
+def _resolve_year_range(year_range: str) -> str:
+    """Convert year_range setting to 'YYYY-YYYY' format for tools."""
+    from datetime import datetime
+    current_year = datetime.now().year
+    if year_range == "1y":
+        return f"{current_year - 1}-{current_year}"
+    elif year_range == "3y":
+        return f"{current_year - 3}-{current_year}"
+    elif year_range == "5y":
+        return f"{current_year - 5}-{current_year}"
+    # "auto" or unknown → return empty (agent decides)
+    return ""
+
+
 def paper_retrieval_node(state: AgentState) -> AgentState:
     provider = state.get("llm_provider")
     paper_retrieval_agent = _build_retrieval_agent(provider=provider)
+
+    # 연도 필터 처리
+    year_range = state.get("year_range", "auto")
+    resolved_year = _resolve_year_range(year_range)
 
     messages = state.get("messages", [])
     print(f"  [DEBUG] 전체 messages 수: {len(messages)}")
@@ -289,6 +307,22 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
 
     # 가장 최신 메시지 1개만 전달
     query_messages = query_messages[-1:]
+
+    # 연도 필터 정보를 메시지에 주입
+    if resolved_year:
+        year_instruction = HumanMessage(
+            content=f"[YEAR FILTER] 모든 검색 도구에 year='{resolved_year}' 파라미터를 반드시 사용하세요.",
+            name="year_filter",
+        )
+        query_messages = query_messages + [year_instruction]
+    elif year_range == "auto":
+        year_instruction = HumanMessage(
+            content="[YEAR FILTER: AUTO] 연구 분야의 특성을 고려하여 적절한 year 파라미터를 직접 결정하세요. "
+                    "예: AI/LLM 분야는 최근 2-3년, 기초과학은 5-10년 등. "
+                    "year 파라미터 형식: 'YYYY-YYYY' (e.g. '2023-2026').",
+            name="year_filter",
+        )
+        query_messages = query_messages + [year_instruction]
 
     result = paper_retrieval_agent.invoke({
         **state,

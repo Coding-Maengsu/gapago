@@ -584,13 +584,19 @@ def semantic_scholar_search(query: str, limit: int = 20, year: str = "") -> list
 _OPENALEX_API = "https://api.openalex.org/works"
 
 
-def openalex_search(query: str, per_page: int = 20) -> list[dict]:
+def openalex_search(query: str, per_page: int = 20, year: str = "") -> list[dict]:
     """OpenAlex API로 논문 검색. API key 불필요."""
     params = {
         "search": query,
         "per_page": min(per_page, 200),
         "select": "id,title,publication_year,doi,authorships,abstract_inverted_index",
     }
+    # 연도 필터: OpenAlex filter 파라미터 사용
+    if year and "-" in year:
+        parts = year.split("-")
+        from_year = parts[0].strip()
+        to_year = parts[1].strip() if parts[1].strip() else "2026"
+        params["filter"] = f"publication_year:{from_year}-{to_year}"
     papers: list[dict] = []
     r = requests.get(
         _OPENALEX_API,
@@ -647,6 +653,7 @@ class ArxivApiCallInput(BaseModel):
     max_total: int = Field(default=80, description="총 최대 결과 수")
     page_size: int = Field(default=40, description="페이지당 결과 수")
     max_pages: int = Field(default=3, description="최대 페이지 수")
+    year: str = Field(default="", description="연도 필터 (e.g. '2022-2026'). submittedDate 범위로 변환")
 
 
 class WebSearchInput(BaseModel):
@@ -662,6 +669,7 @@ class SemanticScholarSearchInput(BaseModel):
 class OpenAlexSearchInput(BaseModel):
     query: str = Field(description="OpenAlex 검색 쿼리")
     per_page: int = Field(default=20, description="최대 결과 수 (max 200)")
+    year: str = Field(default="", description="연도 필터 (e.g. '2022-2026')")
 
 
 class ScienceOnSearchInput(BaseModel):
@@ -699,9 +707,17 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
         max_total: int = 80,
         page_size: int = 40,
         max_pages: int = 3,
+        year: str = "",
     ) -> str:
-        """Call arXiv API directly and return a paper list as JSON string."""
+        """Call arXiv API directly and return a paper list as JSON string. Use year param for date filtering (e.g. '2022-2026')."""
         try:
+            # Embed year filter into arXiv query via submittedDate
+            if year and "-" in year:
+                parts = year.split("-")
+                from_year = parts[0].strip()
+                to_year = parts[1].strip() if parts[1].strip() else "2026"
+                date_filter = f" AND submittedDate:[{from_year}01010000 TO {to_year}12312359]"
+                search_query = search_query + date_filter
             results = arxiv_api_call(
                 search_query=search_query,
                 max_total=max_total,
@@ -743,10 +759,10 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
             return f"<Error>Semantic Scholar search failed: {str(e)}</Error>"
 
     @tool(args_schema=OpenAlexSearchInput)
-    def openalex_search_tool(query: str, per_page: int = 20) -> str:
-        """Search OpenAlex for academic papers. Covers 200M+ works across all disciplines. No API key needed."""
+    def openalex_search_tool(query: str, per_page: int = 20, year: str = "") -> str:
+        """Search OpenAlex for academic papers. Covers 200M+ works across all disciplines. No API key needed. Use year param for filtering (e.g. '2022-2026')."""
         try:
-            results = openalex_search(query=query, per_page=per_page)
+            results = openalex_search(query=query, per_page=per_page, year=year)
             return json.dumps({
                 "source": "openalex",
                 "query": query,
