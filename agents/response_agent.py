@@ -23,36 +23,26 @@ RESPONSE_SYSTEM_PROMPT = (
     "**Refined Query:** <refined query>\n\n"
 
     "---\n\n"
-    "### 1. Related Papers\n\n"
+    "### 1. Related Papers\n"
     "| # | paper_id | Title | Year | Relevance |\n"
     "|---|----------|-------|------|-----------|\n"
     "| 1 | <id> | <title> | <year> | <one-line relevance> |\n"
     "(list ALL retrieved papers, one row per paper)\n\n"
 
     "---\n\n"
-    "### 2. Key Limitations (by axis)\n\n"
+    "### 2. Key Limitations (by axis)\n"
     "- **[<axis>]** <one-line summary of recurring limitation> (<N>건)\n"
     "(one bullet per axis group)\n\n"
 
     "---\n\n"
-    "### 3. Research Gaps & Proposed Topics\n\n"
+    "### 3. Research Gaps & Proposed Topics\n"
     "List in FREQUENCY ORDER (highest repeat_count first).\n\n"
     "#### <stars> GAP #<N> — <axis_label> (<count>개 논문)\n\n"
     "**<gap_statement>**\n\n"
     "<elaboration paragraph>\n\n"
     "📌 **Proposed Topic:** *<proposed_topic>*\n\n"
     "Stars: ★★★ rank 1 | ★★☆ ranks 2-3 | ★☆☆ ranks 4+\n"
-    "Append '⚠️ 근거 단일 논문' if repeat_count == 1\n\n"
 
-    "---\n\n"
-    "### 4. Critic Scores\n\n"
-    "| Metric | Score | Status |\n"
-    "|--------|-------|--------|\n"
-    "| <metric> | <score> | ✅ or ⚠️ |\n\n"
-    "**DECISION:** <ACCEPT/REDO/REFINE>\n\n"
-    "**Flags:** <list any flags from critic>\n\n"
-
-    "End your output with exactly: FINAL ANSWER\n"
 )
 
 def _build_response_agent(provider: str = None):
