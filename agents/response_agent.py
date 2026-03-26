@@ -110,14 +110,22 @@ def final_response_node(state: AgentState) -> AgentState:
         output_language=state.get("output_language", "auto"),
     )
 
-    # 구조화 데이터를 messages에 주입
+    # 누적 messages 대신 구조화 데이터만 fresh message로 구성 (토큰 초과 방지)
+    from langchain_core.messages import HumanMessage
     data_context = _build_data_context(state)
+    user_query = state.get("user_question", "") or state.get("refined_query", "")
+
+    fresh_messages = [
+        HumanMessage(content=(
+            f"사용자 연구 질문: {user_query}\n"
+            f"Refined Query: {state.get('refined_query', '')}\n\n"
+            f"아래는 파이프라인에서 생성된 구조화 데이터입니다. 이 데이터를 기반으로 보고서를 작성하세요.\n\n"
+            f"{data_context}"
+        ))
+    ]
+
     enriched_state = dict(state)
-    if data_context:
-        from langchain_core.messages import HumanMessage
-        enriched_state["messages"] = list(state.get("messages", [])) + [
-            HumanMessage(content=f"아래는 파이프라인에서 생성된 구조화 데이터입니다. 이 데이터를 기반으로 보고서를 작성하세요.\n\n{data_context}")
-        ]
+    enriched_state["messages"] = fresh_messages
 
     result = final_response_agent.invoke(enriched_state)
     last = AIMessage(content=result["messages"][-1].content, name="final_response")
