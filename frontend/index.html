@@ -367,9 +367,9 @@
         .gap-card.top .gap-rank { background: var(--yellow-light); color: var(--yellow); }
 
         .gap-card .axis { font-size: 0.82em; color: var(--text-light); margin-bottom: 6px; }
-        .gap-card .statement { font-size: 1.05em; font-weight: 600; color: var(--text); margin-bottom: 10px; line-height: 1.65; }
+        .gap-card .statement { font-size: 1.08em; font-weight: 700; color: var(--text); margin-bottom: 10px; line-height: 1.65; }
         .gap-card .elaboration { font-size: 0.95em; color: var(--text-dim); line-height: 1.75; margin-bottom: 10px; }
-        .gap-card .topic { font-size: 0.86em; color: var(--accent2); font-weight: 500; }
+        .gap-card .topic { font-size: 0.92em; color: var(--accent2); font-weight: 600; padding: 10px 14px; background: linear-gradient(135deg, rgba(124,92,191,0.08), rgba(84,105,212,0.08)); border-left: 3px solid var(--accent2); border-radius: 0 8px 8px 0; margin-top: 10px; }
         .gap-card .papers-info { font-size: 0.8em; color: var(--text-light); margin-top: 8px; line-height: 1.6; }
         .gap-card .papers-info .paper-link { color: var(--accent); text-decoration: none; font-weight: 500; }
         .gap-card .papers-info .paper-link:hover { text-decoration: underline; }
@@ -1001,7 +1001,7 @@ function renderResults() {
                 <div class="axis">${axisType}: ${esc(gap.axis_label||gap.axis||'')} &middot; ${gap.repeat_count||0} papers</div>
                 <div class="statement">${esc(gap.gap_statement||'')}</div>
                 <div class="elaboration">${esc(gap.elaboration||'')}</div>
-                <div class="topic">Proposed: ${esc(gap.proposed_topic||'')}</div>
+                <div class="topic">📌 Proposed Topic: ${esc(gap.proposed_topic||'')}</div>
                 <div class="papers-info">Supporting: ${(gap.supporting_papers||[]).slice(0,5).map(pid => {
                     const idx = pipelineData.papers.findIndex(p => p.paper_id === pid);
                     if (idx !== -1) {
