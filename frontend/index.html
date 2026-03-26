@@ -1300,8 +1300,8 @@ function renderMarkdown(text) {
         .replace(/^- (.+)$/gm, '<li>$1</li>')
         .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
         .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-        .replace(/\n{2,}/g, '<br>')
-        .replace(/\n/g, ' ');
+        .replace(/\n{2,}/g, '<br><br>')
+        .replace(/\n/g, '<br>');
 }
 
 function copyReport() {
