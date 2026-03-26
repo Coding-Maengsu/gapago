@@ -516,6 +516,7 @@ def _generate_creative_directions(
     web_results: list,
     cascade_impact: str,
     output_language: str = "auto",
+    provider: str = None,
 ) -> dict:
     """
     Step 5b에서 도출한 장벽과 "이미 시도된 것들"을 출발점으로,
