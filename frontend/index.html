@@ -645,6 +645,12 @@
             <option value="3y">Recent (3 years)</option>
             <option value="5y">Broad (5 years)</option>
         </select>
+        <label>Language</label>
+        <select id="outputLanguage">
+            <option value="auto">Auto (입력 언어 감지)</option>
+            <option value="ko">한국어</option>
+            <option value="en">English</option>
+        </select>
     </div>
 
     <div class="history-section" id="historySection">
@@ -864,6 +870,7 @@ function setInputEnabled(enabled) {
     document.getElementById('provider').disabled = !enabled;
     document.getElementById('domain').disabled = !enabled;
     document.getElementById('yearRange').disabled = !enabled;
+    document.getElementById('outputLanguage').disabled = !enabled;
 
     const runBtn = document.getElementById('runBtn');
     if (enabled) {
@@ -896,6 +903,7 @@ async function startAnalysis() {
     const provider = document.getElementById('provider').value;
     const domain = document.getElementById('domain').value;
     const yearRange = document.getElementById('yearRange').value;
+    const outputLanguage = document.getElementById('outputLanguage').value;
 
     setInputEnabled(false);
     pipelineData = { papers: [], gaps: [], report: '' };
@@ -906,7 +914,7 @@ async function startAnalysis() {
 
     try {
         // Step 1: Start analysis — get session_id
-        const params = new URLSearchParams({ query, provider, domain, year_range: yearRange, user_id: USER_ID });
+        const params = new URLSearchParams({ query, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID });
         const resp = await fetch(`api/analyze?${params}`);
         if (!resp.ok) {
             showError(`API Error (${resp.status}): ${await resp.text()}`);

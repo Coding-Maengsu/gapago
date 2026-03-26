@@ -3,7 +3,7 @@ from states import AgentState
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage
 from tools import build_role_tools
-from prompts.system import make_system_prompt
+from prompts.system import make_system_prompt, get_language_instruction
 from llm import get_llm
 
 ROLE_TOOLS = build_role_tools()
@@ -45,13 +45,14 @@ RESPONSE_SYSTEM_PROMPT = (
 
 )
 
-def _build_response_agent(provider: str = None):
+def _build_response_agent(provider: str = None, output_language: str = "auto"):
     """Build the final response agent with the specified LLM provider."""
     llm = get_llm(provider=provider)
+    lang_instruction = get_language_instruction(output_language)
     return create_agent(
         model=llm,
         tools=RESPONSE_TOOLS,
-        system_prompt=make_system_prompt(RESPONSE_SYSTEM_PROMPT),
+        system_prompt=make_system_prompt(RESPONSE_SYSTEM_PROMPT + lang_instruction),
     )
 
 
@@ -100,7 +101,10 @@ def _build_data_context(state: AgentState) -> str:
 
 
 def final_response_node(state: AgentState) -> AgentState:
-    final_response_agent = _build_response_agent(provider=state.get("llm_provider"))
+    final_response_agent = _build_response_agent(
+        provider=state.get("llm_provider"),
+        output_language=state.get("output_language", "auto"),
+    )
 
     # 구조화 데이터를 messages에 주입
     data_context = _build_data_context(state)

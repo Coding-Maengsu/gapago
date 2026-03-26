@@ -269,7 +269,7 @@ async def get_history_detail(filename: str):
 
 
 @app.get("/api/analyze")
-async def analyze(query: str, provider: str = "azure", domain: str = "auto", year_range: str = "auto", user_id: str = ""):
+async def analyze(query: str, provider: str = "azure", domain: str = "auto", year_range: str = "auto", output_language: str = "auto", user_id: str = ""):
     """
     Start a new analysis pipeline in background. Returns session_id.
     Client should connect to /api/stream/{session_id} for SSE updates.
@@ -287,6 +287,7 @@ async def analyze(query: str, provider: str = "azure", domain: str = "auto", yea
         "research_domain": domain,
         "llm_provider": provider,
         "year_range": year_range,
+        "output_language": output_language,
     }
 
     _sessions[session_id] = {

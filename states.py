@@ -204,6 +204,7 @@ class AgentState(TypedDict):
     research_domain: str     # 연구 도메인 (auto/ai_cs/biomedical/materials_chemistry/physics/general)
     llm_provider: str        # LLM 프로바이더 (azure/claude/gemini/exaone)
     year_range: str          # 연도 필터 (auto/1y/3y/5y)
+    output_language: str     # 출력 언어 (auto/ko/en)
 
     # ==================================================================
     # -3- LIMITATION AGENT
