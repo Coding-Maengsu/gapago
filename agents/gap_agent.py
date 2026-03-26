@@ -282,7 +282,7 @@ Output JSON only — map each index to its axis key:
 
 # ── Step 5. 축별 GAP 생성 ────────────────────────────────────────────────────
 
-def _generate_gap_for_axis(ax_key: str, ax_info: dict, ax_lims: list, research_question: str, provider: str = None):
+def _generate_gap_for_axis(ax_key: str, ax_info: dict, ax_lims: list, research_question: str, provider: str = None, output_language: str = "auto"):
     claims_block = "\n".join(
         f"  - [Paper {lim.paper_id}] {lim.claim}" for lim in ax_lims[:8]
     )
@@ -315,10 +315,14 @@ Output JSON only:
   "proposed_topic": "..."
 }}
 """
+    from prompts.system import get_language_instruction
+    lang_instruction = get_language_instruction(output_language)
+
     messages = [
         {"role": "system", "content": (
             "You are an expert at identifying and articulating research gaps "
             "across all scientific disciplines. Always respond in valid JSON."
+            + lang_instruction
         )},
         {"role": "user", "content": prompt},
     ]
@@ -428,7 +432,8 @@ def gap_infer_node(state: AgentState) -> AgentState:
 
     for ax_key, ax_lims in sorted(active_axes.items(), key=lambda x: -len(x[1])):
         ax_info = final_axes.get(ax_key, {"label": ax_key, "description": "", "type": "fixed"})
-        result = _generate_gap_for_axis(ax_key, ax_info, ax_lims, research_question, provider=provider)
+        output_language = state.get("output_language", "auto")
+        result = _generate_gap_for_axis(ax_key, ax_info, ax_lims, research_question, provider=provider, output_language=output_language)
         if result is None:
             continue
 

@@ -302,7 +302,18 @@ def _scienceon_parse_search_xml(xml_text: str, target: str) -> dict:
     }
 
 
-def scienceon_search(*, client_id: str, query: str, target: str = "ARTI", cur_page: int = 1, row_count: int = 10, mac_address: Optional[str] = None, key: Optional[str] = None, timeout: int = 30) -> dict:
+def _scienceon_search_query(query: str, year: str = "") -> str:
+    """Build ScienceON searchQuery JSON with optional PY (year) filter."""
+    sq = {"BI": _norm(query)}
+    if year and "-" in year:
+        parts = year.split("-")
+        from_year = parts[0].strip()
+        to_year = parts[1].strip() if parts[1].strip() else "2026"
+        sq["PY"] = f"{from_year}~{to_year}"
+    return json.dumps(sq, ensure_ascii=False, separators=(",", ":"))
+
+
+def scienceon_search(*, client_id: str, query: str, target: str = "ARTI", cur_page: int = 1, row_count: int = 10, mac_address: Optional[str] = None, key: Optional[str] = None, timeout: int = 30, year: str = "") -> dict:
     token_state = _scienceon_resolve_tokens(
         client_id=client_id,
         mac_address=mac_address,
@@ -324,7 +335,7 @@ def scienceon_search(*, client_id: str, query: str, target: str = "ARTI", cur_pa
         "version": "1.0",
         "action": "search",
         "target": target,
-        "searchQuery": json.dumps({"BI": _norm(query)}, ensure_ascii=False, separators=(",", ":")),
+        "searchQuery": _scienceon_search_query(query, year),
         "curPage": int(cur_page),
         "rowCount": int(row_count),
     }
@@ -444,7 +455,7 @@ def _scienceon_parse_report_xml(xml_text: str) -> dict:
 
 
 def scienceon_patent_search(*, client_id: str, query: str, cur_page: int = 1, row_count: int = 10,
-                            mac_address: Optional[str] = None, key: Optional[str] = None, timeout: int = 30) -> dict:
+                            mac_address: Optional[str] = None, key: Optional[str] = None, timeout: int = 30, year: str = "") -> dict:
     """Search ScienceON for patents (target=PATENT)."""
     token_state = _scienceon_resolve_tokens(client_id=client_id, mac_address=mac_address, key=key, timeout=timeout)
     access_token = token_state.get("access_token")
@@ -457,7 +468,7 @@ def scienceon_patent_search(*, client_id: str, query: str, cur_page: int = 1, ro
     params = {
         "client_id": client_id, "token": access_token, "version": "1.0",
         "action": "search", "target": "PATENT",
-        "searchQuery": json.dumps({"BI": _norm(query)}, ensure_ascii=False, separators=(",", ":")),
+        "searchQuery": _scienceon_search_query(query, year),
         "curPage": int(cur_page), "rowCount": int(row_count),
     }
 
@@ -485,7 +496,7 @@ def scienceon_patent_search(*, client_id: str, query: str, cur_page: int = 1, ro
 
 
 def scienceon_report_search(*, client_id: str, query: str, cur_page: int = 1, row_count: int = 10,
-                            mac_address: Optional[str] = None, key: Optional[str] = None, timeout: int = 30) -> dict:
+                            mac_address: Optional[str] = None, key: Optional[str] = None, timeout: int = 30, year: str = "") -> dict:
     """Search ScienceON for national R&D reports (target=REPORT)."""
     token_state = _scienceon_resolve_tokens(client_id=client_id, mac_address=mac_address, key=key, timeout=timeout)
     access_token = token_state.get("access_token")
@@ -498,7 +509,7 @@ def scienceon_report_search(*, client_id: str, query: str, cur_page: int = 1, ro
     params = {
         "client_id": client_id, "token": access_token, "version": "1.0",
         "action": "search", "target": "REPORT",
-        "searchQuery": json.dumps({"BI": _norm(query)}, ensure_ascii=False, separators=(",", ":")),
+        "searchQuery": _scienceon_search_query(query, year),
         "curPage": int(cur_page), "rowCount": int(row_count),
     }
 
@@ -584,13 +595,19 @@ def semantic_scholar_search(query: str, limit: int = 20, year: str = "") -> list
 _OPENALEX_API = "https://api.openalex.org/works"
 
 
-def openalex_search(query: str, per_page: int = 20) -> list[dict]:
+def openalex_search(query: str, per_page: int = 20, year: str = "") -> list[dict]:
     """OpenAlex API로 논문 검색. API key 불필요."""
     params = {
         "search": query,
         "per_page": min(per_page, 200),
         "select": "id,title,publication_year,doi,authorships,abstract_inverted_index",
     }
+    # 연도 필터: OpenAlex filter 파라미터 사용
+    if year and "-" in year:
+        parts = year.split("-")
+        from_year = parts[0].strip()
+        to_year = parts[1].strip() if parts[1].strip() else "2026"
+        params["filter"] = f"publication_year:{from_year}-{to_year}"
     papers: list[dict] = []
     r = requests.get(
         _OPENALEX_API,
@@ -647,6 +664,7 @@ class ArxivApiCallInput(BaseModel):
     max_total: int = Field(default=80, description="총 최대 결과 수")
     page_size: int = Field(default=40, description="페이지당 결과 수")
     max_pages: int = Field(default=3, description="최대 페이지 수")
+    year: str = Field(default="", description="연도 필터 (e.g. '2022-2026'). submittedDate 범위로 변환")
 
 
 class WebSearchInput(BaseModel):
@@ -662,6 +680,7 @@ class SemanticScholarSearchInput(BaseModel):
 class OpenAlexSearchInput(BaseModel):
     query: str = Field(description="OpenAlex 검색 쿼리")
     per_page: int = Field(default=20, description="최대 결과 수 (max 200)")
+    year: str = Field(default="", description="연도 필터 (e.g. '2022-2026')")
 
 
 class ScienceOnSearchInput(BaseModel):
@@ -669,18 +688,21 @@ class ScienceOnSearchInput(BaseModel):
     target: str = Field(default="ARTI", description="ScienceON target")
     cur_page: int = Field(default=1, description="현재 페이지 번호")
     row_count: int = Field(default=10, description="가져올 결과 수")
+    year: str = Field(default="", description="연도 필터 (e.g. '2022-2026')")
 
 
 class ScienceOnPatentSearchInput(BaseModel):
     query: str = Field(description="ScienceON 특허 검색 쿼리")
     cur_page: int = Field(default=1, description="현재 페이지 번호")
     row_count: int = Field(default=10, description="가져올 결과 수")
+    year: str = Field(default="", description="연도 필터 (e.g. '2022-2026')")
 
 
 class ScienceOnReportSearchInput(BaseModel):
     query: str = Field(description="ScienceON 국가 R&D 보고서 검색 쿼리")
     cur_page: int = Field(default=1, description="현재 페이지 번호")
     row_count: int = Field(default=10, description="가져올 결과 수")
+    year: str = Field(default="", description="연도 필터 (e.g. '2022-2026')")
 
 
 def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
@@ -699,9 +721,17 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
         max_total: int = 80,
         page_size: int = 40,
         max_pages: int = 3,
+        year: str = "",
     ) -> str:
-        """Call arXiv API directly and return a paper list as JSON string."""
+        """Call arXiv API directly and return a paper list as JSON string. Use year param for date filtering (e.g. '2022-2026')."""
         try:
+            # Embed year filter into arXiv query via submittedDate
+            if year and "-" in year:
+                parts = year.split("-")
+                from_year = parts[0].strip()
+                to_year = parts[1].strip() if parts[1].strip() else "2026"
+                date_filter = f" AND submittedDate:[{from_year}01010000 TO {to_year}12312359]"
+                search_query = search_query + date_filter
             results = arxiv_api_call(
                 search_query=search_query,
                 max_total=max_total,
@@ -743,10 +773,10 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
             return f"<Error>Semantic Scholar search failed: {str(e)}</Error>"
 
     @tool(args_schema=OpenAlexSearchInput)
-    def openalex_search_tool(query: str, per_page: int = 20) -> str:
-        """Search OpenAlex for academic papers. Covers 200M+ works across all disciplines. No API key needed."""
+    def openalex_search_tool(query: str, per_page: int = 20, year: str = "") -> str:
+        """Search OpenAlex for academic papers. Covers 200M+ works across all disciplines. No API key needed. Use year param for filtering (e.g. '2022-2026')."""
         try:
-            results = openalex_search(query=query, per_page=per_page)
+            results = openalex_search(query=query, per_page=per_page, year=year)
             return json.dumps({
                 "source": "openalex",
                 "query": query,
@@ -756,8 +786,8 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
             return f"<Error>OpenAlex search failed: {str(e)}</Error>"
 
     @tool(args_schema=ScienceOnSearchInput)
-    def scienceon_search_tool(query: str, target: str = "ARTI", cur_page: int = 1, row_count: int = 10) -> str:
-        """Search ScienceON paper records using the exact openapicall.do format: action=search, target=ARTI, searchQuery={\"BI\":\"...\"}, curPage, rowCount."""
+    def scienceon_search_tool(query: str, target: str = "ARTI", cur_page: int = 1, row_count: int = 10, year: str = "") -> str:
+        """Search ScienceON paper records. Use year param for filtering (e.g. '2022-2026')."""
         if not cfg.scienceon_client_id:
             return "<Error>ScienceON client_id is not configured. Set SCIENCEON_CLIENT_ID.</Error>"
         try:
@@ -769,14 +799,15 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
                 row_count=row_count or cfg.scienceon_default_row_count,
                 mac_address=cfg.scienceon_mac_address,
                 key=cfg.scienceon_key,
+                year=year,
             )
             return json.dumps(result, ensure_ascii=False)
         except Exception as e:
             return f"<Error>ScienceON search failed: {str(e)}</Error>"
 
     @tool(args_schema=ScienceOnPatentSearchInput)
-    def scienceon_patent_search_tool(query: str, cur_page: int = 1, row_count: int = 10) -> str:
-        """Search ScienceON for Korean patents. Returns patent title, abstract, applicants, IPC classification, application/publication dates. Useful for finding related prior art and technology trends."""
+    def scienceon_patent_search_tool(query: str, cur_page: int = 1, row_count: int = 10, year: str = "") -> str:
+        """Search ScienceON for Korean patents. Use year param for filtering (e.g. '2022-2026')."""
         if not cfg.scienceon_client_id:
             return "<Error>ScienceON client_id is not configured. Set SCIENCEON_CLIENT_ID.</Error>"
         try:
@@ -787,14 +818,15 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
                 row_count=row_count or cfg.scienceon_default_row_count,
                 mac_address=cfg.scienceon_mac_address,
                 key=cfg.scienceon_key,
+                year=year,
             )
             return json.dumps(result, ensure_ascii=False)
         except Exception as e:
             return f"<Error>ScienceON patent search failed: {str(e)}</Error>"
 
     @tool(args_schema=ScienceOnReportSearchInput)
-    def scienceon_report_search_tool(query: str, cur_page: int = 1, row_count: int = 10) -> str:
-        """Search ScienceON for Korean national R&D reports. Returns government-funded research reports with title, abstract, authors, publisher, and full-text links. Useful for finding national research projects and policy-driven studies."""
+    def scienceon_report_search_tool(query: str, cur_page: int = 1, row_count: int = 10, year: str = "") -> str:
+        """Search ScienceON for Korean national R&D reports. Use year param for filtering (e.g. '2022-2026')."""
         if not cfg.scienceon_client_id:
             return "<Error>ScienceON client_id is not configured. Set SCIENCEON_CLIENT_ID.</Error>"
         try:
@@ -805,6 +837,7 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
                 row_count=row_count or cfg.scienceon_default_row_count,
                 mac_address=cfg.scienceon_mac_address,
                 key=cfg.scienceon_key,
+                year=year,
             )
             return json.dumps(result, ensure_ascii=False)
         except Exception as e:

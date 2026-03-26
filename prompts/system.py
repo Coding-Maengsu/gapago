@@ -34,3 +34,25 @@ def make_system_prompt(suffix: str = "") -> str:
     if not suffix:
         return BASE_SYSTEM_PROMPT
     return BASE_SYSTEM_PROMPT + "\n\n" + suffix + "\n"
+
+
+def get_language_instruction(output_language: str) -> str:
+    """Return a language instruction string for agent prompts."""
+    if output_language == "ko":
+        return (
+            "\n=== LANGUAGE ===\n"
+            "You MUST write ALL output text in Korean (한국어).\n"
+            "Technical terms, paper titles, and keywords may remain in English.\n"
+        )
+    elif output_language == "en":
+        return (
+            "\n=== LANGUAGE ===\n"
+            "You MUST write ALL output text in English.\n"
+        )
+    else:  # auto
+        return (
+            "\n=== LANGUAGE ===\n"
+            "Match the language of the user's original query.\n"
+            "If the user wrote in Korean, respond in Korean. If in English, respond in English.\n"
+            "Technical terms, paper titles, and keywords may remain in English.\n"
+        )
