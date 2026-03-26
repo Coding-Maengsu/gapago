@@ -970,8 +970,9 @@ async function reconnectToSession(sessionId, query) {
     }
 }
 
-async function connectToStream(sessionId) {
-    const resp = await fetch(`api/stream/${sessionId}`);
+async function connectToStream(sessionId, fromIdx) {
+    const url = fromIdx ? `api/stream/${sessionId}?from_idx=${fromIdx}` : `api/stream/${sessionId}`;
+    const resp = await fetch(url);
     if (!resp.ok) {
         showError(`Stream Error (${resp.status}): ${await resp.text()}`);
         setInputEnabled(true);
@@ -1200,8 +1201,9 @@ async function sendClarification(response) {
         const params = new URLSearchParams({ session_id: currentSessionId, response });
         const resp = await fetch(`api/clarify?${params}`);
         if (!resp.ok) { showError(`Clarify Error (${resp.status}): ${await resp.text()}`); return; }
-        // Reconnect to the stream to get remaining events
-        await connectToStream(currentSessionId);
+        const data = await resp.json();
+        // Reconnect to stream, skipping already-consumed events
+        await connectToStream(currentSessionId, data.events_count || 0);
     } catch (e) { showError(e.message); }
 }
 

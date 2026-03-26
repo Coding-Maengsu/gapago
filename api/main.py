@@ -309,17 +309,18 @@ async def analyze(query: str, provider: str = "azure", domain: str = "auto", use
 
 
 @app.get("/api/stream/{session_id}")
-async def stream(session_id: str):
+async def stream(session_id: str, from_idx: int = 0):
     """
     SSE stream for a running session. Replays past events, then streams new ones.
     Supports reconnection — client can reconnect after refresh.
+    Use from_idx to skip already-consumed events (e.g. after clarify resume).
     """
     session = _sessions.get(session_id)
     if not session:
         raise HTTPException(404, "Session not found")
 
     async def event_stream():
-        cursor = 0
+        cursor = from_idx
         while True:
             # Send any buffered events
             while cursor < len(session["events"]):
@@ -407,7 +408,7 @@ async def clarify(session_id: str, response: str):
     session["event_signal"] = asyncio.Event()
     asyncio.create_task(_run_pipeline(session_id, graph, config_dict, None))
 
-    return {"session_id": session_id, "status": "resumed"}
+    return {"session_id": session_id, "status": "resumed", "events_count": len(session["events"])}
 
 
 def _build_node_payload(node: str, values: dict) -> dict:
