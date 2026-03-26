@@ -439,8 +439,11 @@ def _build_node_payload(node: str, values: dict) -> dict:
 
     if node == "query_subgraph":
         payload["refined_query"] = values.get("refined_query", "")
-        payload["keywords"] = values.get("keywords", [])
+        keywords = values.get("keywords", [])
+        payload["keywords"] = keywords
         payload["scope_level"] = values.get("scope_level", "")
+        if keywords:
+            payload["detail"] = f"Keywords: {', '.join(keywords[:5])}"
 
     elif node == "meaning_expand":
         msgs = values.get("messages", [])
@@ -448,6 +451,7 @@ def _build_node_payload(node: str, values: dict) -> dict:
             content = getattr(msg, "content", "")
             if content:
                 payload["expansion"] = content[:1000]
+        payload["detail"] = "Search terms expanded"
 
     elif node == "paper_retrieval":
         papers = values.get("papers", [])
@@ -484,11 +488,14 @@ def _build_node_payload(node: str, values: dict) -> dict:
 
     elif node == "limitation_eval":
         eval_data = values.get("limitation_eval", {})
-        payload["decision"] = eval_data.get("decision", "N/A")
+        decision = eval_data.get("decision", "N/A")
+        payload["decision"] = decision
         payload["call1_results"] = eval_data.get("call1_results", [])
         payload["call2_result"] = eval_data.get("call2_result", {})
         payload["eval_warnings"] = values.get("eval_warnings", [])
-        payload["limitations_count"] = len(values.get("limitations", []))
+        lim_count = len(values.get("limitations", []))
+        payload["limitations_count"] = lim_count
+        payload["detail"] = f"{lim_count} limitations evaluated — {decision}"
 
     elif node == "recency_check":
         limitations = values.get("limitations", [])
@@ -497,6 +504,7 @@ def _build_node_payload(node: str, values: dict) -> dict:
             s = lim.get("recency_status", "unresolved")
             status_counts[s] = status_counts.get(s, 0) + 1
         payload["recency_status"] = status_counts
+        payload["detail"] = f"Unresolved: {status_counts['unresolved']}, Partial: {status_counts['partial']}, Resolved: {status_counts['resolved']}"
         msgs = values.get("messages", [])
         for msg in msgs:
             content = getattr(msg, "content", "")
@@ -507,7 +515,7 @@ def _build_node_payload(node: str, values: dict) -> dict:
         gaps = values.get("gaps", [])
         payload["gaps_count"] = len(gaps)
         payload["gaps"] = gaps
-        payload["detail"] = f"Identified {len(gaps)} research gaps"
+        payload["detail"] = f"{len(gaps)}개의 연구 갭 도출 완료"
 
     elif node == "critic_score":
         msgs = values.get("messages", [])
@@ -515,6 +523,7 @@ def _build_node_payload(node: str, values: dict) -> dict:
             content = getattr(msg, "content", "")
             if content:
                 payload["critic_output"] = content[:1500]
+        payload["detail"] = "Quality check passed"
 
     elif node == "final_response":
         msgs = values.get("messages", [])
