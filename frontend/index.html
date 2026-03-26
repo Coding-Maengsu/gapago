@@ -1170,9 +1170,9 @@ function renderResults() {
             gapsHtml += `<div class="gap-card ${isTop ? 'top' : ''}">
                 <span class="gap-rank">${isTop ? 'TOP GAP' : `GAP #${i+1}`}</span>
                 <div class="axis">${axisType}: ${esc(gap.axis_label||gap.axis||'')} &middot; ${gap.repeat_count||0} papers</div>
-                <div class="statement">${esc(gap.gap_statement||'')}</div>
-                <div class="elaboration">${esc(gap.elaboration||'')}</div>
-                <div class="topic">📌 Proposed Topic: ${esc(gap.proposed_topic||'')}</div>
+                <div class="statement">${richText(gap.gap_statement||'')}</div>
+                <div class="elaboration">${richText(gap.elaboration||'')}</div>
+                <div class="topic">📌 Proposed Topic: ${richText(gap.proposed_topic||'')}</div>
                 <div class="papers-info">Supporting: ${(gap.supporting_papers||[]).slice(0,5).map(pid => {
                     const idx = pipelineData.papers.findIndex(p => p.paper_id === pid);
                     if (idx !== -1) {
@@ -1353,6 +1353,15 @@ function downloadReport() {
 function esc(str) {
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function richText(str) {
+    if (!str) return '';
+    let s = esc(str);
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/(?<!\w)_(.+?)_(?!\w)/g, '<em>$1</em>');
+    s = s.replace(/\n/g, '<br>');
+    return s;
 }
 </script>
 </body>
