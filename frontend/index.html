@@ -152,6 +152,8 @@
         .history-item:hover { background: var(--surface2); }
         .history-item .query { font-size: 0.86em; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
         .history-item .meta { font-size: 0.75em; color: var(--text-light); margin-top: 2px; }
+        .history-item .meta .running-badge { color: var(--accent); font-weight: 600; animation: pulse-text 1.5s infinite; }
+        @keyframes pulse-text { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
         /* ── Main ── */
         .main {
@@ -214,6 +216,22 @@
 
         .run-btn:hover { background: var(--accent-hover); box-shadow: 0 2px 8px rgba(84,105,212,0.25); }
         .run-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+
+        .stop-btn {
+            padding: 12px 28px;
+            background: var(--red);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 1em;
+            font-family: inherit;
+            white-space: nowrap;
+            transition: background 0.15s, box-shadow 0.15s;
+            letter-spacing: 0.1px;
+        }
+        .stop-btn:hover { background: #c03636; box-shadow: 0 2px 8px rgba(229,78,78,0.25); }
 
         /* ── Results ── */
         .results {
@@ -541,7 +559,7 @@
             .input-header { font-size: 0.68em; margin-bottom: 8px; }
             .input-row { gap: 8px; }
             .input-row input { padding: 10px 12px; font-size: 0.84em; }
-            .run-btn { padding: 10px 18px; font-size: 0.84em; }
+            .run-btn, .stop-btn { padding: 10px 18px; font-size: 0.84em; }
 
             .results { padding: 16px; }
 
@@ -582,7 +600,7 @@
             .settings-section { padding: 6px 10px; }
             .input-area { padding: 10px 12px; }
             .input-row input { font-size: 0.8em; padding: 9px 10px; }
-            .run-btn { padding: 9px 14px; font-size: 0.8em; }
+            .run-btn, .stop-btn { padding: 9px 14px; font-size: 0.8em; }
             .results { padding: 12px; }
             .step-label { display: none; }
             .step-line { width: 24px; }
@@ -685,6 +703,7 @@ let _thinkingInterval = null;
 let _startTime = null;
 let currentSessionId = null;
 let pipelineData = { papers: [], gaps: [], report: '' };
+let _activeReader = null;  // current SSE reader for stop cleanup
 
 const EXAMPLE_CATEGORIES = {
     'AI / Machine Learning': [
@@ -775,10 +794,27 @@ function getEmptyStateHTML() {
     </div>`;
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     document.getElementById('results').innerHTML = getEmptyStateHTML();
-    document.getElementById('runBtn').addEventListener('click', startAnalysis);
-    loadHistory();
+    document.getElementById('runBtn').onclick = startAnalysis;
+    await loadHistory();
+
+    // Reconnect to active session after page refresh
+    const savedSessionId = localStorage.getItem('gapago_active_session');
+    if (savedSessionId) {
+        try {
+            const statusResp = await fetch(`api/status/${savedSessionId}`);
+            const statusData = await statusResp.json();
+            if (statusData.status === 'running' || statusData.status === 'interrupted') {
+                currentSessionId = savedSessionId;
+                reconnectToSession(savedSessionId, statusData.query || '');
+            } else {
+                localStorage.removeItem('gapago_active_session');
+            }
+        } catch (e) {
+            localStorage.removeItem('gapago_active_session');
+        }
+    }
 });
 
 async function loadHistory() {
@@ -790,9 +826,15 @@ async function loadHistory() {
         items.forEach(item => {
             const div = document.createElement('div');
             div.className = 'history-item';
-            div.onclick = () => loadResult(item.filename);
-            const ts = item.timestamp ? new Date(item.timestamp).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
-            div.innerHTML = `<div class="query">${esc(item.query)}</div><div class="meta">${ts} &middot; ${item.gaps_count} GAPs</div>`;
+            if (item.status === 'running' || item.status === 'interrupted') {
+                div.onclick = () => reconnectToSession(item.session_id, item.query);
+                const ts = item.timestamp ? new Date(item.timestamp).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+                div.innerHTML = `<div class="query">${esc(item.query)}</div><div class="meta"><span class="running-badge">분석 중...</span> &middot; ${ts}</div>`;
+            } else {
+                div.onclick = () => loadResult(item.filename);
+                const ts = item.timestamp ? new Date(item.timestamp).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+                div.innerHTML = `<div class="query">${esc(item.query)}</div><div class="meta">${ts} &middot; ${item.gaps_count} GAPs</div>`;
+            }
             section.appendChild(div);
         });
         if (!items.length) section.innerHTML += '<div style="padding:14px;color:var(--text-light);font-size:0.78em">No history yet.</div>';
@@ -814,15 +856,29 @@ function fillQuery(q) {
 
 function setInputEnabled(enabled) {
     document.getElementById('queryInput').disabled = !enabled;
-    document.getElementById('runBtn').disabled = !enabled;
-    document.getElementById('runBtn').textContent = enabled ? 'Analyze' : 'Running...';
     document.getElementById('provider').disabled = !enabled;
     document.getElementById('domain').disabled = !enabled;
+
+    const runBtn = document.getElementById('runBtn');
+    if (enabled) {
+        runBtn.className = 'run-btn';
+        runBtn.textContent = 'Analyze';
+        runBtn.disabled = false;
+        runBtn.onclick = startAnalysis;
+    } else {
+        runBtn.className = 'stop-btn';
+        runBtn.textContent = 'Stop';
+        runBtn.disabled = false;
+        runBtn.onclick = stopAnalysis;
+    }
 }
 
 function newAnalysis() {
     document.getElementById('queryInput').value = '';
     clearInterval(_thinkingInterval);
+    currentSessionId = null;
+    localStorage.removeItem('gapago_active_session');
+    if (_activeReader) { try { _activeReader.cancel(); } catch(e) {} _activeReader = null; }
     document.getElementById('results').innerHTML = getEmptyStateHTML();
     setInputEnabled(true);
 }
@@ -833,14 +889,49 @@ async function startAnalysis() {
 
     const provider = document.getElementById('provider').value;
     const domain = document.getElementById('domain').value;
-    const results = document.getElementById('results');
 
     setInputEnabled(false);
     pipelineData = { papers: [], gaps: [], report: '' };
     _startTime = Date.now();
     clearInterval(_thinkingInterval);
 
-    results.innerHTML = `
+    showPipelineUI();
+
+    try {
+        // Step 1: Start analysis — get session_id
+        const params = new URLSearchParams({ query, provider, domain, user_id: USER_ID });
+        const resp = await fetch(`api/analyze?${params}`);
+        if (!resp.ok) {
+            showError(`API Error (${resp.status}): ${await resp.text()}`);
+            setInputEnabled(true);
+            return;
+        }
+        const { session_id } = await resp.json();
+        currentSessionId = session_id;
+        localStorage.setItem('gapago_active_session', session_id);
+
+        // Step 2: Connect to SSE stream
+        await connectToStream(session_id);
+    } catch (e) {
+        showError(e.message);
+    }
+}
+
+async function stopAnalysis() {
+    if (!currentSessionId) return;
+    try {
+        await fetch(`api/stop/${currentSessionId}`);
+    } catch (e) { console.error(e); }
+    if (_activeReader) { try { _activeReader.cancel(); } catch(e) {} _activeReader = null; }
+    clearInterval(_thinkingInterval);
+    localStorage.removeItem('gapago_active_session');
+    document.getElementById('statusMsg').innerHTML = '<span style="color:var(--red);font-weight:600">Analysis stopped</span>';
+    setInputEnabled(true);
+    loadHistory();
+}
+
+function showPipelineUI() {
+    document.getElementById('results').innerHTML = `
         <div class="stepper" id="stepper">
             <div class="step active" id="step-0"><div class="step-dot">1</div><span class="step-label">Searching</span></div>
             <div class="step-line" id="line-0"></div>
@@ -860,21 +951,33 @@ async function startAnalysis() {
             <div class="tab-content" id="tab-report"></div>
         </div>
     `;
+}
 
+async function reconnectToSession(sessionId, query) {
+    currentSessionId = sessionId;
+    localStorage.setItem('gapago_active_session', sessionId);
+    document.getElementById('queryInput').value = query || '';
+    setInputEnabled(false);
+    pipelineData = { papers: [], gaps: [], report: '' };
+    _startTime = Date.now();
+    clearInterval(_thinkingInterval);
+    showPipelineUI();
+    document.getElementById('statusMsg').innerHTML = 'Reconnecting...<div class="detail">Resuming analysis from where it left off</div>';
     try {
-        const params = new URLSearchParams({ query, provider, domain, user_id: USER_ID });
-        const resp = await fetch(`api/analyze?${params}`);
-        if (!resp.ok) {
-            showError(`API Error (${resp.status}): ${await resp.text()}`);
-            setInputEnabled(true);
-            return;
-        }
-        await processStream(resp);
+        await connectToStream(sessionId);
     } catch (e) {
         showError(e.message);
     }
+}
 
-    setInputEnabled(true);
+async function connectToStream(sessionId) {
+    const resp = await fetch(`api/stream/${sessionId}`);
+    if (!resp.ok) {
+        showError(`Stream Error (${resp.status}): ${await resp.text()}`);
+        setInputEnabled(true);
+        return;
+    }
+    await processStream(resp);
 }
 
 function showError(message) {
@@ -889,6 +992,7 @@ function showError(message) {
 
 async function processStream(resp) {
     const reader = resp.body.getReader();
+    _activeReader = reader;
     const decoder = new TextDecoder();
     let buffer = '';
 
@@ -906,6 +1010,8 @@ async function processStream(resp) {
 }
 
 function handleEvent(data) {
+    if (data.event === 'keepalive') return;
+
     if (data.event === 'node') {
         const stage = STAGE_MAP[data.node];
         if (stage !== undefined) updateStepper(stage, data.node);
@@ -915,6 +1021,8 @@ function handleEvent(data) {
         showInterrupt(data.clarify_prompt);
     } else if (data.event === 'complete') {
         clearInterval(_thinkingInterval);
+        localStorage.removeItem('gapago_active_session');
+        _activeReader = null;
         // 모든 스텝을 done 상태로 변경
         for (let i = 0; i < 3; i++) {
             const step = document.getElementById(`step-${i}`);
@@ -926,10 +1034,20 @@ function handleEvent(data) {
         const tm = Math.floor(totalSecs / 60), ts = totalSecs % 60;
         document.getElementById('statusMsg').innerHTML = `<span style="color:var(--green);font-weight:600">Analysis complete</span><div class="elapsed">${tm > 0 ? tm + 'm ' : ''}${ts}s total</div>`;
         renderResults();
+        setInputEnabled(true);
         loadHistory();
+    } else if (data.event === 'stopped') {
+        clearInterval(_thinkingInterval);
+        localStorage.removeItem('gapago_active_session');
+        _activeReader = null;
+        document.getElementById('statusMsg').innerHTML = '<span style="color:var(--red);font-weight:600">Analysis stopped</span>';
+        setInputEnabled(true);
     } else if (data.event === 'error') {
         clearInterval(_thinkingInterval);
+        localStorage.removeItem('gapago_active_session');
+        _activeReader = null;
         showError(data.message);
+        setInputEnabled(true);
     }
 }
 
@@ -1076,10 +1194,14 @@ async function skipClarification() { await sendClarification('proceed as is'); }
 async function sendClarification(response) {
     const card = document.getElementById('interruptCard');
     if (card) card.remove();
+    const statusEl = document.getElementById('statusMsg');
+    if (statusEl) statusEl.innerHTML = 'Resuming analysis...<div class="detail">Processing your input...</div>';
     try {
         const params = new URLSearchParams({ session_id: currentSessionId, response });
         const resp = await fetch(`api/clarify?${params}`);
-        await processStream(resp);
+        if (!resp.ok) { showError(`Clarify Error (${resp.status}): ${await resp.text()}`); return; }
+        // Reconnect to the stream to get remaining events
+        await connectToStream(currentSessionId);
     } catch (e) { showError(e.message); }
 }
 
