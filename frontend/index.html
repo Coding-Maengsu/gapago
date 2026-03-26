@@ -1254,6 +1254,8 @@ function renderSavedResult(data) {
 }
 
 function renderMarkdown(text) {
+    // Remove system tags
+    text = text.replace(/FINAL\s*ANSWER\s*/gi, '');
     // Escape HTML
     text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
