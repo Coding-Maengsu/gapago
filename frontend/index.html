@@ -380,7 +380,12 @@
         .report-content h1 { font-size: 1.4em; color: var(--text); margin: 28px 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--accent); font-weight: 700; }
         .report-content h2 { font-size: 1.2em; color: var(--text); margin: 24px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); font-weight: 600; }
         .report-content h3 { font-size: 1.05em; color: var(--accent); margin: 18px 0 8px; font-weight: 600; }
+        .report-content h4 { font-size: 1em; color: var(--text); margin: 20px 0 8px; font-weight: 600; padding: 8px 12px; background: var(--surface2); border-left: 3px solid var(--accent); border-radius: 0 var(--radius) var(--radius) 0; }
         .report-content strong { color: var(--text); }
+        .report-content table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.92em; }
+        .report-content th { text-align: left; padding: 10px 12px; background: var(--surface2); color: var(--text-dim); font-weight: 600; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.3px; border-bottom: 2px solid var(--border); }
+        .report-content td { padding: 9px 12px; border-bottom: 1px solid var(--border-light); color: var(--text); }
+        .report-content tr:hover { background: var(--accent-bg); }
         .report-content code { background: var(--surface2); padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
         .report-content ul, .report-content ol { padding-left: 22px; margin: 8px 0; }
         .report-content li { margin-bottom: 5px; line-height: 1.75; }
@@ -1105,9 +1110,28 @@ function renderSavedResult(data) {
 }
 
 function renderMarkdown(text) {
+    // Escape HTML
+    text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    // Parse tables: find consecutive lines starting with |
+    text = text.replace(/(^\|.+\|$\n?)+/gm, function(tableBlock) {
+        const rows = tableBlock.trim().split('\n').filter(r => r.trim());
+        if (rows.length < 2) return tableBlock;
+        let html = '<table>';
+        rows.forEach((row, i) => {
+            const cells = row.split('|').filter((c, j, a) => j > 0 && j < a.length).map(c => c.trim());
+            // Skip separator row (|---|---|)
+            if (cells.every(c => /^[-:\s]+$/.test(c))) return;
+            const tag = i === 0 ? 'th' : 'td';
+            html += '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
+        });
+        html += '</table>';
+        return html;
+    });
+
     return text
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/^---$/gm, '<hr>')
+        .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
         .replace(/^### (.+)$/gm, '<h3>$1</h3>')
         .replace(/^## (.+)$/gm, '<h2>$1</h2>')
         .replace(/^# (.+)$/gm, '<h1>$1</h1>')
@@ -1118,7 +1142,8 @@ function renderMarkdown(text) {
         .replace(/^- (.+)$/gm, '<li>$1</li>')
         .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
         .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-        .replace(/\n/g, '<br>');
+        .replace(/\n{2,}/g, '<br><br>')
+        .replace(/\n/g, ' ');
 }
 
 function copyReport() {
