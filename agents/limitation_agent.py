@@ -584,6 +584,9 @@ def limitation_extract_node(state: AgentState) -> AgentState:
 
     provider = state.get("llm_provider")
     session_id = state.get("session_id", "")
+    output_language = state.get("output_language", "auto")
+    from prompts.system import get_language_instruction
+    lang_instruction = get_language_instruction(output_language)
 
     all_limitations = []
     fulltext_fail_count = 0
@@ -608,7 +611,7 @@ def limitation_extract_node(state: AgentState) -> AgentState:
 
         # LLM 호출
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": SYSTEM_PROMPT + lang_instruction},
             {"role": "user", "content": paper_prompt},
         ]
 
@@ -621,7 +624,7 @@ def limitation_extract_node(state: AgentState) -> AgentState:
                 print(f"  ⚠️ 콘텐츠 필터 차단 → abstract fallback 재시도: {paper.paper_id}")
                 fallback_prompt = _build_prompt(paper, {})
                 fallback_messages = [
-                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "system", "content": SYSTEM_PROMPT + lang_instruction},
                     {"role": "user", "content": fallback_prompt},
                 ]
                 try:
@@ -716,7 +719,7 @@ def limitation_extract_node(state: AgentState) -> AgentState:
         )
 
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": SYSTEM_PROMPT + lang_instruction},
             {"role": "user", "content": combined_prompt},
         ]
 

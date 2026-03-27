@@ -310,7 +310,7 @@ Output JSON only:
 }}
 """
         messages = [
-            {"role": "system", "content": "You are a research limitation classifier. Always respond in valid JSON."},
+            {"role": "system", "content": "You are a research limitation classifier. Always respond in valid JSON." + lang_instruction},
             {"role": "user", "content": prompt},
         ]
 
@@ -374,6 +374,7 @@ def _score_axis_urgency(
     axis_groups: dict,
     final_axes: dict,
     research_question: str,
+    lang_instruction: str = "",
 ) -> list[tuple[str, float]]:
     """
     각 축의 긴급도를 LLM으로 점수화하여 우선순위를 결정한다.
@@ -429,6 +430,7 @@ Output JSON only:
             "You are a research prioritization expert. "
             "Be critical and differentiate scores meaningfully — avoid giving everything the same score. "
             "Always respond in valid JSON."
+            + lang_instruction
         )},
         {"role": "user", "content": prompt},
     ]
@@ -468,6 +470,7 @@ def _analyze_barriers(
     unresolved_lims: list,
     all_lims: list,
     research_question: str,
+    lang_instruction: str = "",
 ) -> dict:
     """
     왜 N편의 논문이 이 문제를 인정하면서도 해결하지 못했는지를 분석한다.
@@ -544,6 +547,7 @@ Output JSON only:
             "You are a rigorous research analyst who identifies root causes, not symptoms. "
             "Be specific and honest about what has already failed. "
             "Always respond in valid JSON."
+            + lang_instruction
         )},
         {"role": "user", "content": prompt},
     ]
@@ -683,6 +687,7 @@ Output JSON only:
             "yet be grounded enough to implement. "
             "Avoid generic benchmark-expansion proposals. "
             "Always respond in valid JSON with no extra text."
+            + lang_instruction
         )},
         {"role": "user", "content": prompt},
     ]
@@ -828,7 +833,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
 
     # ── Step 3. 배치 분류 + recency 가중치 적용 ─────────────────────────────
     print(f"  🔄 배치 분류 중...")
-    axis_mapping = _classify_limitations_batch(limitations, final_axes)
+    axis_mapping = _classify_limitations_batch(limitations, final_axes, lang_instruction=lang_instruction)
     axis_groups  = _build_axis_groups_with_recency(limitations, axis_mapping)
 
     print(f"\n  {'축':<32} {'가중':>6}  {'전체':>6}")
@@ -863,7 +868,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
         # Step 4b
         print(f"  🔍 4b 장벽 분석...")
         barrier = _analyze_barriers(
-            ax_key, ax_info, unresolved_lims, grp["lims"], research_question
+            ax_key, ax_info, unresolved_lims, grp["lims"], research_question, lang_instruction
         )
         print(f"     gap: {barrier['gap_statement'][:70]}...")
         print(f"     barrier_type: {barrier['barrier_type']}")
