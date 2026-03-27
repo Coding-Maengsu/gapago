@@ -1,5 +1,5 @@
 """
-GAP Inference Agent — 성능 최우선 버전
+GAP Inference Agent — 완전 동적 축 버전
 
 핵심 설계 원칙:
   1. limitation의 단순 반전(반사적 반전) 금지
@@ -11,14 +11,13 @@ GAP Inference Agent — 성능 최우선 버전
        Step 5c. 장벽을 우회하는 창의적 연구 방향 제안
   5. 동일 축 내에서도 여러 방향 후보 생성 후 가장 참신한 것을 채택
 
-처리 흐름:
-  Step 1. 고정 축 5개 로드
-  Step 2. limitations 전체 → LLM → 도메인 특화 동적 축 생성 (최대 2개)
-  Step 3. 고정 + 동적 = 최종 축 확정
-  Step 4. 각 limitation 배치 분류 + recency 가중치 적용
-  Step 5a. 축별 긴급도(urgency) 점수화 → 우선순위 결정
-  Step 5b. 상위 N개 축에 대해 기술적 장벽 분석
-  Step 5c. 장벽 기반 창의적 방향 제안 (web_results 맥락 활용)
+처리 흐름 (고정 축 완전 제거):
+  Step 1. limitations 전체 → LLM → 도메인 특화 동적 축 생성 (연구 질문 기반, 제한 없음)
+  Step 2. 생성된 동적 축이 없으면 fallback 축 자동 생성
+  Step 3. 각 limitation 배치 분류 + recency 가중치 적용
+  Step 4a. 축별 긴급도(urgency) 점수화 → 우선순위 결정
+  Step 4b. 상위 N개 축에 대해 기술적 장벽 분석
+  Step 4c. 장벽 기반 창의적 방향 제안 (web_results 맥락 활용)
 """
 
 import re
@@ -26,37 +25,14 @@ from collections import defaultdict
 from states import AgentState, GapCandidate, LimitationItem
 from llm import get_llm
 from utils.parse_json import parse_json
-from utils.progress import report_progress
 from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
 
 
-# ── 고정 축 5개 정의 ─────────────────────────────────────────────────────────
+# ── 동적 축 생성 파라미터 ──────────────────────────────────────────────────────
 
-GAP_AXES_FIXED = {
-    "data": {
-        "label": "Data & Dataset",
-        "description": "Limitations related to dataset size, diversity, quality, or availability",
-    },
-    "methodology": {
-        "label": "Methodology",
-        "description": "Limitations in experimental design, model architecture, or algorithmic approach",
-    },
-    "generalizability": {
-        "label": "Generalizability",
-        "description": "Limitations in applying results to other domains, tasks, or populations",
-    },
-    "evaluation": {
-        "label": "Evaluation & Metrics",
-        "description": "Limitations in evaluation protocols, benchmark coverage, or metric adequacy",
-    },
-    "scalability": {
-        "label": "Scalability & Efficiency",
-        "description": "Limitations related to computational cost, real-world deployment, or scaling",
-    },
-}
-
-GAP_AXES_DYNAMIC_MIN_PAPERS = 2
-GAP_AXES_DYNAMIC_MAX = 2
+GAP_AXES_DYNAMIC_MIN_PAPERS = 2   # 축 후보로 인정할 최소 limitation 수
+GAP_AXES_DYNAMIC_MAX = 7          # LLM이 생성할 수 있는 최대 동적 축 수
+GAP_AXES_DYNAMIC_MIN = 3          # 최소한 이 수만큼 축이 생성되도록 유도
 
 # recency 가중치: unresolved limitation이 더 많이 GAP에 기여
 RECENCY_WEIGHT = {
@@ -68,9 +44,8 @@ RECENCY_WEIGHT = {
 
 # ── LLM 헬퍼 ─────────────────────────────────────────────────────────────────
 
-def _llm_invoke(messages: list[dict], provider: str = None) -> str:
-    """dict 형태의 messages를 LangChain 메시지로 변환 후 LLM 호출."""
-    llm = get_llm(provider=provider)
+def _llm_invoke(messages: list[dict]) -> str:
+    llm = get_llm()
     lc_messages = []
     for m in messages:
         role, content = m["role"], m["content"]
@@ -136,90 +111,181 @@ def _parse_limitations_from_messages(messages) -> list:
     return limitations
 
 
-# ── Step 1. 고정 축 로드 ─────────────────────────────────────────────────────
+# ── Step 1. 완전 동적 축 생성 ────────────────────────────────────────────────
 
-def _load_fixed_axes() -> dict:
-    return dict(GAP_AXES_FIXED)
+def _generate_all_axes(all_claims_text: str, research_question: str) -> list:
+    """
+    고정 축 없이 LLM이 limitations 전체를 분석하여
+    연구 질문과 논문 도메인에 특화된 축을 자유롭게 생성한다.
 
-
-# ── Step 2. 동적 축 생성 ─────────────────────────────────────────────────────
-
-def _generate_dynamic_axes(all_claims_text: str, fixed_axes: dict, research_question: str) -> list:
-    fixed_desc = "\n".join(f"  {k}: {v['description']}" for k, v in fixed_axes.items())
-
-    prompt = f"""You are a research domain expert.
+    - 사전 정의된 카테고리에 제한받지 않음
+    - 논문의 실제 한계점 패턴에서 귀납적으로 축을 도출
+    - 연구 질문의 핵심 관심사를 반영
+    """
+    prompt = f"""You are a research domain expert specializing in research gap analysis.
 
 Research Question: "{research_question}"
 
-Existing fixed axes (do NOT duplicate):
-{fixed_desc}
+All collected limitations from the papers:
+{all_claims_text[:4000]}
 
-All collected limitations:
-{all_claims_text[:3000]}
+TASK: Inductively derive {GAP_AXES_DYNAMIC_MIN}–{GAP_AXES_DYNAMIC_MAX} analysis axes from the limitations above.
 
-TASK: Identify up to {GAP_AXES_DYNAMIC_MAX} domain-specific axes that appear
-repeatedly but are NOT covered by the fixed axes.
-Only include an axis if at least {GAP_AXES_DYNAMIC_MIN_PAPERS} limitations clearly belong to it.
+Rules:
+1. DO NOT use predefined categories (e.g., "Data", "Methodology", "Scalability").
+   Instead, derive axes that reflect the ACTUAL patterns in these specific limitations.
+2. Each axis should capture a recurring, coherent theme that appears in multiple limitations.
+3. Axes must be domain-specific and research-question-relevant — not generic.
+4. Only include an axis if at least {GAP_AXES_DYNAMIC_MIN_PAPERS} limitations clearly belong to it.
+5. Axes must be mutually exclusive in scope (low overlap).
+
+Good axis examples for a medical NLP paper set:
+  - "Clinical Note Heterogeneity" (not "Data")
+  - "Discharge-to-Admission Temporal Lag" (not "Generalizability")
+  - "ICD Coding Ambiguity Handling" (not "Evaluation")
+
+Bad axis examples (too generic — do NOT use these patterns):
+  - "Data Quality"
+  - "Model Performance"
+  - "Computational Cost"
 
 Output JSON only:
 {{
-  "dynamic_axes": [
+  "axes": [
     {{
       "name": "short_snake_case_key",
-      "label": "Human-readable Label",
-      "description": "One sentence describing what limitations belong here",
-      "reason": "Why this is distinct from the fixed axes"
+      "label": "Human-readable Label (domain-specific, 3-6 words)",
+      "description": "One sentence: exactly what type of limitation belongs here",
+      "example_claims": ["example claim 1", "example claim 2"],
+      "rationale": "Why this axis is coherent and important for the research question"
     }}
   ]
 }}
 """
     messages = [
-        {"role": "system", "content": "You are a research gap analyst. Always respond in valid JSON."},
+        {
+            "role": "system",
+            "content": (
+                "You are a research gap analyst. "
+                "Your job is to inductively discover analysis axes from the data — "
+                "NOT to apply predefined taxonomies. "
+                "Always respond in valid JSON."
+            )
+        },
         {"role": "user", "content": prompt},
     ]
 
     try:
-        response = _llm_invoke(messages, provider=provider)
+        response = _llm_invoke(messages)
         result = parse_json(response)
-        axes = result.get("dynamic_axes", [])
+        axes_raw = result.get("axes", [])
+
         valid = []
-        fixed_keys = set(fixed_axes.keys())
-        for ax in axes:
+        seen_names = set()
+        for ax in axes_raw:
             name = ax.get("name", "").strip().lower().replace(" ", "_")
-            if not name or name in fixed_keys:
+            if not name or name in seen_names:
                 continue
+            seen_names.add(name)
             valid.append({
                 "name":        name,
                 "label":       ax.get("label", name),
                 "description": ax.get("description", ""),
-                "reason":      ax.get("reason", ""),
+                "rationale":   ax.get("rationale", ""),
+                "type":        "dynamic",
             })
+
         return valid[:GAP_AXES_DYNAMIC_MAX]
+
     except Exception as e:
         print(f"  ⚠️ Dynamic axis generation failed: {e}")
         return []
 
 
-# ── Step 3. 최종 축 확정 ─────────────────────────────────────────────────────
+# ── Step 1 Fallback. 동적 축 생성 실패 시 최소 축 자동 구성 ─────────────────
 
-def _build_final_axes(fixed_axes: dict, dynamic_axes: list) -> dict:
+def _generate_fallback_axes(all_claims_text: str, research_question: str) -> list:
+    """
+    LLM 동적 축 생성이 실패하거나 결과가 너무 적을 때
+    더 단순한 프롬프트로 재시도하는 fallback.
+    """
+    prompt = f"""Research question: "{research_question}"
+
+Limitations:
+{all_claims_text[:2000]}
+
+Group these limitations into 3–5 thematic clusters.
+For each cluster, give it a specific name (not generic like "data" or "method").
+
+Output JSON only:
+{{
+  "axes": [
+    {{
+      "name": "snake_case_key",
+      "label": "Specific Label",
+      "description": "What limitations belong here"
+    }}
+  ]
+}}
+"""
+    messages = [
+        {"role": "system", "content": "You are a research analyst. Always respond in valid JSON."},
+        {"role": "user", "content": prompt},
+    ]
+
+    try:
+        response = _llm_invoke(messages)
+        result = parse_json(response)
+        axes_raw = result.get("axes", [])
+        return [
+            {
+                "name":        ax.get("name", f"axis_{i}").strip().lower().replace(" ", "_"),
+                "label":       ax.get("label", f"Axis {i}"),
+                "description": ax.get("description", ""),
+                "rationale":   "",
+                "type":        "dynamic",
+            }
+            for i, ax in enumerate(axes_raw)
+            if ax.get("name")
+        ][:GAP_AXES_DYNAMIC_MAX]
+    except Exception as e:
+        print(f"  ⚠️ Fallback axis generation also failed: {e}")
+        return [
+            {
+                "name": "general_limitation",
+                "label": "General Research Limitation",
+                "description": "Limitations that could not be further categorized",
+                "rationale": "",
+                "type": "dynamic",
+            }
+        ]
+
+
+# ── Step 2. 최종 축 딕셔너리 구성 ────────────────────────────────────────────
+
+def _build_final_axes(dynamic_axes: list) -> dict:
+    """동적 축 리스트를 {name: info_dict} 형태로 변환."""
     final = {}
-    for k, v in fixed_axes.items():
-        final[k] = {"label": v["label"], "description": v["description"], "type": "fixed"}
     for ax in dynamic_axes:
-        final[ax["name"]] = {"label": ax["label"], "description": ax["description"], "type": "dynamic"}
+        final[ax["name"]] = {
+            "label":       ax["label"],
+            "description": ax["description"],
+            "type":        ax.get("type", "dynamic"),
+        }
     return final
 
 
-# ── Step 4. 배치 분류 + recency 가중치 적용 ──────────────────────────────────
+# ── Step 3. 배치 분류 + recency 가중치 적용 ──────────────────────────────────
 
-def _classify_limitations_batch(limitations: list, final_axes: dict, provider: str = None) -> dict:
+def _classify_limitations_batch(limitations: list, final_axes: dict) -> dict:
     BATCH_SIZE = 20
     axis_mapping = {}
-    fallback = "methodology"
+
+    # fallback은 첫 번째 축 또는 기본값
+    axis_keys = list(final_axes.keys())
+    fallback = axis_keys[0] if axis_keys else "general_limitation"
 
     axes_block = "\n".join(f"  {k}: {v['description']}" for k, v in final_axes.items())
-    axis_keys = list(final_axes.keys())
 
     batches = [limitations[i: i + BATCH_SIZE] for i in range(0, len(limitations), BATCH_SIZE)]
 
@@ -249,7 +315,7 @@ Output JSON only:
         ]
 
         try:
-            response = _llm_invoke(messages, provider=provider)
+            response = _llm_invoke(messages)
             result = parse_json(response)
             cls_map = result.get("classifications", {})
             offset = batch_idx * BATCH_SIZE
@@ -280,7 +346,7 @@ def _build_axis_groups_with_recency(
     """
     raw_groups: dict[str, list] = defaultdict(list)
     for idx, lim in enumerate(limitations):
-        axis = axis_mapping.get(idx, "methodology")
+        axis = axis_mapping.get(idx, "general_limitation")
         raw_groups[axis].append(lim)
 
     groups = {}
@@ -302,7 +368,7 @@ def _build_axis_groups_with_recency(
     return groups
 
 
-# ── Step 5a. 긴급도(urgency) 점수화 ─────────────────────────────────────────
+# ── Step 4a. 긴급도(urgency) 점수화 ─────────────────────────────────────────
 
 def _score_axis_urgency(
     axis_groups: dict,
@@ -374,9 +440,7 @@ Output JSON only:
 
         scored = []
         for ax_key, grp in axis_groups.items():
-            base_score = grp["weighted_count"]
             llm_score = scores_raw.get(ax_key, {}).get("score", 5)
-            # 최종 점수: LLM 긴급도(60%) + recency 가중 카운트 정규화(40%)
             max_weighted = max((g["weighted_count"] for g in axis_groups.values()), default=1)
             normalized = grp["weighted_count"] / max_weighted * 10
             final_score = 0.6 * llm_score + 0.4 * normalized
@@ -396,7 +460,7 @@ Output JSON only:
         )
 
 
-# ── Step 5b. 기술적 장벽 분석 ────────────────────────────────────────────────
+# ── Step 4b. 기술적 장벽 분석 ────────────────────────────────────────────────
 
 def _analyze_barriers(
     ax_key: str,
@@ -503,7 +567,7 @@ Output JSON only:
         }
 
 
-# ── Step 5c. 창의적 연구 방향 제안 ──────────────────────────────────────────
+# ── Step 4c. 창의적 연구 방향 제안 ──────────────────────────────────────────
 
 def _generate_creative_directions(
     ax_key: str,
@@ -516,11 +580,9 @@ def _generate_creative_directions(
     what_was_tried: list,
     web_results: list,
     cascade_impact: str,
-    output_language: str = "auto",
-    provider: str = None,
 ) -> dict:
     """
-    Step 5b에서 도출한 장벽과 "이미 시도된 것들"을 출발점으로,
+    Step 4b에서 도출한 장벽과 "이미 시도된 것들"을 출발점으로,
     기존 논문이 시도하지 않은 창의적 연구 방향을 3개 후보 생성 후
     LLM 스스로 가장 참신하고 실행 가능한 것을 선택한다.
 
@@ -597,20 +659,23 @@ Output JSON only:
     }},
     {{
       "direction_id": 2,
-      ...
+      "core_insight": "...",
+      "proposed_topic": "...",
+      "methodology_hint": "...",
+      "novelty_score": <1-10>
     }},
     {{
       "direction_id": 3,
-      ...
+      "core_insight": "...",
+      "proposed_topic": "...",
+      "methodology_hint": "...",
+      "novelty_score": <1-10>
     }}
   ],
   "best_candidate_id": <1, 2, or 3>,
   "selection_rationale": "<why this is the best: novelty + feasibility + impact>"
 }}
 """
-    from prompts.system import get_language_instruction
-    lang_instruction = get_language_instruction(output_language)
-
     messages = [
         {"role": "system", "content": (
             "You are a creative yet rigorous research mentor. "
@@ -623,7 +688,7 @@ Output JSON only:
     ]
 
     try:
-        response = _llm_invoke(messages, provider=provider)
+        response = _llm_invoke(messages)
         result = parse_json(response)
 
         candidates   = result.get("candidates", [])
@@ -680,9 +745,9 @@ Output JSON only:
 
 def gap_infer_node(state: AgentState) -> AgentState:
     """
-    GAP Inference Node — 3단계 추론 파이프라인
+    GAP Inference Node — 완전 동적 축 버전 (고정 축 없음)
     """
-    print("\n💡 GAP Inference Node (성능 최우선 버전)")
+    print("\n💡 GAP Inference Node (완전 동적 축 버전 — 고정 축 없음)")
 
     # ── limitations 획득 ────────────────────────────────────────────────────
     raw_limitations = state.get("limitations", [])
@@ -697,15 +762,15 @@ def gap_infer_node(state: AgentState) -> AgentState:
                     track=lim.get("track", "author_stated"),
                     source_section=lim.get("source_section", ""),
                 )
-                item = item.model_copy(update={"recency_status": lim.get("recency_status", "unresolved"), "recency_evidence": lim.get("recency_evidence", "")})
+                item = item.model_copy(update={
+                    "recency_status":   lim.get("recency_status", "unresolved"),
+                    "recency_evidence": lim.get("recency_evidence", ""),
+                })
                 limitations.append(item)
             else:
                 limitations.append(lim)
     else:
         limitations = _parse_limitations_from_messages(state.get("messages", []))
-
-    output_language = state.get("output_language", "auto")
-    session_id = state.get("session_id", "")
 
     if not limitations:
         print("  ⚠️ No limitations to analyze")
@@ -734,67 +799,60 @@ def gap_infer_node(state: AgentState) -> AgentState:
                 research_question = content
                 break
 
-    # ── Step 1 ──────────────────────────────────────────────────────────────
-    fixed_axes = _load_fixed_axes()
-    print(f"  ✓ 고정 축 {len(fixed_axes)}개 로드")
-
-    # ── Step 2 ──────────────────────────────────────────────────────────────
+    # ── Step 1. 완전 동적 축 생성 ───────────────────────────────────────────
     all_claims_text = "\n".join(f"[{lim.paper_id}] {lim.claim}" for lim in limitations)
-    print(f"  🔄 동적 축 생성 중...")
-    dynamic_axes = _generate_dynamic_axes(all_claims_text, fixed_axes, research_question)
+
+    print(f"  🔄 완전 동적 축 생성 중 (고정 축 없음)...")
+    dynamic_axes = _generate_all_axes(all_claims_text, research_question)
+
+    # 결과가 너무 적으면 fallback
+    if len(dynamic_axes) < 2:
+        print(f"  ⚠️ 동적 축이 {len(dynamic_axes)}개뿐 → fallback 재시도...")
+        dynamic_axes = _generate_fallback_axes(all_claims_text, research_question)
+
     for ax in dynamic_axes:
         print(f"  🟢 동적 축: [{ax['name']}] {ax['label']}")
-    if not dynamic_axes:
-        print("  ℹ️  동적 축 없음 (고정 5개로 충분)")
+    print(f"  ✓ 총 {len(dynamic_axes)}개 축 확정 (모두 동적)")
 
-    # ── Step 3 ──────────────────────────────────────────────────────────────
-    final_axes = _build_final_axes(fixed_axes, dynamic_axes)
-    print(f"  ✓ 최종 축 {len(final_axes)}개 확정")
+    # ── Step 2. 최종 축 딕셔너리 구성 ───────────────────────────────────────
+    final_axes = _build_final_axes(dynamic_axes)
 
-    # ── Step 4 ──────────────────────────────────────────────────────────────
+    # ── Step 3. 배치 분류 + recency 가중치 적용 ─────────────────────────────
     print(f"  🔄 배치 분류 중...")
     axis_mapping = _classify_limitations_batch(limitations, final_axes)
     axis_groups  = _build_axis_groups_with_recency(limitations, axis_mapping)
 
-    print(f"\n  {'축':<28} {'유형':>6}  {'가중':>6}  {'전체':>6}")
-    print(f"  {'-'*52}")
+    print(f"\n  {'축':<32} {'가중':>6}  {'전체':>6}")
+    print(f"  {'-'*48}")
     for ax_key, grp in sorted(axis_groups.items(), key=lambda x: -x[1]["weighted_count"]):
-        ax_type = final_axes.get(ax_key, {}).get("type", "fixed")
-        label   = final_axes.get(ax_key, {}).get("label", ax_key)
-        tag     = "🔵 고정" if ax_type == "fixed" else "🟢 동적"
-        print(f"  {label:<28} {tag:>6}  {grp['weighted_count']:>5.1f}  {grp['total_count']:>5}개")
+        label = final_axes.get(ax_key, {}).get("label", ax_key)
+        print(f"  {label:<32} {grp['weighted_count']:>5.1f}  {grp['total_count']:>5}개")
 
-    # ── Step 5a. 긴급도 점수화 ──────────────────────────────────────────────
+    # ── Step 4a. 긴급도 점수화 ──────────────────────────────────────────────
     active_groups = {k: v for k, v in axis_groups.items() if v["weighted_count"] > 0}
     if not active_groups:
         print("  ⚠️ 모든 limitation이 resolved → gaps 없음")
         return {**state, "gaps": []}
 
-    print(f"\n  🔄 Step 5a: {len(active_groups)}개 축 긴급도 점수화...")
+    print(f"\n  🔄 Step 4a: {len(active_groups)}개 축 긴급도 점수화...")
     scored_axes = _score_axis_urgency(active_groups, final_axes, research_question)
 
-    # ── Step 5b + 5c. 축별 장벽 분석 → 창의적 방향 제안 ────────────────────
+    # ── Step 4b + 4c. 축별 장벽 분석 → 창의적 방향 제안 ────────────────────
     gaps = []
-    total_axes = len(scored_axes)
-    print(f"\n  🔄 Step 5b+5c: 장벽 분석 → 창의적 방향 제안...")
+    print(f"\n  🔄 Step 4b+4c: 장벽 분석 → 창의적 방향 제안...")
 
-    for ax_idx, (ax_key, urgency_score, cascade_impact, urgency_rationale) in enumerate(scored_axes):
+    for ax_key, urgency_score, cascade_impact, urgency_rationale in scored_axes:
         grp     = active_groups[ax_key]
-        ax_info = final_axes.get(ax_key, {"label": ax_key, "description": "", "type": "fixed"})
+        ax_info = final_axes.get(ax_key, {"label": ax_key, "description": "", "type": "dynamic"})
         unresolved_lims = grp["unresolved_lims"]
 
         if not unresolved_lims:
             continue
 
-        report_progress(
-            session_id, "gap_infer",
-            f"Analyzing research axis {ax_idx + 1}/{total_axes}: {ax_info.get('label', ax_key)}",
-            current=ax_idx + 1, total=total_axes,
-        )
         print(f"\n  ── [{ax_key}] urgency={urgency_score:.2f} ──")
 
-        # Step 5b
-        print(f"  🔍 5b 장벽 분석...")
+        # Step 4b
+        print(f"  🔍 4b 장벽 분석...")
         barrier = _analyze_barriers(
             ax_key, ax_info, unresolved_lims, grp["lims"], research_question
         )
@@ -803,8 +861,8 @@ def gap_infer_node(state: AgentState) -> AgentState:
         for b in barrier["barriers"]:
             print(f"     - {b[:80]}")
 
-        # Step 5c
-        print(f"  💡 5c 창의적 방향 제안 (web_results={len(web_results)}개 활용)...")
+        # Step 4c
+        print(f"  💡 4c 창의적 방향 제안 (web_results={len(web_results)}개 활용)...")
         direction = _generate_creative_directions(
             ax_key=ax_key,
             ax_info=ax_info,
@@ -816,7 +874,6 @@ def gap_infer_node(state: AgentState) -> AgentState:
             what_was_tried=barrier["what_was_tried"],
             web_results=web_results,
             cascade_impact=cascade_impact,
-            output_language=output_language,
         )
 
         if direction is None:
@@ -825,7 +882,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
         gaps.append(GapCandidate(
             axis=ax_key,
             axis_label=ax_info["label"],
-            axis_type=ax_info["type"],
+            axis_type=ax_info.get("type", "dynamic"),
             gap_statement=barrier["gap_statement"],
             elaboration=direction["elaboration"],
             proposed_topic=direction["proposed_topic"],
@@ -834,7 +891,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
             supporting_quotes=[lim.evidence_quote for lim in unresolved_lims if lim.evidence_quote][:5],
         ))
 
-    # urgency 점수 기준 정렬 (repeat_count 아닌 urgency 우선)
+    # urgency 점수 기준 정렬
     urgency_map = {ax: score for ax, score, _, _ in scored_axes}
     gaps.sort(key=lambda g: urgency_map.get(g.axis, 0), reverse=True)
     gaps_as_dict = [g.model_dump() for g in gaps]
