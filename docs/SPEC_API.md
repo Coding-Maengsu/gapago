@@ -45,7 +45,30 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.3 `GET /api/analyze` — 분석 시작
+### 3.3 `GET /api/explore` — 추가 탐색 (체인 재실행)
+
+이전 분석의 proposed_topic을 기반으로 새 분석을 시작하고 부모 세션에 연결한다.
+
+**쿼리 파라미터:**
+
+| 파라미터 | 타입 | 필수 | 기본값 | 설명 |
+|---------|------|------|--------|------|
+| `topic` | string | O | - | 탐색할 주제 (proposed_topic) |
+| `session_id` | string | X | `""` | 부모 세션 ID |
+| `provider` | string | X | `"azure"` | LLM 프로바이더 |
+| `domain` | string | X | `"auto"` | 연구 도메인 |
+| `year_range` | string | X | `"auto"` | 연도 범위 |
+| `output_language` | string | X | `"auto"` | 출력 언어 |
+| `user_id` | string | X | `""` | 사용자 식별자 |
+
+**응답:**
+```json
+{"session_id": "새_세션_ID", "parent_session_id": "부모_세션_ID"}
+```
+
+---
+
+### 3.4 `GET /api/analyze` — 분석 시작
 
 새로운 연구 갭 분석을 시작하고 세션 ID를 반환한다.
 
@@ -264,13 +287,15 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
   "event": "node",
   "node": "paper_retrieval",
   "papers_count": 15,
+  "total_searched": 130,
   "papers": [
     {
       "paper_id": "arxiv:2305.12345",
       "title": "논문 제목",
       "year": 2024,
       "authors": ["Author A", "Author B"],
-      "url": "https://arxiv.org/abs/2305.12345"
+      "url": "https://arxiv.org/abs/2305.12345",
+      "venue": "arXiv preprint"
     }
   ],
   "web_results_count": 5
@@ -563,7 +588,7 @@ build_role_tools(config) -> dict:
 |------|------|----------|
 | `ScopeAssessment` | 쿼리 범위 평가 | `scope_level`, `general_topic`, `specific_phrases`, `breadth_candidates` |
 | `QueryResult` | 쿼리 분석 결과 | `scope_assessment`, `refined_query`, `keywords`, `negative_keywords` |
-| `Paper` | 논문 메타데이터 | `paper_id`, `title`, `abstract`, `url`, `year`, `authors`, `score_bm25` |
+| `Paper` | 논문 메타데이터 | `paper_id`, `title`, `abstract`, `url`, `year`, `authors`, `score_bm25`, `venue` |
 | `LimitationItem` | 한계점 항목 | `paper_id`, `claim`, `evidence_quote`, `track`, `source_section` |
 | `GapCandidate` | 연구 갭 후보 | `axis`, `gap_statement`, `elaboration`, `proposed_topic`, `repeat_count`, `supporting_papers` |
 | `CriticScores` | 비평 점수 | `query_specificity`, `paper_relevance`, `groundedness` (각 0.0-1.0) |
@@ -574,7 +599,7 @@ build_role_tools(config) -> dict:
 |------|------|------|
 | 오케스트레이션 | `messages`, `sender`, `errors` | `Sequence[BaseMessage]`, `str`, `List[str]` |
 | 쿼리 | `iteration`, `max_iterations`, `scope_level`, `refined_query`, `keywords`, `negative_keywords`, `needs_user_input` | `int`, `int`, `str`, `str`, `List[str]`, `List[str]`, `bool` |
-| 검색 | `papers`, `web_results`, `research_domain`, `llm_provider`, `year_range`, `output_language` | `List[dict]`, `List[dict]`, `str`, `str`, `str`, `str` |
+| 검색 | `papers`, `total_candidates_count`, `web_results`, `research_domain`, `llm_provider`, `year_range`, `output_language` | `List[dict]`, `int`, `List[dict]`, `str`, `str`, `str`, `str` |
 | 한계점 | `limitations` | `List[dict]` |
 | 한계점 평가 | `limitation_eval`, `eval_warnings`, `eval_retry_count` | `dict`, `List[str]`, `int` |
 | 갭 추론 | `gaps` | `List[dict]` |
