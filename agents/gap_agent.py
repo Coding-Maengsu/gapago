@@ -144,7 +144,7 @@ def _load_fixed_axes() -> dict:
 
 # ── Step 2. 동적 축 생성 ─────────────────────────────────────────────────────
 
-def _generate_dynamic_axes(all_claims_text: str, fixed_axes: dict, research_question: str) -> list:
+def _generate_dynamic_axes(all_claims_text: str, fixed_axes: dict, research_question: str, lang_instruction: str = "") -> list:
     fixed_desc = "\n".join(f"  {k}: {v['description']}" for k, v in fixed_axes.items())
 
     prompt = f"""You are a research domain expert.
@@ -174,7 +174,7 @@ Output JSON only:
 }}
 """
     messages = [
-        {"role": "system", "content": "You are a research gap analyst. Always respond in valid JSON."},
+        {"role": "system", "content": "You are a research gap analyst. Always respond in valid JSON." + lang_instruction},
         {"role": "user", "content": prompt},
     ]
 
@@ -213,7 +213,7 @@ def _build_final_axes(fixed_axes: dict, dynamic_axes: list) -> dict:
 
 # ── Step 4. 배치 분류 + recency 가중치 적용 ──────────────────────────────────
 
-def _classify_limitations_batch(limitations: list, final_axes: dict, provider: str = None) -> dict:
+def _classify_limitations_batch(limitations: list, final_axes: dict, provider: str = None, lang_instruction: str = "") -> dict:
     BATCH_SIZE = 20
     axis_mapping = {}
     fallback = "methodology"
@@ -244,7 +244,7 @@ Output JSON only:
 }}
 """
         messages = [
-            {"role": "system", "content": "You are a research limitation classifier. Always respond in valid JSON."},
+            {"role": "system", "content": "You are a research limitation classifier. Always respond in valid JSON." + lang_instruction},
             {"role": "user", "content": prompt},
         ]
 
@@ -308,6 +308,7 @@ def _score_axis_urgency(
     axis_groups: dict,
     final_axes: dict,
     research_question: str,
+    lang_instruction: str = "",
 ) -> list[tuple[str, float]]:
     """
     각 축의 긴급도를 LLM으로 점수화하여 우선순위를 결정한다.
@@ -363,6 +364,7 @@ Output JSON only:
             "You are a research prioritization expert. "
             "Be critical and differentiate scores meaningfully — avoid giving everything the same score. "
             "Always respond in valid JSON."
+            + lang_instruction
         )},
         {"role": "user", "content": prompt},
     ]
@@ -404,6 +406,7 @@ def _analyze_barriers(
     unresolved_lims: list,
     all_lims: list,
     research_question: str,
+    lang_instruction: str = "",
 ) -> dict:
     """
     왜 N편의 논문이 이 문제를 인정하면서도 해결하지 못했는지를 분석한다.
@@ -480,6 +483,7 @@ Output JSON only:
             "You are a rigorous research analyst who identifies root causes, not symptoms. "
             "Be specific and honest about what has already failed. "
             "Always respond in valid JSON."
+            + lang_instruction
         )},
         {"role": "user", "content": prompt},
     ]
@@ -516,7 +520,7 @@ def _generate_creative_directions(
     what_was_tried: list,
     web_results: list,
     cascade_impact: str,
-    output_language: str = "auto",
+    lang_instruction: str = "",
     provider: str = None,
 ) -> dict:
     """
@@ -608,9 +612,6 @@ Output JSON only:
   "selection_rationale": "<why this is the best: novelty + feasibility + impact>"
 }}
 """
-    from prompts.system import get_language_instruction
-    lang_instruction = get_language_instruction(output_language)
-
     messages = [
         {"role": "system", "content": (
             "You are a creative yet rigorous research mentor. "
@@ -618,6 +619,7 @@ Output JSON only:
             "yet be grounded enough to implement. "
             "Avoid generic benchmark-expansion proposals. "
             "Always respond in valid JSON with no extra text."
+            + lang_instruction
         )},
         {"role": "user", "content": prompt},
     ]
@@ -706,6 +708,8 @@ def gap_infer_node(state: AgentState) -> AgentState:
 
     output_language = state.get("output_language", "auto")
     session_id = state.get("session_id", "")
+    from prompts.system import get_language_instruction
+    lang_instruction = get_language_instruction(output_language)
 
     if not limitations:
         print("  ⚠️ No limitations to analyze")
@@ -741,7 +745,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
     # ── Step 2 ──────────────────────────────────────────────────────────────
     all_claims_text = "\n".join(f"[{lim.paper_id}] {lim.claim}" for lim in limitations)
     print(f"  🔄 동적 축 생성 중...")
-    dynamic_axes = _generate_dynamic_axes(all_claims_text, fixed_axes, research_question)
+    dynamic_axes = _generate_dynamic_axes(all_claims_text, fixed_axes, research_question, lang_instruction)
     for ax in dynamic_axes:
         print(f"  🟢 동적 축: [{ax['name']}] {ax['label']}")
     if not dynamic_axes:
@@ -753,7 +757,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
 
     # ── Step 4 ──────────────────────────────────────────────────────────────
     print(f"  🔄 배치 분류 중...")
-    axis_mapping = _classify_limitations_batch(limitations, final_axes)
+    axis_mapping = _classify_limitations_batch(limitations, final_axes, lang_instruction=lang_instruction)
     axis_groups  = _build_axis_groups_with_recency(limitations, axis_mapping)
 
     print(f"\n  {'축':<28} {'유형':>6}  {'가중':>6}  {'전체':>6}")
@@ -771,7 +775,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
         return {**state, "gaps": []}
 
     print(f"\n  🔄 Step 5a: {len(active_groups)}개 축 긴급도 점수화...")
-    scored_axes = _score_axis_urgency(active_groups, final_axes, research_question)
+    scored_axes = _score_axis_urgency(active_groups, final_axes, research_question, lang_instruction)
 
     # ── Step 5b + 5c. 축별 장벽 분석 → 창의적 방향 제안 ────────────────────
     gaps = []
@@ -796,7 +800,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
         # Step 5b
         print(f"  🔍 5b 장벽 분석...")
         barrier = _analyze_barriers(
-            ax_key, ax_info, unresolved_lims, grp["lims"], research_question
+            ax_key, ax_info, unresolved_lims, grp["lims"], research_question, lang_instruction
         )
         print(f"     gap: {barrier['gap_statement'][:70]}...")
         print(f"     barrier_type: {barrier['barrier_type']}")
@@ -816,7 +820,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
             what_was_tried=barrier["what_was_tried"],
             web_results=web_results,
             cascade_impact=cascade_impact,
-            output_language=output_language,
+            lang_instruction=lang_instruction,
         )
 
         if direction is None:
