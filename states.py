@@ -207,6 +207,7 @@ class AgentState(TypedDict):
     llm_provider: str        # LLM 프로바이더 (azure/claude/gemini/exaone)
     year_range: str          # 연도 필터 (auto/1y/3y/5y)
     output_language: str     # 출력 언어 (auto/ko/en)
+    session_id: str          # SSE 진행률 리포팅용 세션 ID
 
     # ==================================================================
     # -3- LIMITATION AGENT

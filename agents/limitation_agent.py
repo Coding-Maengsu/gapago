@@ -15,6 +15,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from states import AgentState, Paper, LimitationItem
 from llm import get_llm
 from utils.parse_json import parse_json
+from utils.progress import report_progress
 
 # =====================================================================
 # 섹션 키워드 정의
@@ -582,6 +583,10 @@ def limitation_extract_node(state: AgentState) -> AgentState:
                 continue
 
     provider = state.get("llm_provider")
+    session_id = state.get("session_id", "")
+    output_language = state.get("output_language", "auto")
+    from prompts.system import get_language_instruction
+    lang_instruction = get_language_instruction(output_language)
 
     all_limitations = []
     fulltext_fail_count = 0
@@ -606,7 +611,7 @@ def limitation_extract_node(state: AgentState) -> AgentState:
 
         # LLM 호출
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": SYSTEM_PROMPT + lang_instruction},
             {"role": "user", "content": paper_prompt},
         ]
 
@@ -619,7 +624,7 @@ def limitation_extract_node(state: AgentState) -> AgentState:
                 print(f"  ⚠️ 콘텐츠 필터 차단 → abstract fallback 재시도: {paper.paper_id}")
                 fallback_prompt = _build_prompt(paper, {})
                 fallback_messages = [
-                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "system", "content": SYSTEM_PROMPT + lang_instruction},
                     {"role": "user", "content": fallback_prompt},
                 ]
                 try:
@@ -678,6 +683,12 @@ def limitation_extract_node(state: AgentState) -> AgentState:
             if not sections:
                 fulltext_fail_count += 1
 
+    report_progress(
+        session_id, "limitation_extract",
+        f"Full text loaded for {len(papers) - fulltext_fail_count}/{len(papers)} papers. Starting analysis...",
+        current=0, total=len(papers),
+    )
+
     # ── Step 2: 배치 LLM 호출 (3편씩 묶어서 호출 횟수 감소) ──
     BATCH_SIZE = 3
     batches = [papers[i:i + BATCH_SIZE] for i in range(0, len(papers), BATCH_SIZE)]
@@ -708,7 +719,7 @@ def limitation_extract_node(state: AgentState) -> AgentState:
         )
 
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": SYSTEM_PROMPT + lang_instruction},
             {"role": "user", "content": combined_prompt},
         ]
 
@@ -754,6 +765,7 @@ def limitation_extract_node(state: AgentState) -> AgentState:
         print(f"  ✓ 배치 ({len(batch)}편): {len(batch_result['limitations'])}개 limitation 추출")
         return batch_result
 
+    processed_papers = 0
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(_process_batch, batch): batch for batch in batches}
         for future in as_completed(futures):
@@ -762,6 +774,12 @@ def limitation_extract_node(state: AgentState) -> AgentState:
             errors.extend(result["errors"])
             if result["llm_failed"]:
                 llm_fail_count += 1
+            processed_papers += len(futures[future])
+            report_progress(
+                session_id, "limitation_extract",
+                f"Analyzing papers... ({processed_papers}/{len(papers)}) — {len(all_limitations)} limitations found",
+                current=processed_papers, total=len(papers),
+            )
 
     # fulltext/LLM 실패 요약을 errors에 기록
     if fulltext_fail_count:

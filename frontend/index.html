@@ -367,7 +367,7 @@
             font-size: 1em;
             font-weight: 500;
             color: var(--text-dim);
-            margin-bottom: 20px;
+            margin-bottom: 8px;
         }
         .status-msg .detail { font-size: 0.84em; font-weight: 400; color: var(--text-light); margin-top: 3px; transition: opacity 0.3s; }
         .status-msg .elapsed { font-size: 0.78em; color: var(--text-light); margin-top: 4px; opacity: 0.5; }
@@ -772,7 +772,7 @@
         .report-content blockquote { border-left: 3px solid var(--accent); padding: 8px 14px; margin: 8px 0; background: var(--accent-bg); border-radius: 0 var(--radius) var(--radius) 0; font-style: italic; color: var(--text-dim); }
         .report-content hr { border: none; border-top: 1px solid var(--border-light); margin: 14px 0; }
         .report-content p { margin: 4px 0; }
-        .report-content br + br { display: none; }
+        .report-content .gap-break { display: block; margin-top: 12px; }
 
         /* ── Interrupt ── */
         .interrupt-card {
@@ -1052,13 +1052,13 @@
 <!-- Sidebar -->
 <aside class="sidebar">
     <div class="sidebar-header">
-        <div style="display:flex;align-items:center;gap:10px;">
+        <a href="#" onclick="event.preventDefault();newAnalysis();" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;cursor:pointer;">
             <img src="new_logo.png" alt="GAPAGO" style="width:36px;height:36px;border-radius:8px;object-fit:cover;">
             <div style="padding-top:2px;">
                 <h1>GAPAGO</h1>
                 <p>Research GAP Analyzer</p>
             </div>
-        </div>
+        </a>
     </div>
 
     <button class="new-btn" onclick="newAnalysis()">+ 새 분석</button>
@@ -1371,7 +1371,6 @@ function fillQuery(q) {
 function setInputEnabled(enabled) {
     document.getElementById('queryInput').disabled = !enabled;
     document.getElementById('provider').disabled = !enabled;
-    document.getElementById('domain').disabled = !enabled;
     document.getElementById('yearRange').disabled = !enabled;
     document.getElementById('outputLanguage').disabled = !enabled;
 
@@ -1394,6 +1393,7 @@ function newAnalysis() {
     clearInterval(_thinkingInterval);
     clearInterval(_elapsedInterval);
     currentSessionId = null;
+    _completedNodes = new Set();
     localStorage.removeItem('gapago_active_session');
     if (_activeReader) { try { _activeReader.cancel(); } catch(e) {} _activeReader = null; }
     document.getElementById('results').innerHTML = getEmptyStateHTML();
@@ -1405,7 +1405,7 @@ async function startAnalysis() {
     if (!query) { document.getElementById('queryInput').focus(); return; }
 
     const provider = document.getElementById('provider').value;
-    const domain = document.getElementById('domain').value;
+    const domain = 'auto';
     const yearRange = document.getElementById('yearRange').value;
     const outputLanguage = document.getElementById('outputLanguage').value;
 
@@ -1555,6 +1555,11 @@ function findTimelineStep(nodeName) {
 
 function handleEvent(data) {
     if (data.event === 'keepalive') return;
+
+    if (data.event === 'progress') {
+        updateProgress(data);
+        return;
+    }
 
     if (data.event === 'node') {
         const tlStepId = findTimelineStep(data.node);
@@ -2104,6 +2109,7 @@ function renderMarkdown(text) {
         .replace(/^- (.+)$/gm, '<li>$1</li>')
         .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
         .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+        .replace(/(📌)/g, '<div class="gap-break"></div>$1')
         .replace(/\n{2,}/g, '<br><br>')
         .replace(/\n/g, '<br>');
 }
@@ -2134,6 +2140,15 @@ function truncate(str, max) {
 function esc(str) {
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function richText(str) {
+    if (!str) return '';
+    let s = esc(str);
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/(?<!\w)_(.+?)_(?!\w)/g, '<em>$1</em>');
+    s = s.replace(/\n/g, '<br>');
+    return s;
 }
 </script>
 </body>
