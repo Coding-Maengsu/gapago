@@ -708,32 +708,41 @@ Output JSON only:
         methodology_hint = best.get("methodology_hint", "")
         novelty_score    = best.get("novelty_score", 0)
 
-        # 다른 후보들 요약 (UI에서 대안으로 표시 가능)
+        # 다른 후보들 요약
         alt_topics = [
             c.get("proposed_topic", "")
             for c in candidates
             if c.get("direction_id") != best_id and c.get("proposed_topic")
         ]
 
-        # elaboration 조립
-        elaboration_parts = []
-        if core_insight:
-            elaboration_parts.append(core_insight)
-        if rationale:
-            elaboration_parts.append(f"**Why this direction:** {rationale}")
-        if methodology_hint:
-            elaboration_parts.append(f"\n💡 **First experiment:** {methodology_hint}")
-        if alt_topics:
-            alt_str = " / ".join(f"_{t}_" for t in alt_topics[:2])
-            elaboration_parts.append(f"\n🔀 **Alternative directions considered:** {alt_str}")
+        # ── elaboration: GAP 카드에 표시될 간결한 요약 (1~2문장) ──────────────
+        # 핵심 인사이트 한 줄만 담음 — 상세 내용은 detail 필드로 분리
+        elaboration = core_insight if core_insight else rationale
 
-        elaboration = "\n\n".join(elaboration_parts)
+        # ── detail: 리포트 상세 섹션용 풍부한 컨텍스트 ───────────────────────
+        detail_parts = []
+        if core_insight:
+            detail_parts.append(f"**Core Insight:** {core_insight}")
+        if rationale:
+            detail_parts.append(f"**Why this direction:** {rationale}")
+        if methodology_hint:
+            detail_parts.append(f"**First experiment:** {methodology_hint}")
+        if alt_topics:
+            alt_str = " / ".join(f"*{t}*" for t in alt_topics[:2])
+            detail_parts.append(f"**Alternative directions considered:** {alt_str}")
+        detail = "\n\n".join(detail_parts)
 
         print(f"     best candidate (novelty={novelty_score}): {proposed_topic[:70]}...")
 
         return {
             "elaboration":    elaboration,
             "proposed_topic": proposed_topic,
+            "detail":         detail,
+            "barriers":       barriers,
+            "barrier_type":   barrier_type,
+            "what_was_tried": what_was_tried,
+            "alt_topics":     alt_topics,
+            "novelty_score":  novelty_score,
         }
 
     except Exception as e:
@@ -879,7 +888,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
         if direction is None:
             continue
 
-        gaps.append(GapCandidate(
+        gap_dict = GapCandidate(
             axis=ax_key,
             axis_label=ax_info["label"],
             axis_type=ax_info.get("type", "dynamic"),
@@ -889,12 +898,24 @@ def gap_infer_node(state: AgentState) -> AgentState:
             repeat_count=grp["total_count"],
             supporting_papers=list({lim.paper_id for lim in grp["lims"]}),
             supporting_quotes=[lim.evidence_quote for lim in unresolved_lims if lim.evidence_quote][:5],
-        ))
+        ).model_dump()
+        # GapCandidate 스키마 외 상세 필드 병합 (리포트 상세 섹션용)
+        gap_dict.update({
+            "detail":            direction.get("detail", ""),
+            "barriers":          direction.get("barriers", []),
+            "barrier_type":      direction.get("barrier_type", ""),
+            "what_was_tried":    direction.get("what_was_tried", []),
+            "alt_topics":        direction.get("alt_topics", []),
+            "novelty_score":     direction.get("novelty_score", 0),
+            "urgency_score":     urgency_score,
+            "urgency_rationale": urgency_rationale,
+        })
+        gaps.append(gap_dict)
 
     # urgency 점수 기준 정렬
     urgency_map = {ax: score for ax, score, _, _ in scored_axes}
-    gaps.sort(key=lambda g: urgency_map.get(g.axis, 0), reverse=True)
-    gaps_as_dict = [g.model_dump() for g in gaps]
+    gaps.sort(key=lambda g: urgency_map.get(g["axis"], 0), reverse=True)
+    gaps_as_dict = gaps
 
     print(f"\n  ✅ GAP {len(gaps)}개 생성 완료")
 
