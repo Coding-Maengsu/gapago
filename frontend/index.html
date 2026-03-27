@@ -425,7 +425,7 @@
         tr.highlight { background: rgba(84,105,212,0.15) !important; box-shadow: inset 4px 0 0 var(--accent); transition: background 0.5s, box-shadow 0.5s; }
 
         /* ── Report ── */
-        .report-content { font-size: 1.02em; line-height: 1.55; color: var(--text); }
+        .report-content { font-size: 1.02em; line-height: 1.55; color: var(--text); padding-bottom: 40px; }
         .report-content h1 { font-size: 1.45em; color: var(--text); margin: 20px 0 8px; padding-bottom: 6px; border-bottom: 2px solid var(--accent); font-weight: 700; }
         .report-content h2 { font-size: 1.25em; color: var(--text); margin: 16px 0 6px; padding: 4px 10px; font-weight: 700; background: linear-gradient(transparent 40%, rgba(99,102,241,0.18) 40%); display: inline-block; border-radius: 3px; }
         .report-content h3 { font-size: 1.1em; color: var(--accent); margin: 12px 0 6px; font-weight: 600; }
@@ -441,7 +441,7 @@
         .report-content blockquote { border-left: 3px solid var(--accent); padding: 8px 14px; margin: 8px 0; background: var(--accent-bg); border-radius: 0 var(--radius) var(--radius) 0; font-style: italic; color: var(--text-dim); }
         .report-content hr { border: none; border-top: 1px solid var(--border-light); margin: 14px 0; }
         .report-content p { margin: 4px 0; }
-        .report-content br + br { display: none; }
+        .report-content .gap-break { display: block; margin-top: 12px; }
 
         .report-actions { display: flex; gap: 8px; margin-bottom: 18px; }
         .report-actions button {
@@ -1388,7 +1388,7 @@ function renderMarkdown(text) {
     // Remove system tags
     text = text.replace(/FINAL\s*ANSWER\s*/gi, '');
     // Remove unicode box-drawing lines (────, ═══, etc.)
-    text = text.replace(/^[─━═┄┅┈┉╌╍]+$/gm, '---');
+    text = text.replace(/^[─━═┄┅┈┉╌╍]+$/gm, '');
     // Escape HTML
     text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -1424,6 +1424,7 @@ function renderMarkdown(text) {
         .replace(/^- (.+)$/gm, '<li>$1</li>')
         .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
         .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+        .replace(/(📌)/g, '<div class="gap-break"></div>$1')
         .replace(/\n{2,}/g, '<br><br>')
         .replace(/\n/g, '<br>');
 }
