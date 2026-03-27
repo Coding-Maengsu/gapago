@@ -1387,8 +1387,12 @@ function renderSavedResult(data) {
 function renderMarkdown(text) {
     // Remove system tags
     text = text.replace(/FINAL\s*ANSWER\s*/gi, '');
-    // Remove unicode box-drawing lines (────, ═══, etc.)
-    text = text.replace(/^[─━═┄┅┈┉╌╍]+$/gm, '');
+    // Remove unicode box-drawing lines and standalone separator lines (---, ────, etc.)
+    text = text.replace(/^[─━═┄┅┈┉╌╍\-\s]+$/gm, function(line) {
+        // Keep --- as <hr> only if it's exactly 3 dashes (handled later)
+        if (/^---$/.test(line.trim())) return '---';
+        return '';
+    });
     // Escape HTML
     text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
