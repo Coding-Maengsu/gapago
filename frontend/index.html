@@ -1401,8 +1401,8 @@ function renderMarkdown(text) {
         let headerDone = false;
         rows.forEach((row) => {
             const cells = row.split('|').filter((c, j, a) => j > 0 && j < a.length).map(c => c.trim());
-            // Skip separator row (|---|---|)
-            if (cells.every(c => /^[-:\s]+$/.test(c))) { headerDone = true; return; }
+            // Skip separator row (|---|---| including unicode dashes ─━═—–)
+            if (cells.every(c => /^[-─━═┄┅┈┉╌╍—–:\s]+$/.test(c))) { headerDone = true; return; }
             const tag = !headerDone ? 'th' : 'td';
             html += '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
             if (!headerDone) headerDone = true; // first row is header even without separator
