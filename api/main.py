@@ -87,6 +87,7 @@ class HistoryItem(BaseModel):
     gaps_count: int = 0
     status: str = "completed"
     session_id: str = ""
+    parent_session_id: str = ""
 
 
 # ── Utility ─────────────────────────────────────────────────────────
@@ -101,7 +102,7 @@ def _serialize_messages(state_values: dict) -> list[dict]:
     return out
 
 
-def _save_result(query: str, state_values: dict, user_id: str = "", parent_session_id: str = "") -> str:
+def _save_result(query: str, state_values: dict, user_id: str = "", parent_session_id: str = "", session_id: str = "") -> str:
     messages_out = _serialize_messages(state_values)
 
     papers = state_values.get("papers", [])
@@ -121,6 +122,7 @@ def _save_result(query: str, state_values: dict, user_id: str = "", parent_sessi
         "query": query,
         "timestamp": datetime.now().isoformat(),
         "user_id": user_id,
+        "session_id": session_id,
         "parent_session_id": parent_session_id,
         "refined_query": state_values.get("refined_query", ""),
         "keywords": state_values.get("keywords", []),
@@ -214,7 +216,7 @@ async def _run_pipeline(session_id: str, graph, config_dict: dict, inputs: dict)
             # Pipeline complete — save result
             final_state = graph.get_state(config_dict)
             state_values = final_state.values if final_state else {}
-            fname = _save_result(session["query"], state_values, session["user_id"], session.get("parent_session_id", ""))
+            fname = _save_result(session["query"], state_values, session["user_id"], session.get("parent_session_id", ""), session_id)
             session["status"] = "completed"
             session["filename"] = fname
             _push_event(session_id, {"event": "complete", "filename": fname})
@@ -255,6 +257,7 @@ async def get_history(user_id: str = ""):
             timestamp=session.get("started_at", ""),
             status=session["status"],
             session_id=sid,
+            parent_session_id=session.get("parent_session_id", ""),
         ))
 
     # Completed results from files
@@ -271,6 +274,8 @@ async def get_history(user_id: str = ""):
                 refined_query=data.get("refined_query", ""),
                 gaps_count=len(data.get("gaps", [])),
                 status="completed",
+                session_id=data.get("session_id", ""),
+                parent_session_id=data.get("parent_session_id", ""),
             ))
         except Exception:
             continue
