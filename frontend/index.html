@@ -28,6 +28,8 @@
             --yellow-light: #fef8ec;
             --red: #e54e4e;
             --red-light: #fef0f0;
+            --done: #3d8fd4;
+            --done-light: #eaf3fb;
             --shadow-sm: 0 1px 2px rgba(26,31,54,0.04);
             --shadow: 0 2px 8px rgba(26,31,54,0.06);
             --shadow-md: 0 4px 16px rgba(26,31,54,0.08);
@@ -150,11 +152,70 @@
         }
 
         .history-item:hover { background: var(--surface2); }
-        .history-item.child { padding-left: 28px; }
         .history-item .query { font-size: 0.86em; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
         .history-item .meta { font-size: 0.75em; color: var(--text-light); margin-top: 2px; }
         .history-item .meta .running-badge { color: var(--accent); font-weight: 600; animation: pulse-text 1.5s infinite; }
         @keyframes pulse-text { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        .history-group { margin-bottom: 2px; }
+        .history-group .history-toggle {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px 1px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-family: inherit;
+            font-size: 0.72em;
+            color: var(--text-light);
+            font-weight: 500;
+            transition: color 0.15s;
+            width: 100%;
+            text-align: left;
+        }
+        .history-group .history-toggle:hover { color: var(--accent); }
+        .history-group .history-toggle .toggle-icon {
+            display: inline-block;
+            transition: transform 0.2s;
+            font-size: 0.8em;
+        }
+        .history-group.collapsed .toggle-icon { transform: rotate(-90deg); }
+        .history-children {
+            overflow: hidden;
+            transition: max-height 0.25s ease, opacity 0.2s ease;
+            max-height: 500px;
+            opacity: 1;
+        }
+        .history-group.collapsed .history-children {
+            max-height: 0;
+            opacity: 0;
+        }
+        .history-children .history-item {
+            padding-left: 24px;
+            position: relative;
+        }
+        .history-children .history-item::before {
+            content: '';
+            position: absolute;
+            left: 14px;
+            top: 0;
+            bottom: 0;
+            width: 1.5px;
+            background: var(--border);
+        }
+        .history-children .history-item:last-child::before {
+            bottom: 50%;
+        }
+        .history-children .history-item::after {
+            content: '';
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            width: 6px;
+            height: 1.5px;
+            background: var(--border);
+        }
 
         /* ── Main ── */
         .main {
@@ -275,7 +336,7 @@
             transition: background 0.3s;
         }
 
-        .timeline-item.done:not(:last-child)::after { background: var(--green); }
+        .timeline-item.done:not(:last-child)::after { background: var(--done); }
         .timeline-item.active:not(:last-child)::after { background: linear-gradient(to bottom, var(--accent), var(--border)); }
 
         .timeline-icon {
@@ -295,8 +356,8 @@
         }
 
         .timeline-item.done .timeline-icon {
-            background: var(--green);
-            border-color: var(--green);
+            background: var(--done);
+            border-color: var(--done);
             color: #fff;
         }
 
@@ -324,7 +385,7 @@
             transition: color 0.3s;
         }
 
-        .timeline-item.done .timeline-label { color: var(--green); }
+        .timeline-item.done .timeline-label { color: var(--done); }
         .timeline-item.active .timeline-label { color: var(--accent); }
 
         .timeline-detail {
@@ -953,6 +1014,208 @@
         }
         .error-banner button:hover { opacity: 0.85; }
 
+        /* ── Dynamic GAP ── */
+        .gap-item-compact.dynamic {
+            border-left: 3px solid var(--accent2);
+            background: linear-gradient(135deg, rgba(124,92,191,0.04), transparent);
+        }
+        .gap-item-compact.dynamic:hover { background: linear-gradient(135deg, rgba(124,92,191,0.08), rgba(84,105,212,0.04)); }
+        .gap-item-compact.dynamic.active { border-left-color: var(--accent2); background: linear-gradient(135deg, rgba(124,92,191,0.10), rgba(84,105,212,0.05)); }
+
+        .gap-compact-axis-badge {
+            display: inline-block;
+            font-size: 0.68em;
+            font-weight: 700;
+            padding: 1px 6px;
+            border-radius: 3px;
+            margin-left: 4px;
+            vertical-align: middle;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .gap-compact-axis-badge.fixed { background: var(--surface2); color: var(--text-light); }
+        .gap-compact-axis-badge.dynamic { background: rgba(124,92,191,0.12); color: var(--accent2); }
+
+        /* ── Analysis Options Bar ── */
+        .analysis-options-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .opt-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            background: var(--surface2);
+            border: 1px solid var(--border-light);
+            border-radius: 6px;
+            font-size: 0.78em;
+            color: var(--text-dim);
+            font-weight: 500;
+        }
+        .opt-chip .opt-label { color: var(--text-light); font-weight: 400; margin-right: 2px; }
+
+        /* ── Timeline Collapse ── */
+        .timeline.collapsing {
+            max-height: 600px;
+            overflow: hidden;
+            transition: max-height 0.6s ease, opacity 0.4s ease;
+        }
+        .timeline.collapsed {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* ── Analysis 2-Split Layout ── */
+        .analysis-layout {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .analysis-status-bar {
+            text-align: center;
+            padding: 16px 20px 12px;
+            margin-bottom: 8px;
+        }
+        .analysis-status-bar .status-text {
+            font-size: 1em;
+            font-weight: 600;
+            color: var(--text);
+        }
+        .analysis-status-bar .status-detail {
+            font-size: 0.84em;
+            font-weight: 400;
+            color: var(--text-light);
+            margin-top: 3px;
+            transition: opacity 0.3s;
+        }
+        .analysis-status-bar .status-elapsed {
+            font-size: 0.78em;
+            color: var(--text-light);
+            margin-top: 4px;
+            opacity: 0.5;
+        }
+
+        .analysis-body {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        .analysis-timeline-panel {
+            width: 280px;
+            flex-shrink: 0;
+        }
+        .analysis-timeline-panel .timeline {
+            max-width: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        .analysis-preview-panel {
+            flex: 1;
+            min-width: 0;
+            background: var(--surface);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            min-height: 300px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .preview-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 260px;
+            color: var(--text-light);
+            font-size: 0.9em;
+            text-align: center;
+            gap: 8px;
+        }
+        .preview-empty .preview-icon { font-size: 2em; opacity: 0.4; }
+
+        .preview-section {
+            margin-bottom: 16px;
+            animation: fadeInUp 0.3s ease;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .preview-section-title {
+            font-size: 0.78em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-light);
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .preview-paper-item {
+            padding: 8px 12px;
+            background: var(--surface2);
+            border-radius: 8px;
+            margin-bottom: 6px;
+            font-size: 0.86em;
+        }
+        .preview-paper-item .preview-paper-title {
+            font-weight: 500;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .preview-paper-item .preview-paper-meta {
+            font-size: 0.82em;
+            color: var(--text-light);
+            margin-top: 2px;
+        }
+
+        .preview-limitation-item {
+            padding: 8px 12px;
+            background: var(--surface2);
+            border-radius: 8px;
+            margin-bottom: 6px;
+            font-size: 0.84em;
+            color: var(--text-dim);
+            line-height: 1.5;
+            border-left: 3px solid var(--yellow);
+        }
+
+        .preview-gap-card {
+            padding: 12px 16px;
+            background: linear-gradient(135deg, rgba(84,105,212,0.06), rgba(124,92,191,0.06));
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius);
+            margin-bottom: 8px;
+        }
+        .preview-gap-card .preview-gap-axis {
+            font-size: 0.75em;
+            color: var(--text-light);
+            margin-bottom: 4px;
+        }
+        .preview-gap-card .preview-gap-statement {
+            font-size: 0.9em;
+            font-weight: 600;
+            color: var(--text);
+            line-height: 1.5;
+        }
+        .preview-gap-card.dynamic {
+            border-left: 3px solid var(--accent2);
+        }
+
         /* ── Scrollbar ── */
         ::-webkit-scrollbar { width: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -1024,6 +1287,10 @@
 
             .status-msg { font-size: 0.82em; }
 
+            .analysis-body { flex-direction: column; }
+            .analysis-timeline-panel { width: 100%; }
+            .analysis-preview-panel { min-height: 200px; }
+
             .gap-item-compact .gap-compact-statement { font-size: 0.82em; }
             .paper-item-compact .paper-compact-title { font-size: 0.8em; }
 
@@ -1069,15 +1336,6 @@
             <option value="azure">Azure OpenAI (GPT)</option>
             <option value="claude">Claude (Anthropic)</option>
             <option value="exaone">EXAONE (Local)</option>
-        </select>
-        <label>연구 도메인</label>
-        <select id="domain">
-            <option value="auto">자동 감지</option>
-            <option value="ai_cs">AI / CS</option>
-            <option value="biomedical">Biomedical</option>
-            <option value="materials_chemistry">Materials / Chemistry</option>
-            <option value="physics">Physics</option>
-            <option value="general">General</option>
         </select>
         <label>연도 범위</label>
         <select id="yearRange">
@@ -1165,6 +1423,7 @@ let pipelineData = {
     recency_status: {},
     gaps: [],
     report: '',
+    analysisOptions: {},
 };
 
 // Track timeline detail text per node
@@ -1337,20 +1596,77 @@ async function loadHistory() {
         const items = await resp.json();
         const section = document.getElementById('historySection');
         section.innerHTML = '<h3>분석 히스토리</h3>';
+
+        // Build parent-children map
+        // parentMap: parentSessionId -> [child items]
+        const parentMap = {};
+        const roots = [];
+        const sessionItemMap = {}; // sessionId -> item (for matching parents)
+
         items.forEach(item => {
+            const sid = item.session_id || '';
+            if (sid) sessionItemMap[sid] = item;
+        });
+
+        items.forEach(item => {
+            const psid = item.parent_session_id || '';
+            if (psid && sessionItemMap[psid]) {
+                // This item has a parent that exists in the list
+                if (!parentMap[psid]) parentMap[psid] = [];
+                parentMap[psid].push(item);
+            } else {
+                roots.push(item);
+            }
+        });
+
+        function renderHistoryItem(item) {
             const div = document.createElement('div');
-            div.className = 'history-item' + (item.parent_session_id ? ' child' : '');
+            div.className = 'history-item';
+            const ts = item.timestamp ? new Date(item.timestamp).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
             if (item.status === 'running' || item.status === 'interrupted') {
                 div.onclick = () => reconnectToSession(item.session_id, item.query);
-                const ts = item.timestamp ? new Date(item.timestamp).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
                 div.innerHTML = `<div class="query">${esc(item.query)}</div><div class="meta"><span class="running-badge">분석 중...</span> &middot; ${ts}</div>`;
             } else {
                 div.onclick = () => loadResult(item.filename);
-                const ts = item.timestamp ? new Date(item.timestamp).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
-                div.innerHTML = `<div class="query">${item.parent_session_id ? '&#x2514; ' : ''}${esc(item.query)}</div><div class="meta">${ts} &middot; ${item.gaps_count} GAPs</div>`;
+                div.innerHTML = `<div class="query">${esc(item.query)}</div><div class="meta">${ts} &middot; ${item.gaps_count} GAPs</div>`;
             }
-            section.appendChild(div);
+            return div;
+        }
+
+        roots.forEach(item => {
+            const sid = item.session_id || '';
+            const children = sid ? (parentMap[sid] || []) : [];
+
+            if (children.length > 0) {
+                // Render as a group with toggle
+                const group = document.createElement('div');
+                group.className = 'history-group';
+
+                // Parent item
+                group.appendChild(renderHistoryItem(item));
+
+                // Toggle button
+                const toggle = document.createElement('button');
+                toggle.className = 'history-toggle';
+                toggle.innerHTML = `<span class="toggle-icon">&#x25BC;</span> 추가 탐색 ${children.length}건`;
+                toggle.onclick = (e) => { e.stopPropagation(); group.classList.toggle('collapsed'); };
+                group.appendChild(toggle);
+
+                // Children container
+                const childrenDiv = document.createElement('div');
+                childrenDiv.className = 'history-children';
+                children.forEach(child => {
+                    childrenDiv.appendChild(renderHistoryItem(child));
+                });
+                group.appendChild(childrenDiv);
+
+                section.appendChild(group);
+            } else {
+                // Standalone item
+                section.appendChild(renderHistoryItem(item));
+            }
         });
+
         if (!items.length) section.innerHTML += '<div style="padding:14px;color:var(--text-light);font-size:0.78em">아직 분석 기록이 없습니다.</div>';
     } catch (e) { console.error(e); }
 }
@@ -1373,6 +1689,8 @@ function setInputEnabled(enabled) {
     document.getElementById('provider').disabled = !enabled;
     document.getElementById('yearRange').disabled = !enabled;
     document.getElementById('outputLanguage').disabled = !enabled;
+    const domainEl = document.getElementById('domain');
+    if (domainEl) domainEl.disabled = !enabled;
 
     const runBtn = document.getElementById('runBtn');
     if (enabled) {
@@ -1410,7 +1728,10 @@ async function startAnalysis() {
     const outputLanguage = document.getElementById('outputLanguage').value;
 
     setInputEnabled(false);
-    pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '' };
+    const providerLabels = { azure: 'Azure GPT', claude: 'Claude', exaone: 'EXAONE' };
+    const yearLabels = { auto: '자동 추천', '1y': '최근 1년', '3y': '최근 3년', '5y': '최근 5년' };
+    const langLabels = { auto: '자동 감지', ko: '한국어', en: 'English' };
+    pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: { provider: providerLabels[provider] || provider, yearRange: yearLabels[yearRange] || yearRange, outputLanguage: langLabels[outputLanguage] || outputLanguage } };
     timelineDetails = {};
     timelineState = {};
     TIMELINE_NODES.forEach(n => { timelineState[n.id] = 'pending'; });
@@ -1431,6 +1752,7 @@ async function startAnalysis() {
         const { session_id } = await resp.json();
         currentSessionId = session_id;
         localStorage.setItem('gapago_active_session', session_id);
+        loadHistory();
 
         await connectToStream(session_id);
     } catch (e) {
@@ -1447,8 +1769,10 @@ async function stopAnalysis() {
     clearInterval(_thinkingInterval);
     clearInterval(_elapsedInterval);
     localStorage.removeItem('gapago_active_session');
-    const statusEl = document.getElementById('statusMsg');
-    if (statusEl) statusEl.innerHTML = '<span style="color:var(--red);font-weight:600">분석이 중지되었습니다</span>';
+    const statusText = document.getElementById('statusText');
+    if (statusText) { statusText.style.color = 'var(--red)'; statusText.textContent = '분석이 중지되었습니다'; }
+    const statusDetail = document.getElementById('statusDetail');
+    if (statusDetail) statusDetail.textContent = '';
     setInputEnabled(true);
     loadHistory();
 }
@@ -1467,14 +1791,31 @@ function showPipelineUI() {
     });
 
     document.getElementById('results').innerHTML = `
-        <div class="timeline" id="timeline">${timelineHTML}</div>
-        <div class="status-msg" id="statusMsg">파이프라인 시작 중...<div class="detail"></div><div class="elapsed"></div></div>
+        <div class="analysis-layout">
+            <div class="analysis-status-bar">
+                <div class="status-text" id="statusText">파이프라인 시작 중...</div>
+                <div class="status-detail" id="statusDetail"></div>
+                <div class="status-elapsed" id="statusElapsed"></div>
+            </div>
+            <div class="analysis-body">
+                <div class="analysis-timeline-panel">
+                    <div class="timeline" id="timeline">${timelineHTML}</div>
+                </div>
+                <div class="analysis-preview-panel" id="livePreview">
+                    <div class="preview-empty">
+                        <div class="preview-icon">&#x1F50D;</div>
+                        <div>분석이 시작되면 결과가 여기에 표시됩니다</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="statusMsg" style="display:none"></div>
         <div id="resultArea" style="display:none"></div>
     `;
 
     // Start elapsed timer
     _elapsedInterval = setInterval(() => {
-        const elapsedEl = document.querySelector('#statusMsg .elapsed');
+        const elapsedEl = document.getElementById('statusElapsed');
         if (elapsedEl && _startTime) {
             const elapsed = Math.floor((Date.now() - _startTime) / 1000);
             const m = Math.floor(elapsed / 60), s = elapsed % 60;
@@ -1488,7 +1829,7 @@ async function reconnectToSession(sessionId, query) {
     localStorage.setItem('gapago_active_session', sessionId);
     document.getElementById('queryInput').value = query || '';
     setInputEnabled(false);
-    pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '' };
+    pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: {} };
     timelineDetails = {};
     timelineState = {};
     TIMELINE_NODES.forEach(n => { timelineState[n.id] = 'pending'; });
@@ -1496,8 +1837,10 @@ async function reconnectToSession(sessionId, query) {
     clearInterval(_thinkingInterval);
     clearInterval(_elapsedInterval);
     showPipelineUI();
-    const statusEl = document.getElementById('statusMsg');
-    if (statusEl) statusEl.innerHTML = '재연결 중...<div class="detail">이전 분석을 이어서 진행합니다</div><div class="elapsed"></div>';
+    const statusText = document.getElementById('statusText');
+    if (statusText) statusText.textContent = '재연결 중...';
+    const statusDetail = document.getElementById('statusDetail');
+    if (statusDetail) statusDetail.textContent = '이전 분석을 이어서 진행합니다';
     try {
         await connectToStream(sessionId);
     } catch (e) {
@@ -1580,8 +1923,22 @@ function handleEvent(data) {
         renderTimelineState();
         const totalSecs = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
         const tm = Math.floor(totalSecs / 60), ts = totalSecs % 60;
-        const statusEl = document.getElementById('statusMsg');
-        if (statusEl) statusEl.innerHTML = `<span style="color:var(--green);font-weight:600">분석 완료</span><div class="elapsed">${tm > 0 ? tm + '분 ' : ''}${ts}초 소요</div>`;
+        const statusText = document.getElementById('statusText');
+        if (statusText) { statusText.style.color = 'var(--done)'; statusText.textContent = '분석 완료'; }
+        const statusDetail = document.getElementById('statusDetail');
+        if (statusDetail) statusDetail.textContent = '';
+        const statusElapsed = document.getElementById('statusElapsed');
+        if (statusElapsed) statusElapsed.textContent = `${tm > 0 ? tm + '분 ' : ''}${ts}초 소요`;
+        // Collapse timeline after 1.5s
+        setTimeout(() => {
+            const timeline = document.getElementById('timeline');
+            if (timeline) {
+                timeline.classList.add('collapsing');
+                setTimeout(() => { timeline.classList.add('collapsed'); timeline.classList.remove('collapsing'); }, 600);
+            }
+            const statusBar = document.querySelector('.analysis-status-bar');
+            if (statusBar) statusBar.style.transition = 'opacity 0.4s'; // keep visible with completion info
+        }, 1500);
         renderResults();
         setInputEnabled(true);
         loadHistory();
@@ -1590,8 +1947,10 @@ function handleEvent(data) {
         clearInterval(_elapsedInterval);
         localStorage.removeItem('gapago_active_session');
         _activeReader = null;
-        const statusEl = document.getElementById('statusMsg');
-        if (statusEl) statusEl.innerHTML = '<span style="color:var(--red);font-weight:600">분석이 중지되었습니다</span>';
+        const stoppedText = document.getElementById('statusText');
+        if (stoppedText) { stoppedText.style.color = 'var(--red)'; stoppedText.textContent = '분석이 중지되었습니다'; }
+        const stoppedDetail = document.getElementById('statusDetail');
+        if (stoppedDetail) stoppedDetail.textContent = '';
         setInputEnabled(true);
     } else if (data.event === 'error') {
         clearInterval(_thinkingInterval);
@@ -1625,18 +1984,22 @@ function updateTimeline(activeStepId, nodeName) {
 
     renderTimelineState();
 
-    // Update status message
-    const statusEl = document.getElementById('statusMsg');
+    // Update status bar
+    const statusText = document.getElementById('statusText');
+    const statusDetailEl = document.getElementById('statusDetail');
     const activeNode = TIMELINE_NODES.find(n => n.id === activeStepId);
-    if (statusEl && activeNode) {
-        const detailText = timelineDetails[activeStepId] || '';
-        statusEl.innerHTML = `${esc(activeNode.label)}...<div class="detail">${esc(detailText)}</div><div class="elapsed"></div>`;
+    if (statusText && activeNode) {
+        statusText.style.color = '';
+        statusText.textContent = activeNode.label + '...';
+    }
+    if (statusDetailEl) {
+        statusDetailEl.textContent = timelineDetails[activeStepId] || '';
     }
 
     // Thinking messages rotation
     clearInterval(_thinkingInterval);
     _thinkingInterval = setInterval(() => {
-        const el = document.querySelector('#statusMsg .detail');
+        const el = document.getElementById('statusDetail');
         if (el) el.textContent = THINKING_MESSAGES[Math.floor(Math.random() * THINKING_MESSAGES.length)];
     }, 8000);
 }
@@ -1747,6 +2110,59 @@ function collectData(data) {
         const detailEl = document.getElementById(`tl-detail-${tlStepId}`);
         if (detailEl) detailEl.innerHTML = timelineDetails[tlStepId] || '';
     }
+
+    updateLivePreview();
+}
+
+function updateLivePreview() {
+    const panel = document.getElementById('livePreview');
+    if (!panel) return;
+
+    const hasPapers = pipelineData.papers.length > 0;
+    const hasLimitations = pipelineData.limitations && pipelineData.limitations.length > 0;
+    const hasGaps = pipelineData.gaps && pipelineData.gaps.length > 0;
+
+    if (!hasPapers && !hasLimitations && !hasGaps) return; // keep empty state
+
+    let html = '';
+
+    if (hasGaps) {
+        html += `<div class="preview-section"><div class="preview-section-title">연구 GAP (${pipelineData.gaps.length})</div>`;
+        pipelineData.gaps.forEach(gap => {
+            const isDynamic = gap.axis_type === 'dynamic';
+            html += `<div class="preview-gap-card${isDynamic ? ' dynamic' : ''}">
+                <div class="preview-gap-axis">${esc(gap.axis_label || gap.axis || '')}${isDynamic ? ' <span style="color:var(--accent2);font-weight:600">질문 특화</span>' : ''}</div>
+                <div class="preview-gap-statement">${esc(gap.gap_statement || '')}</div>
+            </div>`;
+        });
+        html += '</div>';
+    }
+
+    if (hasLimitations) {
+        const limCount = pipelineData.limitations.length;
+        const showLims = pipelineData.limitations.slice(0, 5);
+        html += `<div class="preview-section"><div class="preview-section-title">한계점 (${limCount})</div>`;
+        showLims.forEach(l => {
+            const text = l.limitation_text || l.text || l.content || '';
+            html += `<div class="preview-limitation-item">${esc(truncate(text, 120))}</div>`;
+        });
+        if (limCount > 5) html += `<div style="text-align:center;color:var(--text-light);font-size:0.78em;padding:4px">외 ${limCount - 5}개...</div>`;
+        html += '</div>';
+    }
+
+    if (hasPapers) {
+        html += `<div class="preview-section"><div class="preview-section-title">검색된 논문 (${pipelineData.papers.length}/${pipelineData.total_searched || '?'})</div>`;
+        pipelineData.papers.slice(0, 8).forEach(p => {
+            html += `<div class="preview-paper-item">
+                <div class="preview-paper-title">${esc(p.title || '')}</div>
+                <div class="preview-paper-meta">${p.year || ''} ${p.venue ? '· ' + esc(p.venue) : ''}</div>
+            </div>`;
+        });
+        if (pipelineData.papers.length > 8) html += `<div style="text-align:center;color:var(--text-light);font-size:0.78em;padding:4px">외 ${pipelineData.papers.length - 8}편...</div>`;
+        html += '</div>';
+    }
+
+    panel.innerHTML = html;
 }
 
 function renderResults() {
@@ -1754,6 +2170,17 @@ function renderResults() {
     area.style.display = 'block';
 
     selectedItem = { type: 'gap', index: 0 };
+
+    // Analysis options bar
+    let optionsHTML = '';
+    const opts = pipelineData.analysisOptions || {};
+    if (opts.provider || opts.yearRange || opts.outputLanguage) {
+        optionsHTML = `<div class="analysis-options-bar">`;
+        if (opts.provider) optionsHTML += `<span class="opt-chip"><span class="opt-label">LLM</span> ${esc(opts.provider)}</span>`;
+        if (opts.yearRange) optionsHTML += `<span class="opt-chip"><span class="opt-label">연도</span> ${esc(opts.yearRange)}</span>`;
+        if (opts.outputLanguage) optionsHTML += `<span class="opt-chip"><span class="opt-label">언어</span> ${esc(opts.outputLanguage)}</span>`;
+        optionsHTML += `</div>`;
+    }
 
     // Summary header
     const totalSearched = pipelineData.total_searched || '?';
@@ -1776,10 +2203,15 @@ function renderResults() {
     if (pipelineData.gaps.length) {
         pipelineData.gaps.forEach((gap, i) => {
             const isTop = i === 0;
+            const isDynamic = gap.axis_type === 'dynamic';
             const activeClass = (selectedItem.type === 'gap' && selectedItem.index === i) ? ' active' : '';
-            leftHTML += `<div class="gap-item-compact${activeClass}" onclick="selectGap(${i})" id="gap-item-${i}">
+            const dynamicClass = isDynamic ? ' dynamic' : '';
+            const badgeClass = isDynamic ? 'dynamic' : 'fixed';
+            const badgeText = isDynamic ? 'Dynamic' : 'Fixed';
+            leftHTML += `<div class="gap-item-compact${activeClass}${dynamicClass}" onclick="selectGap(${i})" id="gap-item-${i}">
                 <span class="gap-compact-rank ${isTop ? 'top' : ''}">${isTop ? 'TOP' : '#' + (i + 1)}</span>
                 <span class="gap-compact-axis">${esc(gap.axis_label || gap.axis || '')}</span>
+                <span class="gap-compact-axis-badge ${badgeClass}">${badgeText}</span>
                 <div class="gap-compact-statement">${esc(gap.gap_statement || '')}</div>
             </div>`;
         });
@@ -1831,6 +2263,7 @@ function renderResults() {
     }
 
     area.innerHTML = `
+        ${optionsHTML}
         ${summaryHTML}
         <div class="result-panels">
             <div class="panel-left" id="panelLeft">${leftHTML}</div>
@@ -1847,10 +2280,15 @@ function getGapDetailHTML(index) {
         return '<div style="padding:20px;color:var(--text-light);text-align:center">GAP을 선택하세요</div>';
     }
     const gap = pipelineData.gaps[index];
-    const axisType = gap.axis_type === 'fixed' ? 'Fixed' : 'Dynamic';
+    const isDynamic = gap.axis_type === 'dynamic';
+    const axisType = isDynamic ? 'Dynamic' : 'Fixed';
 
     let html = '';
-    html += `<div class="detail-gap-axis">${axisType}: ${esc(gap.axis_label || gap.axis || '')} &middot; ${gap.repeat_count || 0}편 논문</div>`;
+    if (isDynamic) {
+        html += `<div class="detail-gap-axis" style="color:var(--accent2);font-weight:600">&#x2728; 질문 특화 &middot; ${esc(gap.axis_label || gap.axis || '')} &middot; ${gap.repeat_count || 0}편 논문</div>`;
+    } else {
+        html += `<div class="detail-gap-axis">${axisType}: ${esc(gap.axis_label || gap.axis || '')} &middot; ${gap.repeat_count || 0}편 논문</div>`;
+    }
     html += `<div class="detail-gap-statement">${esc(gap.gap_statement || '')}</div>`;
     html += `<div class="detail-gap-elaboration">${esc(gap.elaboration || '')}</div>`;
 
@@ -1964,7 +2402,7 @@ async function exploreDirection(topic) {
     const outputLanguage = document.getElementById('outputLanguage').value;
 
     setInputEnabled(false);
-    pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '' };
+    pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: {} };
     timelineDetails = {};
     timelineState = {};
     TIMELINE_NODES.forEach(n => { timelineState[n.id] = 'pending'; });
@@ -1994,6 +2432,7 @@ async function exploreDirection(topic) {
         const { session_id } = await resp.json();
         currentSessionId = session_id;
         localStorage.setItem('gapago_active_session', session_id);
+        loadHistory();
 
         await connectToStream(session_id);
     } catch (e) {
@@ -2003,8 +2442,10 @@ async function exploreDirection(topic) {
 
 function showInterrupt(prompt) {
     const results = document.getElementById('results');
-    const statusEl = document.getElementById('statusMsg');
-    if (statusEl) statusEl.innerHTML = '<span style="color:var(--yellow);font-weight:600">입력을 기다리고 있습니다...</span>';
+    const statusText = document.getElementById('statusText');
+    if (statusText) { statusText.style.color = 'var(--yellow)'; statusText.textContent = '입력을 기다리고 있습니다...'; }
+    const statusDetail = document.getElementById('statusDetail');
+    if (statusDetail) statusDetail.textContent = '';
     const div = document.createElement('div');
     div.className = 'interrupt-card';
     div.id = 'interruptCard';
@@ -2033,8 +2474,10 @@ async function skipClarification() { await sendClarification('proceed as is'); }
 async function sendClarification(response) {
     const card = document.getElementById('interruptCard');
     if (card) card.remove();
-    const statusEl = document.getElementById('statusMsg');
-    if (statusEl) statusEl.innerHTML = '분석 재개 중...<div class="detail">입력을 처리하고 있습니다...</div><div class="elapsed"></div>';
+    const statusText = document.getElementById('statusText');
+    if (statusText) { statusText.style.color = ''; statusText.textContent = '분석 재개 중...'; }
+    const statusDetail = document.getElementById('statusDetail');
+    if (statusDetail) statusDetail.textContent = '입력을 처리하고 있습니다...';
     try {
         const params = new URLSearchParams({ session_id: currentSessionId, response });
         const resp = await fetch(`api/clarify?${params}`);
@@ -2056,6 +2499,7 @@ function renderSavedResult(data) {
         recency_status: data.recency_status || {},
         gaps: data.gaps || [],
         report: ((data.messages || []).find(m => m.name === 'final_response') || {}).content || data.report || '',
+        analysisOptions: data.analysisOptions || {},
     };
 
     results.innerHTML = `
