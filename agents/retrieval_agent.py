@@ -9,22 +9,24 @@ from prompts.system import make_system_prompt
 from llm import get_llm
 from config import Configuration
 from utils.parse_json import parse_json
+from utils.progress import report_progress
 
 ROLE_TOOLS = build_role_tools()
 RETRIEVAL_TOOLS = ROLE_TOOLS["RETRIEVAL_TOOLS"]
 
-_RETRIEVAL_SYSTEM_PROMPT = make_system_prompt(
-    """ROLE: Paper Retrieval Agent
+_RETRIEVAL_PROMPT_TEMPLATE = """ROLE: Paper Retrieval Agent
 You are a retrieval orchestrator. Your job is to SELECT and CALL the most appropriate search tools.
 
-Available tools:
-- arxiv_api_call_tool: Primary academic paper search (arXiv). Best for CS, physics, math papers.
-- semantic_scholar_search_tool: Broad academic search (Semantic Scholar). Covers all disciplines, good for highly-cited papers.
-- openalex_search_tool: Comprehensive academic search (OpenAlex, 200M+ works). Good for cross-domain and interdisciplinary coverage.
-- scienceon_search_tool: Korean academic paper search (ScienceON/KISTI). Best for Korean-language papers and domestic journal articles.
-- scienceon_patent_search_tool: Korean patent search (ScienceON/KISTI). Returns patent title, abstract, applicants, IPC classification, and application/publication dates. Useful for finding related prior art and technology trends.
-- scienceon_report_search_tool: Korean national R&D report search (ScienceON/KISTI). Returns government-funded research reports with full-text links. Useful for finding national research projects, policy-driven studies, and R&D trends.
-- web_search_tool: General web search for tracking latest trends, news, blog posts, and community discussions. Do NOT use this tool for academic paper retrieval.
+Available tools (ALL academic tools MUST be used every time):
+- arxiv_api_call_tool: arXiv preprint search. Covers CS, physics, math, quantitative biology, and more.
+- semantic_scholar_search_tool: Semantic Scholar search. Covers 200M+ papers across all disciplines with citation data. Good for finding highly-cited and influential papers.
+- openalex_search_tool: OpenAlex search. Covers 200M+ works across all disciplines including humanities, social sciences, and engineering. No API key needed.
+- scienceon_search_tool: ScienceON/KISTI academic paper search. Covers both domestic and international journal articles, conference papers, and theses indexed by KISTI.
+- scienceon_patent_search_tool: ScienceON/KISTI patent search. Returns patent title, abstract, applicants, IPC classification, and application/publication dates. Useful for finding related prior art and technology trends.
+- scienceon_report_search_tool: ScienceON/KISTI national R&D report search. Returns government-funded research reports with full-text links. Useful for finding national research projects, policy-driven studies, and R&D trends.
+- web_search_tool: General web search for latest trends, news, and community discussions. Do NOT use for academic paper retrieval.
+
+{year_instruction}
 
 Inputs may include a previous Meaning Expansion Agent message containing:
 - keywords
@@ -36,7 +38,7 @@ Inputs may include a previous Meaning Expansion Agent message containing:
 Rules:
 1) Do not perform meaning expansion yourself.
 2) Use only the available tools above.
-3) For academic paper retrieval, use AT LEAST 2-3 academic search tools together (arxiv + semantic_scholar + openalex) to maximize coverage. Use different query variations per source for diversity.
+3) You MUST call ALL of these academic search tools for every retrieval: arxiv_api_call_tool, semantic_scholar_search_tool, openalex_search_tool, and scienceon_search_tool. Do NOT skip any. Use different query variations per source to maximize diversity and coverage.
 4) Use scienceon_patent_search_tool and scienceon_report_search_tool when the topic involves applied technology, engineering, or industry applications. Patent data reveals prior art and technology gaps. R&D reports reveal government-funded research directions and policy-driven gaps.
 5) Use web_search_tool ONLY for discovering latest trends, emerging issues, recent developments, and community discussions related to the research topic. Do NOT use it to search for academic papers.
 6) Normalize academic results into one combined papers list. Keep web trend results separate in web_results. Keep patent and report results separate in patent_results and report_results.
@@ -44,7 +46,7 @@ Rules:
 Output JSON with fields:
 - selected_tools: [..]
 - tool_rationale: <string>
-- papers: list of {paper_id,title,year,url,abstract,authors,source}
+- papers: list of {{paper_id,title,year,url,abstract,authors,source}}
 - web_results: list of latest trend/issue items from web search (NOT papers)
 - patent_results: list of patent items from scienceon_patent_search_tool
 - report_results: list of R&D report items from scienceon_report_search_tool
@@ -52,16 +54,39 @@ Output JSON with fields:
 - notes: list[str]
 Do NOT infer limitations or gaps.
 """
-)
 
 
-def _build_retrieval_agent(provider: str = None):
-    """Build the paper retrieval agent with the specified LLM provider."""
+def _build_year_instruction(year_range: str, resolved_year: str) -> str:
+    """Build year filter instruction for system prompt."""
+    if resolved_year:
+        return (
+            f"[YEAR FILTER: {resolved_year}]\n"
+            f"All search tools support a 'year' parameter. You MUST pass year='{resolved_year}' "
+            f"to every academic search tool call (arxiv, semantic_scholar, openalex, scienceon, etc.)."
+        )
+    # auto: let agent decide
+    return (
+        "[YEAR FILTER: AUTO]\n"
+        "All search tools support a 'year' parameter (format: 'YYYY-YYYY', e.g. '2023-2026').\n"
+        "Decide an appropriate year range based on the research field:\n"
+        "- AI/LLM/deep learning: '2023-2026' (fast-moving field)\n"
+        "- Applied engineering: '2021-2026'\n"
+        "- Basic science/medicine: '2018-2026'\n"
+        "You MUST pass the year parameter to every academic search tool call."
+    )
+
+
+def _build_retrieval_agent(provider: str = None, year_range: str = "auto", resolved_year: str = ""):
+    """Build the paper retrieval agent with year filter baked into system prompt."""
     llm = get_llm(provider=provider)
+    year_instruction = _build_year_instruction(year_range, resolved_year)
+    system_prompt = make_system_prompt(
+        _RETRIEVAL_PROMPT_TEMPLATE.format(year_instruction=year_instruction)
+    )
     return create_agent(
         llm,
         tools=RETRIEVAL_TOOLS,
-        system_prompt=_RETRIEVAL_SYSTEM_PROMPT,
+        system_prompt=system_prompt,
     )
 
 
@@ -265,9 +290,34 @@ def _llm_rerank(papers: list[dict], query: str, top_k: int, provider: str = None
         return papers[:top_k]
 
 
+def _resolve_year_range(year_range: str) -> str:
+    """Convert year_range setting to 'YYYY-YYYY' format for tools."""
+    from datetime import datetime
+    current_year = datetime.now().year
+    if year_range == "1y":
+        return f"{current_year - 1}-{current_year}"
+    elif year_range == "3y":
+        return f"{current_year - 3}-{current_year}"
+    elif year_range == "5y":
+        return f"{current_year - 5}-{current_year}"
+    # "auto" or unknown → return empty (agent decides)
+    return ""
+
+
 def paper_retrieval_node(state: AgentState) -> AgentState:
     provider = state.get("llm_provider")
-    paper_retrieval_agent = _build_retrieval_agent(provider=provider)
+    session_id = state.get("session_id", "")
+
+    # state에서 연도 필터 읽기 → 시스템 프롬프트에 반영
+    year_range = state.get("year_range", "auto")
+    resolved_year = _resolve_year_range(year_range)
+    print(f"  [retrieval] year_range={year_range}, resolved_year={resolved_year}")
+
+    paper_retrieval_agent = _build_retrieval_agent(
+        provider=provider,
+        year_range=year_range,
+        resolved_year=resolved_year,
+    )
 
     messages = state.get("messages", [])
     print(f"  [DEBUG] 전체 messages 수: {len(messages)}")
@@ -311,7 +361,26 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
             web_results = _parse_web_results_from_ai_message(last_content)
 
     raw_papers = _dedupe_papers(raw_papers)
-    print(f"  [DEBUG] raw_papers count (after dedup): {len(raw_papers)}")
+    total_found = len(raw_papers)
+    print(f"  [DEBUG] raw_papers count (after dedup): {total_found}")
+    report_progress(
+        session_id, "paper_retrieval",
+        f"{total_found}개의 논문을 확인하는 중...",
+    )
+
+    # ✅ 연도 필터 (resolved_year가 있으면 범위 밖 논문 제거)
+    if resolved_year and "-" in resolved_year:
+        parts = resolved_year.split("-")
+        from_year = int(parts[0].strip())
+        to_year = int(parts[1].strip()) if parts[1].strip() else 9999
+        before_filter = len(raw_papers)
+        raw_papers = [
+            p for p in raw_papers
+            if not p.get("year") or from_year <= int(p.get("year", 0) or 0) <= to_year
+        ]
+        filtered_count = before_filter - len(raw_papers)
+        if filtered_count:
+            print(f"  [year_filter] {before_filter} → {len(raw_papers)} ({filtered_count}편 범위 밖 제거, {from_year}-{to_year})")
 
     # ✅ BM25 1차 필터 (넓게)
     cfg = Configuration()
@@ -325,6 +394,10 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
     if raw_papers and query and len(raw_papers) > cfg.reranker_top_k:
         raw_papers = _llm_rerank(raw_papers, query, top_k=cfg.reranker_top_k, provider=provider)
     print(f"  [DEBUG] LLM Reranker 2nd stage: {len(raw_papers)} papers")
+    report_progress(
+        session_id, "paper_retrieval",
+        f"{total_found}편 중 가장 관련도 높은 {len(raw_papers)}편을 선별했습니다",
+    )
 
     # ✅ Paper 객체로 변환
     papers = []

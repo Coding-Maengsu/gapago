@@ -15,6 +15,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from states import AgentState, Paper, LimitationItem
 from llm import get_llm
 from utils.parse_json import parse_json
+from utils.progress import report_progress
 
 # =====================================================================
 # 섹션 키워드 정의
@@ -582,6 +583,10 @@ def limitation_extract_node(state: AgentState) -> AgentState:
                 continue
 
     provider = state.get("llm_provider")
+    session_id = state.get("session_id", "")
+    output_language = state.get("output_language", "auto")
+    from prompts.system import get_language_instruction
+    lang_instruction = get_language_instruction(output_language)
 
     all_limitations = []
     fulltext_fail_count = 0
@@ -606,7 +611,7 @@ def limitation_extract_node(state: AgentState) -> AgentState:
 
         # LLM 호출
         messages = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": SYSTEM_PROMPT + lang_instruction},
             {"role": "user", "content": paper_prompt},
         ]
 
@@ -619,7 +624,7 @@ def limitation_extract_node(state: AgentState) -> AgentState:
                 print(f"  ⚠️ 콘텐츠 필터 차단 → abstract fallback 재시도: {paper.paper_id}")
                 fallback_prompt = _build_prompt(paper, {})
                 fallback_messages = [
-                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "system", "content": SYSTEM_PROMPT + lang_instruction},
                     {"role": "user", "content": fallback_prompt},
                 ]
                 try:
@@ -663,20 +668,118 @@ def limitation_extract_node(state: AgentState) -> AgentState:
         print(f"  ✓ {paper.paper_id}: {len(result['limitations'])}개 limitation 추출")
         return result
 
-    # 병렬 처리 (I/O 바운드: HTTP + LLM API)
-    max_workers = min(5, len(papers))
-    print(f"  🔄 {len(papers)}편 논문을 {max_workers}개 워커로 병렬 처리 시작")
+    # ── Step 1: Full text 로드 (병렬, LLM 호출 아님) ──
+    print(f"  🔄 {len(papers)}편 논문 full text 로드 중...")
+    paper_sections = {}
+    with ThreadPoolExecutor(max_workers=min(5, len(papers))) as executor:
+        futures = {executor.submit(_load_full_text_sections, p): p for p in papers}
+        for future in as_completed(futures):
+            paper = futures[future]
+            try:
+                sections = future.result()
+            except Exception:
+                sections = {}
+            paper_sections[paper.paper_id] = sections
+            if not sections:
+                fulltext_fail_count += 1
 
+    report_progress(
+        session_id, "limitation_extract",
+        f"Full text loaded for {len(papers) - fulltext_fail_count}/{len(papers)} papers. Starting analysis...",
+        current=0, total=len(papers),
+    )
+
+    # ── Step 2: 배치 LLM 호출 (3편씩 묶어서 호출 횟수 감소) ──
+    BATCH_SIZE = 3
+    batches = [papers[i:i + BATCH_SIZE] for i in range(0, len(papers), BATCH_SIZE)]
+    max_workers = min(2, len(batches))
+    print(f"  🔄 {len(papers)}편을 {len(batches)}개 배치로 나눠 {max_workers}개 워커로 처리")
+
+    def _process_batch(batch: list[Paper]) -> dict:
+        """논문 배치를 1회 LLM 호출로 처리."""
+        llm = get_llm(provider=provider)
+        batch_result = {"limitations": [], "errors": [], "llm_failed": False}
+
+        # 배치 프롬프트 구성
+        batch_prompt_parts = []
+        for paper in batch:
+            sections = paper_sections.get(paper.paper_id, {})
+            paper_prompt = _build_prompt(paper, sections)
+            # 배치 시 각 논문 텍스트를 2000자로 제한
+            if len(paper_prompt) > 2000:
+                paper_prompt = paper_prompt[:2000] + "\n... (truncated)"
+            batch_prompt_parts.append(f"=== PAPER: {paper.paper_id} ===\n{paper_prompt}")
+
+        combined_prompt = "\n\n".join(batch_prompt_parts)
+        combined_prompt += (
+            "\n\n=== INSTRUCTION ===\n"
+            "Extract limitations from ALL papers above. "
+            "Return a single JSON list containing limitations from every paper. "
+            "Each item MUST include the correct paper_id."
+        )
+
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT + lang_instruction},
+            {"role": "user", "content": combined_prompt},
+        ]
+
+        try:
+            response = llm.invoke(messages)
+            content = response.content if hasattr(response, "content") else str(response)
+        except Exception as e:
+            batch_result["llm_failed"] = True
+            pids = [p.paper_id for p in batch]
+            batch_result["errors"].append(f"[limitation_extract] LLM batch failed for {pids}: {e}")
+            print(f"  ⚠️ 배치 LLM 호출 실패: {pids} ({e})")
+            # fallback: 개별 호출 시도
+            for paper in batch:
+                single = _process_single_paper(paper)
+                batch_result["limitations"].extend(single["limitations"])
+                batch_result["errors"].extend(single["errors"])
+            return batch_result
+
+        # JSON 파싱
+        parsed = parse_json(content)
+        if not isinstance(parsed, list):
+            parsed = []
+
+        valid_pids = {p.paper_id for p in batch}
+        for item in parsed:
+            try:
+                pid = item.get("paper_id", "")
+                # paper_id가 배치에 없으면 가장 가까운 것으로 매칭
+                if pid not in valid_pids:
+                    pid = batch[0].paper_id
+                lim = LimitationItem(
+                    paper_id=pid,
+                    claim=item.get("claim", ""),
+                    evidence_quote=item.get("evidence_quote", ""),
+                    track=item.get("track", "author_stated"),
+                    source_section=item.get("source_section", ""),
+                )
+                if lim.claim:
+                    batch_result["limitations"].append(lim.model_dump())
+            except Exception as e:
+                batch_result["errors"].append(f"[limitation_extract] LimitationItem parse failed: {e}")
+
+        print(f"  ✓ 배치 ({len(batch)}편): {len(batch_result['limitations'])}개 limitation 추출")
+        return batch_result
+
+    processed_papers = 0
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(_process_single_paper, p): p for p in papers}
+        futures = {executor.submit(_process_batch, batch): batch for batch in batches}
         for future in as_completed(futures):
             result = future.result()
             all_limitations.extend(result["limitations"])
             errors.extend(result["errors"])
-            if result["fulltext_failed"]:
-                fulltext_fail_count += 1
             if result["llm_failed"]:
                 llm_fail_count += 1
+            processed_papers += len(futures[future])
+            report_progress(
+                session_id, "limitation_extract",
+                f"Analyzing papers... ({processed_papers}/{len(papers)}) — {len(all_limitations)} limitations found",
+                current=processed_papers, total=len(papers),
+            )
 
     # fulltext/LLM 실패 요약을 errors에 기록
     if fulltext_fail_count:

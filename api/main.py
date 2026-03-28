@@ -22,6 +22,7 @@ import config  # noqa: F401  (.env load, LangSmith)
 from graphs.graph import build_graph
 from langchain_core.messages import HumanMessage
 from llm import AVAILABLE_PROVIDERS, get_llm
+from utils.progress import init_progress, drain_progress, cleanup_progress
 
 # ── App ──────────────────────────────────────────────────────────────
 app = FastAPI(title="GAPAGO", description="Research GAP Analysis System")
@@ -44,7 +45,7 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 async def warmup():
     """Pre-initialize LLM and graph in background to avoid blocking server start."""
     async def _warmup():
-        await asyncio.sleep(1)  # Let server start accepting requests first
+        await asyncio.sleep(1)
         try:
             print("[startup] Warming up LLM...")
             get_llm()
@@ -59,31 +60,33 @@ async def warmup():
 
 @app.get("/api/health")
 async def health():
-    """Health check endpoint for uptime monitoring (prevents Render sleep)."""
+    """Health check endpoint for uptime monitoring."""
     return {"status": "ok"}
 
-# ── In-memory session store (active pipelines) ─────────────────────
+
+# ── In-memory session store ──────────────────────────────────────────
+# Each session: {
+#   "status": "running" | "completed" | "stopped" | "error" | "interrupted",
+#   "query": str, "user_id": str, "started_at": str,
+#   "graph": LangGraph, "config": dict,
+#   "events": list[dict],        # accumulated events for replay
+#   "event_signal": asyncio.Event,  # notify new event available
+#   "cancelled": asyncio.Event,  # stop signal
+#   "filename": str | None,      # result filename when completed
+#   "clarify_prompt": str | None,
+# }
 _sessions: dict = {}
 
 
 # ── Request / Response Models ───────────────────────────────────────
-class AnalyzeRequest(BaseModel):
-    query: str
-    provider: str = "azure"
-    domain: str = "auto"
-
-
-class ClarifyRequest(BaseModel):
-    session_id: str
-    response: str
-
-
 class HistoryItem(BaseModel):
     filename: str
     query: str
     timestamp: str
     refined_query: str = ""
     gaps_count: int = 0
+    status: str = "completed"
+    session_id: str = ""
 
 
 # ── Utility ─────────────────────────────────────────────────────────
@@ -101,7 +104,6 @@ def _serialize_messages(state_values: dict) -> list[dict]:
 def _save_result(query: str, state_values: dict, user_id: str = "") -> str:
     messages_out = _serialize_messages(state_values)
 
-    # papers 정보 추출
     papers = state_values.get("papers", [])
     papers_out = []
     for p in papers:
@@ -135,6 +137,94 @@ def _save_result(query: str, state_values: dict, user_id: str = "") -> str:
     return fname
 
 
+def _push_event(session_id: str, event: dict):
+    """Add event to session and signal waiting consumers."""
+    session = _sessions.get(session_id)
+    if not session:
+        return
+    session["events"].append(event)
+    session["event_signal"].set()
+
+
+# ── Background pipeline runner ───────────────────────────────────────
+async def _run_pipeline(session_id: str, graph, config_dict: dict, inputs: dict):
+    """Run the analysis pipeline as a background task."""
+    session = _sessions.get(session_id)
+    if not session:
+        return
+
+    init_progress(session_id)
+
+    async def _drain_loop():
+        """Drain progress events from agents running in threads."""
+        while True:
+            items = drain_progress(session_id)
+            for item in items:
+                _push_event(session_id, item)
+            await asyncio.sleep(0.3)
+
+    drainer = asyncio.create_task(_drain_loop())
+
+    try:
+        async for event in graph.astream(inputs, config_dict, subgraphs=True):
+            # Check cancellation
+            if session["cancelled"].is_set():
+                session["status"] = "stopped"
+                _push_event(session_id, {"event": "stopped"})
+                return
+
+            path, update = event
+
+            # Subgraph internal events
+            if path:
+                for node, values in update.items():
+                    if node == "__interrupt__":
+                        session["status"] = "interrupted"
+                    if isinstance(values, dict):
+                        for msg in values.get("messages", []):
+                            if getattr(msg, "name", None) == "clarify_prompt":
+                                session["clarify_prompt"] = msg.content
+                continue
+
+            # Root graph events
+            for node, values in update.items():
+                if node == "__interrupt__":
+                    session["status"] = "interrupted"
+                    continue
+                if node.startswith("__"):
+                    continue
+
+                payload = _build_node_payload(node, values)
+                _push_event(session_id, payload)
+
+        if session["cancelled"].is_set():
+            session["status"] = "stopped"
+            _push_event(session_id, {"event": "stopped"})
+            return
+
+        if session["status"] == "interrupted":
+            _push_event(session_id, {
+                "event": "interrupt",
+                "session_id": session_id,
+                "clarify_prompt": session.get("clarify_prompt", ""),
+            })
+        else:
+            # Pipeline complete — save result
+            final_state = graph.get_state(config_dict)
+            state_values = final_state.values if final_state else {}
+            fname = _save_result(session["query"], state_values, session["user_id"])
+            session["status"] = "completed"
+            session["filename"] = fname
+            _push_event(session_id, {"event": "complete", "filename": fname})
+
+    except Exception as e:
+        session["status"] = "error"
+        _push_event(session_id, {"event": "error", "message": str(e)})
+    finally:
+        drainer.cancel()
+        cleanup_progress(session_id)
+
+
 # ── Endpoints ───────────────────────────────────────────────────────
 
 @app.get("/api/providers")
@@ -148,13 +238,28 @@ async def get_providers():
 
 @app.get("/api/history")
 async def get_history(user_id: str = ""):
-    """List saved analysis results, filtered by user_id."""
-    files = sorted(OUTPUT_DIR.glob("gapago_result_*.json"), reverse=True)
+    """List saved analysis results + running sessions, filtered by user_id."""
     items = []
+
+    # Running/interrupted sessions
+    for sid, session in _sessions.items():
+        if session["status"] not in ("running", "interrupted"):
+            continue
+        if user_id and session.get("user_id", "") != user_id:
+            continue
+        items.append(HistoryItem(
+            filename="",
+            query=session.get("query", ""),
+            timestamp=session.get("started_at", ""),
+            status=session["status"],
+            session_id=sid,
+        ))
+
+    # Completed results from files
+    files = sorted(OUTPUT_DIR.glob("gapago_result_*.json"), reverse=True)
     for f in files:
         try:
             data = json.loads(f.read_text(encoding="utf-8"))
-            # Filter by user_id if provided
             if user_id and data.get("user_id", "") != user_id:
                 continue
             items.append(HistoryItem(
@@ -163,6 +268,7 @@ async def get_history(user_id: str = ""):
                 timestamp=data.get("timestamp", ""),
                 refined_query=data.get("refined_query", ""),
                 gaps_count=len(data.get("gaps", [])),
+                status="completed",
             ))
         except Exception:
             continue
@@ -179,10 +285,10 @@ async def get_history_detail(filename: str):
 
 
 @app.get("/api/analyze")
-async def analyze(query: str, provider: str = "azure", domain: str = "auto", user_id: str = ""):
+async def analyze(query: str, provider: str = "azure", domain: str = "auto", year_range: str = "auto", output_language: str = "auto", user_id: str = ""):
     """
-    Start a new analysis pipeline. Streams node-by-node results as SSE.
-    Uses GET to avoid proxy POST blocking.
+    Start a new analysis pipeline in background. Returns session_id.
+    Client should connect to /api/stream/{session_id} for SSE updates.
     """
     session_id = str(uuid.uuid4())
     graph = build_graph()
@@ -196,72 +302,108 @@ async def analyze(query: str, provider: str = "azure", domain: str = "auto", use
         "max_iterations": 3,
         "research_domain": domain,
         "llm_provider": provider,
+        "year_range": year_range,
+        "output_language": output_language,
+        "session_id": session_id,
     }
 
+    _sessions[session_id] = {
+        "status": "running",
+        "query": query,
+        "user_id": user_id,
+        "started_at": datetime.now().isoformat(),
+        "graph": graph,
+        "config": config_dict,
+        "events": [],
+        "event_signal": asyncio.Event(),
+        "cancelled": asyncio.Event(),
+        "filename": None,
+        "clarify_prompt": None,
+    }
+
+    # Launch pipeline in background
+    asyncio.create_task(_run_pipeline(session_id, graph, config_dict, inputs))
+
+    return {"session_id": session_id}
+
+
+@app.get("/api/stream/{session_id}")
+async def stream(session_id: str, from_idx: int = 0):
+    """
+    SSE stream for a running session. Replays past events, then streams new ones.
+    Supports reconnection — client can reconnect after refresh.
+    Use from_idx to skip already-consumed events (e.g. after clarify resume).
+    """
+    session = _sessions.get(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+
     async def event_stream():
-        interrupted = False
-        clarify_prompt = None
+        cursor = from_idx
+        while True:
+            # Send any buffered events
+            while cursor < len(session["events"]):
+                evt = session["events"][cursor]
+                cursor += 1
+                yield f"data: {json.dumps(evt, ensure_ascii=False)}\n\n"
 
-        try:
-            async for event in graph.astream(inputs, config_dict, subgraphs=True):
-                path, update = event
+            # Check if session is done
+            if session["status"] in ("completed", "stopped", "error"):
+                break
+            if session["status"] == "interrupted" and cursor >= len(session["events"]):
+                break
 
-                # Subgraph internal events
-                if path:
-                    for node, values in update.items():
-                        if node == "__interrupt__":
-                            interrupted = True
-                        if isinstance(values, dict):
-                            for msg in values.get("messages", []):
-                                if getattr(msg, "name", None) == "clarify_prompt":
-                                    clarify_prompt = msg.content
-                    continue
-
-                # Root graph events
-                for node, values in update.items():
-                    if node == "__interrupt__":
-                        interrupted = True
-                        continue
-                    if node.startswith("__"):
-                        continue
-
-                    # Build node result payload
-                    payload = _build_node_payload(node, values)
-                    yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-
-            if interrupted:
-                # Save session for resume
-                _sessions[session_id] = {
-                    "graph": graph,
-                    "config": config_dict,
-                    "query": query,
-                    "user_id": user_id,
-                }
-                yield f"data: {json.dumps({'event': 'interrupt', 'session_id': session_id, 'clarify_prompt': clarify_prompt or ''}, ensure_ascii=False)}\n\n"
-            else:
-                # Pipeline complete
-                final_state = graph.get_state(config_dict)
-                state_values = final_state.values if final_state else {}
-                fname = _save_result(query, state_values, user_id)
-                yield f"data: {json.dumps({'event': 'complete', 'filename': fname}, ensure_ascii=False)}\n\n"
-
-        except Exception as e:
-            yield f"data: {json.dumps({'event': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
+            # Wait for new events
+            session["event_signal"].clear()
+            try:
+                await asyncio.wait_for(session["event_signal"].wait(), timeout=30)
+            except asyncio.TimeoutError:
+                # Send keepalive
+                yield f"data: {json.dumps({'event': 'keepalive'}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
+@app.get("/api/stop/{session_id}")
+async def stop(session_id: str):
+    """Stop a running analysis and clean up resources."""
+    session = _sessions.get(session_id)
+    if not session:
+        raise HTTPException(404, "Session not found")
+
+    if session["status"] == "running":
+        session["cancelled"].set()
+        # Wait briefly for the task to notice cancellation
+        await asyncio.sleep(0.5)
+
+    # Clean up
+    _sessions.pop(session_id, None)
+    return {"status": "stopped", "session_id": session_id}
+
+
+@app.get("/api/status/{session_id}")
+async def status(session_id: str):
+    """Check current status of a session."""
+    session = _sessions.get(session_id)
+    if not session:
+        return {"status": "not_found", "session_id": session_id}
+    return {
+        "status": session["status"],
+        "session_id": session_id,
+        "query": session.get("query", ""),
+        "filename": session.get("filename"),
+    }
+
+
 @app.get("/api/clarify")
 async def clarify(session_id: str, response: str):
-    """Resume pipeline after human clarification. Uses GET to avoid proxy POST blocking."""
+    """Resume pipeline after human clarification."""
     session = _sessions.get(session_id)
     if not session:
         raise HTTPException(404, "Session not found or expired")
 
     graph = session["graph"]
     config_dict = session["config"]
-    query = session["query"]
-    user_id = session.get("user_id", "")
 
     # Inject user response into the interrupted subgraph
     current_state = graph.get_state(config_dict, subgraphs=True)
@@ -280,48 +422,12 @@ async def clarify(session_id: str, response: str):
         {"messages": [HumanMessage(content=response)]},
     )
 
-    async def event_stream():
-        interrupted = False
-        clarify_prompt = None
+    # Resume pipeline in background
+    session["status"] = "running"
+    session["event_signal"] = asyncio.Event()
+    asyncio.create_task(_run_pipeline(session_id, graph, config_dict, None))
 
-        try:
-            async for event in graph.astream(None, config_dict, subgraphs=True):
-                path, update = event
-
-                if path:
-                    for node, values in update.items():
-                        if node == "__interrupt__":
-                            interrupted = True
-                        if isinstance(values, dict):
-                            for msg in values.get("messages", []):
-                                if getattr(msg, "name", None) == "clarify_prompt":
-                                    clarify_prompt = msg.content
-                    continue
-
-                for node, values in update.items():
-                    if node == "__interrupt__":
-                        interrupted = True
-                        continue
-                    if node.startswith("__"):
-                        continue
-
-                    payload = _build_node_payload(node, values)
-                    yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-
-            if interrupted:
-                yield f"data: {json.dumps({'event': 'interrupt', 'session_id': session_id, 'clarify_prompt': clarify_prompt or ''}, ensure_ascii=False)}\n\n"
-            else:
-                final_state = graph.get_state(config_dict)
-                state_values = final_state.values if final_state else {}
-                fname = _save_result(query, state_values, user_id)
-                # Cleanup session
-                _sessions.pop(session_id, None)
-                yield f"data: {json.dumps({'event': 'complete', 'filename': fname}, ensure_ascii=False)}\n\n"
-
-        except Exception as e:
-            yield f"data: {json.dumps({'event': 'error', 'message': str(e)}, ensure_ascii=False)}\n\n"
-
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return {"session_id": session_id, "status": "resumed", "events_count": len(session["events"])}
 
 
 def _build_node_payload(node: str, values: dict) -> dict:
@@ -331,11 +437,13 @@ def _build_node_payload(node: str, values: dict) -> dict:
     if not isinstance(values, dict):
         return payload
 
-    # Node-specific data extraction
     if node == "query_subgraph":
         payload["refined_query"] = values.get("refined_query", "")
-        payload["keywords"] = values.get("keywords", [])
+        keywords = values.get("keywords", [])
+        payload["keywords"] = keywords
         payload["scope_level"] = values.get("scope_level", "")
+        if keywords:
+            payload["detail"] = f"Keywords: {', '.join(keywords[:5])}"
 
     elif node == "meaning_expand":
         msgs = values.get("messages", [])
@@ -343,10 +451,14 @@ def _build_node_payload(node: str, values: dict) -> dict:
             content = getattr(msg, "content", "")
             if content:
                 payload["expansion"] = content[:1000]
+        payload["detail"] = "Search terms expanded"
 
     elif node == "paper_retrieval":
         papers = values.get("papers", [])
+        web_results = values.get("web_results", [])
         payload["papers_count"] = len(papers)
+        payload["web_results_count"] = len(web_results)
+        payload["detail"] = f"Found {len(papers)} most relevant papers from academic databases"
         payload["papers"] = []
         for p in papers:
             d = p if isinstance(p, dict) else (p.model_dump() if hasattr(p, "model_dump") else p.__dict__)
@@ -362,6 +474,8 @@ def _build_node_payload(node: str, values: dict) -> dict:
     elif node == "limitation_extract":
         limitations = values.get("limitations", [])
         payload["limitations_count"] = len(limitations)
+        paper_ids = list({lim.get("paper_id", "") for lim in limitations})
+        payload["detail"] = f"Extracted {len(limitations)} limitations from {len(paper_ids)} papers"
         payload["limitations"] = []
         for lim in limitations:
             payload["limitations"].append({
@@ -374,11 +488,14 @@ def _build_node_payload(node: str, values: dict) -> dict:
 
     elif node == "limitation_eval":
         eval_data = values.get("limitation_eval", {})
-        payload["decision"] = eval_data.get("decision", "N/A")
+        decision = eval_data.get("decision", "N/A")
+        payload["decision"] = decision
         payload["call1_results"] = eval_data.get("call1_results", [])
         payload["call2_result"] = eval_data.get("call2_result", {})
         payload["eval_warnings"] = values.get("eval_warnings", [])
-        payload["limitations_count"] = len(values.get("limitations", []))
+        lim_count = len(values.get("limitations", []))
+        payload["limitations_count"] = lim_count
+        payload["detail"] = f"{lim_count} limitations evaluated — {decision}"
 
     elif node == "recency_check":
         limitations = values.get("limitations", [])
@@ -387,6 +504,7 @@ def _build_node_payload(node: str, values: dict) -> dict:
             s = lim.get("recency_status", "unresolved")
             status_counts[s] = status_counts.get(s, 0) + 1
         payload["recency_status"] = status_counts
+        payload["detail"] = f"Unresolved: {status_counts['unresolved']}, Partial: {status_counts['partial']}, Resolved: {status_counts['resolved']}"
         msgs = values.get("messages", [])
         for msg in msgs:
             content = getattr(msg, "content", "")
@@ -397,6 +515,7 @@ def _build_node_payload(node: str, values: dict) -> dict:
         gaps = values.get("gaps", [])
         payload["gaps_count"] = len(gaps)
         payload["gaps"] = gaps
+        payload["detail"] = f"{len(gaps)}개의 연구 갭 도출 완료"
 
     elif node == "critic_score":
         msgs = values.get("messages", [])
@@ -404,6 +523,7 @@ def _build_node_payload(node: str, values: dict) -> dict:
             content = getattr(msg, "content", "")
             if content:
                 payload["critic_output"] = content[:1500]
+        payload["detail"] = "Quality check passed"
 
     elif node == "final_response":
         msgs = values.get("messages", [])
@@ -435,6 +555,22 @@ async def logo():
     if logo_path.exists():
         return FileResponse(str(logo_path), media_type="image/png")
     raise HTTPException(404, "Logo not found")
+
+
+@app.get("/new_logo.png")
+async def new_logo():
+    path = FRONTEND_DIR / "new_logo.png"
+    if path.exists():
+        return FileResponse(str(path), media_type="image/png")
+    raise HTTPException(404, "new_logo not found")
+
+
+@app.get("/middle_image.png")
+async def middle_image():
+    path = FRONTEND_DIR / "middle_image.png"
+    if path.exists():
+        return FileResponse(str(path), media_type="image/png")
+    raise HTTPException(404, "middle_image not found")
 
 
 @app.get("/")
