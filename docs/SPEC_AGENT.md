@@ -175,6 +175,10 @@ query_analysis
 3. **LLM 리랭커 (2차)**: `reranker_top_k` (기본 15) 정밀 재정렬
 4. **중복 제거**: DOI + title + year 기반
 
+**진행률 보고:**
+- `report_progress(session_id, "paper_retrieval", ...)` 호출
+- 중복 제거 후, 리랭킹 완료 후 SSE progress 이벤트 발행
+
 **출력:**
 ```python
 {
@@ -212,6 +216,14 @@ query_analysis
 **섹션 추출:**
 - 정규식 기반 헤딩 매칭 (예: "Method", "Methodology", "Approach")
 - `MAX_SECTION_CHARS = 3000` (섹션당 토큰 비용 제어)
+
+**언어 설정:**
+- `get_language_instruction(output_language)`로 생성된 `lang_instruction`을 모든 LLM 시스템 프롬프트에 주입
+- `SYSTEM_PROMPT + lang_instruction` 형태로 3곳 (개별 호출, 콘텐츠 필터 fallback, 배치 호출)에 적용
+
+**진행률 보고:**
+- `report_progress(session_id, "limitation_extract", ...)` 호출
+- Full text 로드 완료 후, 배치 처리 진행 시 SSE progress 이벤트 발행
 
 **배치 처리:**
 1. 병렬 전체 텍스트 로딩 (`ThreadPoolExecutor`, 5 워커)
@@ -378,6 +390,15 @@ query_analysis
   - 장벽을 우회하는 예상치 못한 각도 필요
 - 최신 웹 결과 반영
 - 최고 후보 선택: 신규성 + 실현 가능성 + 영향력
+- **함수 파라미터**: `lang_instruction: str = ""`, `provider: str = None`
+
+**언어 설정:**
+- `gap_infer_node`에서 `get_language_instruction(output_language)`로 `lang_instruction` 생성
+- 모든 내부 함수(`_generate_dynamic_axes`, `_classify_limitations_batch`, `_score_axis_urgency`, `_analyze_barriers`, `_generate_creative_directions`)에 `lang_instruction` 파라미터 전달
+
+**진행률 보고:**
+- `report_progress(session_id, "gap_infer", ...)` 호출
+- 축별 처리 진행 시 SSE progress 이벤트 발행
 
 **최종 출력 (긴급도순 정렬):**
 ```python
@@ -483,6 +504,7 @@ class AgentState(TypedDict):
     llm_provider: str            # azure/claude/gemini/exaone
     year_range: str              # auto/1y/3y/5y
     output_language: str         # auto/ko/en
+    session_id: str              # SSE 진행률 리포팅용 세션 ID
 
     # -3- 한계점 에이전트
     limitations: List[dict]
@@ -723,6 +745,7 @@ prompts/
 
 utils/
 ├── parse_json.py                    # 로버스트 JSON 추출
+├── progress.py                      # 스레드 안전 진행률 큐 (SSE 중간 업데이트)
 ├── tavily.py                        # Tavily API 래퍼
 ├── logging.py                       # LangSmith 트레이싱
 └── vis_graph.py                     # 그래프 시각화
