@@ -97,6 +97,22 @@ TOO_NARROW:
   - rationale: explanation
   - refined_query, keywords: leave EMPTY
 
+=== RATIONALE WRITING RULES ===
+
+When writing the `rationale` field, follow these strict rules:
+- Focus ONLY on what is missing or unclear in the user's input (e.g., no task, no domain, no application).
+- Do NOT mention arXiv, search engines, databases, or retrieval systems by name.
+- Do NOT describe expected search result volume (e.g., "hundreds of thousands of papers").
+- Do NOT use phrases like "meaningful search impossible" or "retrieval impractical".
+- Keep it short (1~2 sentences max) and user-friendly.
+
+Example of BAD rationale (forbidden):
+  "The input only names a broad model family without any task or domain. Searching arXiv with this alone would return an extremely large and unfocused set of papers, making meaningful retrieval impractical."
+
+Example of GOOD rationale (allowed):
+  "입력하신 내용만으로는 구체적인 연구 과제나 적용 분야를 알 수 없습니다."
+  "No specific task, domain, or application is mentioned."
+
 === LANGUAGE ===
 Match the language of the user's input.
 Korean input → all text fields in Korean. Keywords always in English.
