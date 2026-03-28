@@ -1557,7 +1557,12 @@ function handleEvent(data) {
     if (data.event === 'keepalive') return;
 
     if (data.event === 'progress') {
-        updateProgress(data);
+        const tlStepId = findTimelineStep(data.node);
+        if (tlStepId) {
+            timelineDetails[tlStepId] = esc(data.detail || '');
+            const detailEl = document.getElementById(`tl-detail-${tlStepId}`);
+            if (detailEl) detailEl.innerHTML = timelineDetails[tlStepId];
+        }
         return;
     }
 
@@ -2117,6 +2122,7 @@ function renderMarkdown(text) {
 function copyReport() {
     navigator.clipboard.writeText(pipelineData.report).then(() => {
         const btn = document.querySelector('.report-actions button');
+        if (!btn) return;
         const orig = btn.textContent;
         btn.textContent = '복사 완료!';
         setTimeout(() => btn.textContent = orig, 1500);

@@ -103,6 +103,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
     "llm_provider": provider,
     "year_range": year_range,
     "output_language": output_language,
+    "session_id": session_id,       # 진행률 리포팅용
 }
 ```
 
@@ -152,6 +153,21 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 ```json
 {"event": "stopped"}
 ```
+
+#### `progress` 이벤트 (노드 내 중간 진행률)
+```json
+{
+  "event": "progress",
+  "node": "limitation_extract",
+  "detail": "Analyzing papers... (5/15) — 12 limitations found",
+  "current": 5,
+  "total": 15,
+  "progress": 33
+}
+```
+- `current`, `total`, `progress`는 `total > 0`일 때만 포함
+- `utils/progress.py`의 스레드 안전 큐를 통해 에이전트 스레드에서 비동기 SSE로 전달
+- API 서버의 `_drain_loop` 태스크가 0.3초 간격으로 큐를 폴링
 
 #### `keepalive` 이벤트 (30초 간격)
 ```json
@@ -207,7 +223,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 **내부 동작:**
 1. 인터럽트된 서브그래프 상태에 사용자 응답 주입 (`app.update_state()`)
-2. 백그라운드에서 파이프라인 재개
+2. 백그라운드에서 파이프라인 재개 (`_run_pipeline(session_id, graph, config, None)` — inputs=None으로 resume)
 3. 누적된 이벤트 수 반환
 
 ---
@@ -403,8 +419,14 @@ _sessions[session_id] = {
     "user_id": str,         # 사용자 ID
     "filename": str,        # 결과 파일명 (완료 시)
     "cancelled": Event,     # 중지 시그널
+    "parent_session_id": str,  # 추가 탐색 시 부모 세션 (선택)
 }
 ```
+
+**진행률 큐 (별도 관리):**
+- `utils/progress.py`의 `_queues[session_id]`로 관리
+- `init_progress(session_id)`: 파이프라인 시작 시 초기화
+- `cleanup_progress(session_id)`: 파이프라인 종료 시 정리
 
 ### 5.2 라이프사이클
 
