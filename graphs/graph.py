@@ -109,7 +109,7 @@ def build_graph():
     workflow.add_edge("final_response", END)
 
     graph = workflow.compile(
-        checkpointer=MemorySaver(allowed_msgpack_modules={"states"}),
+        checkpointer=MemorySaver(),
     )
 
     return graph
