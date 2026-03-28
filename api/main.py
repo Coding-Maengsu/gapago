@@ -149,7 +149,7 @@ def _push_event(session_id: str, event: dict):
 
 
 # ── Background pipeline runner ───────────────────────────────────────
-async def _run_pipeline(session_id: str, graph, config_dict: dict, inputs: dict):
+async def _run_pipeline(session_id: str, graph, config_dict: dict, inputs: dict | None):
     """Run the analysis pipeline as a background task."""
     session = _sessions.get(session_id)
     if not session:

@@ -382,6 +382,7 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
             print(f"  [year_filter] {before_filter} → {len(raw_papers)} ({filtered_count}편 범위 밖 제거, {from_year}-{to_year})")
 
     # ✅ BM25 1차 필터 (동적 k: 점수 분포 기반 적응적 컷오프)
+    total_found = len(raw_papers)
     cfg = Configuration()
     query = state.get("refined_query") or state.get("user_question", "")
     if raw_papers and query:
