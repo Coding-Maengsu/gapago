@@ -105,6 +105,7 @@ def _parse_atom(xml_text: str) -> list[dict]:
             "year": year,
             "authors": authors,
             "score_bm25": 0.0,
+            "venue": "arXiv preprint",
             "source": "arxiv",
             "full_text_sections": {},
         })
@@ -281,6 +282,7 @@ def _scienceon_parse_search_xml(xml_text: str, target: str) -> dict:
             "year": year,
             "authors": authors,
             "score_bm25": 0.0,
+            "venue": values.get("JournalName", ""),
             "source": "scienceon",
             "full_text_sections": {},
             "journal": values.get("JournalName", ""),
@@ -538,7 +540,7 @@ def scienceon_report_search(*, client_id: str, query: str, cur_page: int = 1, ro
 
 # =========================== Semantic Scholar ===========================
 _S2_API = "https://api.semanticscholar.org/graph/v1/paper/search/bulk"
-_S2_FIELDS = "paperId,title,abstract,year,authors,url,externalIds"
+_S2_FIELDS = "paperId,title,abstract,year,authors,url,externalIds,venue,publicationVenue"
 
 
 def semantic_scholar_search(query: str, limit: int = 20, year: str = "") -> list[dict]:
@@ -569,6 +571,13 @@ def semantic_scholar_search(query: str, limit: int = 20, year: str = "") -> list
                 doi = ext_ids.get("DOI", "")
                 paper_id = f"arxiv:{arxiv_id}" if arxiv_id else f"s2:{p.get('paperId', '')}"
                 authors = [a.get("name", "") for a in (p.get("authors") or []) if a.get("name")]
+                # venue 추출: publicationVenue.name 우선, fallback으로 venue 필드
+                pub_venue = p.get("publicationVenue") or {}
+                venue = pub_venue.get("name", "") if isinstance(pub_venue, dict) else ""
+                if not venue:
+                    venue = p.get("venue") or ""
+                if not venue and arxiv_id:
+                    venue = "arXiv preprint"
                 papers.append({
                     "paper_id": paper_id,
                     "title": _norm(p.get("title", "")),
@@ -577,6 +586,7 @@ def semantic_scholar_search(query: str, limit: int = 20, year: str = "") -> list
                     "year": p.get("year") or 0,
                     "authors": authors,
                     "score_bm25": 0.0,
+                    "venue": venue,
                     "source": "semantic_scholar",
                     "full_text_sections": {},
                     "doi": doi,
@@ -600,7 +610,7 @@ def openalex_search(query: str, per_page: int = 20, year: str = "") -> list[dict
     params = {
         "search": query,
         "per_page": min(per_page, 200),
-        "select": "id,title,publication_year,doi,authorships,abstract_inverted_index",
+        "select": "id,title,publication_year,doi,authorships,abstract_inverted_index,primary_location",
     }
     # 연도 필터: OpenAlex filter 파라미터 사용
     if year and "-" in year:
@@ -643,6 +653,14 @@ def openalex_search(query: str, per_page: int = 20, year: str = "") -> list[dict
             if name:
                 authors.append(name)
 
+        # venue 추출: primary_location.source.display_name
+        venue = ""
+        primary_loc = p.get("primary_location") or {}
+        if isinstance(primary_loc, dict):
+            source_info = primary_loc.get("source") or {}
+            if isinstance(source_info, dict):
+                venue = source_info.get("display_name", "")
+
         papers.append({
             "paper_id": f"openalex:{openalex_id}",
             "title": title,
@@ -651,6 +669,7 @@ def openalex_search(query: str, per_page: int = 20, year: str = "") -> list[dict
             "year": p.get("publication_year") or 0,
             "authors": authors,
             "score_bm25": 0.0,
+            "venue": venue,
             "source": "openalex",
             "full_text_sections": {},
             "doi": doi,

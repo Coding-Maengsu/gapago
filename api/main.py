@@ -101,7 +101,7 @@ def _serialize_messages(state_values: dict) -> list[dict]:
     return out
 
 
-def _save_result(query: str, state_values: dict, user_id: str = "") -> str:
+def _save_result(query: str, state_values: dict, user_id: str = "", parent_session_id: str = "") -> str:
     messages_out = _serialize_messages(state_values)
 
     papers = state_values.get("papers", [])
@@ -114,12 +114,14 @@ def _save_result(query: str, state_values: dict, user_id: str = "") -> str:
             "year": d.get("year", 0),
             "authors": d.get("authors", []),
             "url": d.get("url", ""),
+            "venue": d.get("venue", ""),
         })
 
     result = {
         "query": query,
         "timestamp": datetime.now().isoformat(),
         "user_id": user_id,
+        "parent_session_id": parent_session_id,
         "refined_query": state_values.get("refined_query", ""),
         "keywords": state_values.get("keywords", []),
         "papers": papers_out,
@@ -147,7 +149,7 @@ def _push_event(session_id: str, event: dict):
 
 
 # ── Background pipeline runner ───────────────────────────────────────
-async def _run_pipeline(session_id: str, graph, config_dict: dict, inputs: dict):
+async def _run_pipeline(session_id: str, graph, config_dict: dict, inputs: dict | None):
     """Run the analysis pipeline as a background task."""
     session = _sessions.get(session_id)
     if not session:
@@ -212,7 +214,7 @@ async def _run_pipeline(session_id: str, graph, config_dict: dict, inputs: dict)
             # Pipeline complete — save result
             final_state = graph.get_state(config_dict)
             state_values = final_state.values if final_state else {}
-            fname = _save_result(session["query"], state_values, session["user_id"])
+            fname = _save_result(session["query"], state_values, session["user_id"], session.get("parent_session_id", ""))
             session["status"] = "completed"
             session["filename"] = fname
             _push_event(session_id, {"event": "complete", "filename": fname})
@@ -325,6 +327,48 @@ async def analyze(query: str, provider: str = "azure", domain: str = "auto", yea
     asyncio.create_task(_run_pipeline(session_id, graph, config_dict, inputs))
 
     return {"session_id": session_id}
+
+
+@app.get("/api/explore")
+async def explore(topic: str, session_id: str = "", provider: str = "azure", domain: str = "auto", year_range: str = "auto", output_language: str = "auto", user_id: str = ""):
+    """
+    Start an exploration (chain re-execution) based on a proposed topic from a previous analysis.
+    Links the new session to the parent session for hierarchical history.
+    """
+    new_session_id = str(uuid.uuid4())
+    graph = build_graph()
+    config_dict = {
+        "configurable": {"thread_id": new_session_id},
+        "recursion_limit": 30,
+    }
+
+    inputs = {
+        "messages": [HumanMessage(content=topic)],
+        "max_iterations": 3,
+        "research_domain": domain,
+        "llm_provider": provider,
+        "year_range": year_range,
+        "output_language": output_language,
+    }
+
+    _sessions[new_session_id] = {
+        "status": "running",
+        "query": topic,
+        "user_id": user_id,
+        "started_at": datetime.now().isoformat(),
+        "graph": graph,
+        "config": config_dict,
+        "events": [],
+        "event_signal": asyncio.Event(),
+        "cancelled": asyncio.Event(),
+        "filename": None,
+        "clarify_prompt": None,
+        "parent_session_id": session_id,
+    }
+
+    asyncio.create_task(_run_pipeline(new_session_id, graph, config_dict, inputs))
+
+    return {"session_id": new_session_id, "parent_session_id": session_id}
 
 
 @app.get("/api/stream/{session_id}")
@@ -457,8 +501,7 @@ def _build_node_payload(node: str, values: dict) -> dict:
         papers = values.get("papers", [])
         web_results = values.get("web_results", [])
         payload["papers_count"] = len(papers)
-        payload["web_results_count"] = len(web_results)
-        payload["detail"] = f"Found {len(papers)} most relevant papers from academic databases"
+        payload["total_searched"] = values.get("total_candidates_count", len(papers))
         payload["papers"] = []
         for p in papers:
             d = p if isinstance(p, dict) else (p.model_dump() if hasattr(p, "model_dump") else p.__dict__)
@@ -468,6 +511,7 @@ def _build_node_payload(node: str, values: dict) -> dict:
                 "year": d.get("year", ""),
                 "authors": (d.get("authors") or [])[:3],
                 "url": d.get("url", ""),
+                "venue": d.get("venue", ""),
             })
         payload["web_results_count"] = len(values.get("web_results", []))
 

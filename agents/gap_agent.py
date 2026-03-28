@@ -25,6 +25,7 @@ from collections import defaultdict
 from states import AgentState, GapCandidate, LimitationItem
 from llm import get_llm
 from utils.parse_json import parse_json
+from utils.progress import report_progress
 from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
 
 
@@ -44,8 +45,8 @@ RECENCY_WEIGHT = {
 
 # ── LLM 헬퍼 ─────────────────────────────────────────────────────────────────
 
-def _llm_invoke(messages: list[dict]) -> str:
-    llm = get_llm()
+def _llm_invoke(messages: list[dict], provider: str = None) -> str:
+    llm = get_llm(provider=provider)
     lc_messages = []
     for m in messages:
         role, content = m["role"], m["content"]
@@ -277,7 +278,7 @@ def _build_final_axes(dynamic_axes: list) -> dict:
 
 # ── Step 3. 배치 분류 + recency 가중치 적용 ──────────────────────────────────
 
-def _classify_limitations_batch(limitations: list, final_axes: dict) -> dict:
+def _classify_limitations_batch(limitations: list, final_axes: dict, lang_instruction: str = "") -> dict:
     BATCH_SIZE = 20
     axis_mapping = {}
 
@@ -584,6 +585,8 @@ def _generate_creative_directions(
     what_was_tried: list,
     web_results: list,
     cascade_impact: str,
+    lang_instruction: str = "",
+    provider: str = None,
 ) -> dict:
     """
     Step 4b에서 도출한 장벽과 "이미 시도된 것들"을 출발점으로,
@@ -693,7 +696,7 @@ Output JSON only:
     ]
 
     try:
-        response = _llm_invoke(messages)
+        response = _llm_invoke(messages, provider=provider)
         result = parse_json(response)
 
         candidates   = result.get("candidates", [])
@@ -786,6 +789,12 @@ def gap_infer_node(state: AgentState) -> AgentState:
     else:
         limitations = _parse_limitations_from_messages(state.get("messages", []))
 
+    # ── output_language / lang_instruction ──────────────────────────────────
+    output_language = state.get("output_language", "auto")
+    session_id = state.get("session_id", "")
+    from prompts.system import get_language_instruction
+    lang_instruction = get_language_instruction(output_language)
+
     if not limitations:
         print("  ⚠️ No limitations to analyze")
         return {**state, "gaps": []}
@@ -849,13 +858,14 @@ def gap_infer_node(state: AgentState) -> AgentState:
         return {**state, "gaps": []}
 
     print(f"\n  🔄 Step 4a: {len(active_groups)}개 축 긴급도 점수화...")
-    scored_axes = _score_axis_urgency(active_groups, final_axes, research_question)
+    scored_axes = _score_axis_urgency(active_groups, final_axes, research_question, lang_instruction)
 
     # ── Step 4b + 4c. 축별 장벽 분석 → 창의적 방향 제안 ────────────────────
     gaps = []
+    total_axes = len(scored_axes)
     print(f"\n  🔄 Step 4b+4c: 장벽 분석 → 창의적 방향 제안...")
 
-    for ax_key, urgency_score, cascade_impact, urgency_rationale in scored_axes:
+    for ax_idx, (ax_key, urgency_score, cascade_impact, urgency_rationale) in enumerate(scored_axes):
         grp     = active_groups[ax_key]
         ax_info = final_axes.get(ax_key, {"label": ax_key, "description": "", "type": "dynamic"})
         unresolved_lims = grp["unresolved_lims"]
@@ -863,6 +873,11 @@ def gap_infer_node(state: AgentState) -> AgentState:
         if not unresolved_lims:
             continue
 
+        report_progress(
+            session_id, "gap_infer",
+            f"Analyzing research axis {ax_idx + 1}/{total_axes}: {ax_info.get('label', ax_key)}",
+            current=ax_idx + 1, total=total_axes,
+        )
         print(f"\n  ── [{ax_key}] urgency={urgency_score:.2f} ──")
 
         # Step 4b
@@ -888,6 +903,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
             what_was_tried=barrier["what_was_tried"],
             web_results=web_results,
             cascade_impact=cascade_impact,
+            lang_instruction=lang_instruction,
         )
 
         if direction is None:
