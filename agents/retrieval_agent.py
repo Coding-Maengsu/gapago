@@ -1,10 +1,13 @@
 # 3-3) Paper Retrieval Agent (tool-using selector)
 from __future__ import annotations
 
+import numpy as np
+
 from states import AgentState, Paper
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, HumanMessage
-from tools import build_role_tools, bm25_rank, _safe_json_loads
+from tools import build_role_tools, bm25_rank, _safe_json_loads, _tokenize, _norm
+from rank_bm25 import BM25Okapi
 from prompts.system import make_system_prompt
 from llm import get_llm
 from config import Configuration
@@ -476,12 +479,8 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
             web_results = _parse_web_results_from_ai_message(last_content)
 
     raw_papers = _dedupe_papers(raw_papers)
-    total_found = len(raw_papers)
-    print(f"  [DEBUG] raw_papers count (after dedup): {total_found}")
-    report_progress(
-        session_id, "paper_retrieval",
-        f"{total_found}개의 논문을 확인하는 중...",
-    )
+    total_candidates_count = len(raw_papers)  # BM25 전 전체 후보 수
+    print(f"  [DEBUG] raw_papers count (after dedup): {total_candidates_count}")
 
     # ✅ 연도 필터 (resolved_year가 있으면 범위 밖 논문 제거)
     if resolved_year and "-" in resolved_year:
@@ -497,11 +496,25 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
         if filtered_count:
             print(f"  [year_filter] {before_filter} → {len(raw_papers)} ({filtered_count}편 범위 밖 제거, {from_year}-{to_year})")
 
-    # ✅ BM25 1차 필터 (넓게)
+    # ✅ BM25 1차 필터 (동적 k: 점수 분포 기반 적응적 컷오프)
+    total_found = len(raw_papers)
     cfg = Configuration()
     query = state.get("refined_query") or state.get("user_question", "")
     if raw_papers and query:
-        ranked = bm25_rank(raw_papers, query, top_k=cfg.bm25_top_k)
+        # 동적 k 계산: BM25 점수 분포에서 평균 + 0.5*표준편차 이상인 논문 수
+        corpus = [_tokenize(f"{p.get('title', '')} {p.get('abstract', '')}") for p in raw_papers]
+        bm25 = BM25Okapi(corpus)
+        scores = bm25.get_scores(_tokenize(query))
+        if len(scores) > 0:
+            mean_score = float(np.mean(scores))
+            std_score = float(np.std(scores))
+            threshold = mean_score + 0.5 * std_score
+            dynamic_k = int(np.sum(scores > threshold))
+            dynamic_k = max(10, min(dynamic_k, cfg.bm25_top_k))  # 10 ~ bm25_top_k 범위
+            print(f"  [BM25] dynamic_k={dynamic_k} (mean={mean_score:.2f}, std={std_score:.2f}, threshold={threshold:.2f})")
+        else:
+            dynamic_k = cfg.bm25_top_k
+        ranked = bm25_rank(raw_papers, query, top_k=dynamic_k)
         raw_papers = ranked.get("selected", raw_papers)
     print(f"  [DEBUG] BM25 1st stage: {len(raw_papers)} papers")
 
@@ -528,6 +541,21 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
             fts = dict(p.get("full_text_sections") or {})
             if p.get("doi") and "doi" not in fts:
                 fts["doi"] = p["doi"]
+            # venue 결정: 명시적 venue > journal > source 라벨
+            venue = p.get("venue", "")
+            if not venue:
+                venue = p.get("journal", "")
+            if not venue:
+                source = p.get("source", "")
+                venue_map = {
+                    "arxiv": "arXiv preprint",
+                    "semantic_scholar": "Semantic Scholar",
+                    "openalex": "OpenAlex",
+                    "scienceon": "ScienceON",
+                    "scienceon_patent": "Patent",
+                    "scienceon_report": "R&D Report",
+                }
+                venue = venue_map.get(source, source)
             papers.append(Paper(
                 paper_id=p.get("paper_id", ""),
                 title=p.get("title", ""),
@@ -536,18 +564,20 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
                 year=p.get("year", 0) or 0,
                 authors=p.get("authors") or [],
                 score_bm25=p.get("score_bm25", 0.0),
+                venue=venue,
                 full_text_sections=fts,
             ))
         except Exception as e:
             print(f"  ⚠️ Paper 변환 실패: {e}")
             continue
 
-    print(f"  ✓ Retrieved {len(papers)} papers + {len(web_results)} web results")
+    print(f"  ✓ Retrieved {len(papers)}/{total_candidates_count} papers + {len(web_results)} web results")
 
     last = AIMessage(content=last_content, name="paper_retrieval")
     return {
         "messages": [last],
         "sender": "paper_retrieval",
         "papers": papers,
+        "total_candidates_count": total_candidates_count,
         "web_results": web_results,
     }
