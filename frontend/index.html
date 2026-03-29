@@ -1014,27 +1014,84 @@
         }
         .error-banner button:hover { opacity: 0.85; }
 
-        /* ── Dynamic GAP ── */
-        .gap-item-compact.dynamic {
-            border-left: 3px solid var(--accent2);
-            background: linear-gradient(135deg, rgba(124,92,191,0.04), transparent);
-        }
-        .gap-item-compact.dynamic:hover { background: linear-gradient(135deg, rgba(124,92,191,0.08), rgba(84,105,212,0.04)); }
-        .gap-item-compact.dynamic.active { border-left-color: var(--accent2); background: linear-gradient(135deg, rgba(124,92,191,0.10), rgba(84,105,212,0.05)); }
-
-        .gap-compact-axis-badge {
+        /* ── GAP Axis Color Badges ── */
+        .axis-badge {
             display: inline-block;
-            font-size: 0.68em;
-            font-weight: 700;
-            padding: 1px 6px;
-            border-radius: 3px;
-            margin-left: 4px;
+            font-size: 0.7em;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
             vertical-align: middle;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
+            white-space: nowrap;
         }
-        .gap-compact-axis-badge.fixed { background: var(--surface2); color: var(--text-light); }
-        .gap-compact-axis-badge.dynamic { background: rgba(124,92,191,0.12); color: var(--accent2); }
+
+        /* ── Progress Bar ── */
+        .preview-progress {
+            margin-bottom: 16px;
+            animation: fadeInUp 0.3s ease;
+        }
+        .preview-progress-label {
+            font-size: 0.84em;
+            color: var(--text-dim);
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+        .preview-progress-bar {
+            width: 100%;
+            height: 6px;
+            background: var(--surface2);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .preview-progress-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 3px;
+            transition: width 0.4s ease;
+        }
+        .preview-progress-detail {
+            font-size: 0.78em;
+            color: var(--text-light);
+            margin-top: 4px;
+        }
+
+        /* ── Query Preview ── */
+        .preview-query-box {
+            padding: 14px 16px;
+            background: var(--accent-bg);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius);
+            margin-bottom: 10px;
+        }
+        .preview-query-label {
+            font-size: 0.75em;
+            font-weight: 600;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 4px;
+        }
+        .preview-query-text {
+            font-size: 0.94em;
+            font-weight: 600;
+            color: var(--text);
+            line-height: 1.5;
+        }
+        .preview-keywords {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 8px;
+        }
+        .preview-keyword-tag {
+            display: inline-block;
+            background: var(--accent-light);
+            color: var(--accent);
+            padding: 2px 10px;
+            border-radius: 5px;
+            font-size: 0.82em;
+            font-weight: 500;
+        }
 
         /* ── Analysis Options Bar ── */
         .analysis-options-bar {
@@ -1211,9 +1268,6 @@
             font-weight: 600;
             color: var(--text);
             line-height: 1.5;
-        }
-        .preview-gap-card.dynamic {
-            border-left: 3px solid var(--accent2);
         }
 
         /* ── Scrollbar ── */
@@ -1425,6 +1479,26 @@ let pipelineData = {
     report: '',
     analysisOptions: {},
 };
+
+// Axis color palette for GAP visualization
+const AXIS_COLORS = [
+    { bg: '#eef0fb', color: '#5469d4', border: '#5469d4' },
+    { bg: '#f3eefa', color: '#7c5cbf', border: '#7c5cbf' },
+    { bg: '#eaf6f0', color: '#0d9668', border: '#0d9668' },
+    { bg: '#fef5e7', color: '#c27a0e', border: '#c27a0e' },
+    { bg: '#feeef0', color: '#d44a4a', border: '#d44a4a' },
+    { bg: '#e9f4fb', color: '#2e7dba', border: '#2e7dba' },
+    { bg: '#f4eefb', color: '#8e4ec6', border: '#8e4ec6' },
+];
+function getAxisColor(axisName) {
+    // Deterministic color based on axis name hash
+    let hash = 0;
+    for (let i = 0; i < axisName.length; i++) hash = ((hash << 5) - hash + axisName.charCodeAt(i)) | 0;
+    return AXIS_COLORS[Math.abs(hash) % AXIS_COLORS.length];
+}
+
+// Progress state for live preview
+let _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0 };
 
 // Track timeline detail text per node
 let timelineDetails = {};
@@ -1732,6 +1806,7 @@ async function startAnalysis() {
     const yearLabels = { auto: '자동 추천', '1y': '최근 1년', '3y': '최근 3년', '5y': '최근 5년' };
     const langLabels = { auto: '자동 감지', ko: '한국어', en: 'English' };
     pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: { provider: providerLabels[provider] || provider, yearRange: yearLabels[yearRange] || yearRange, outputLanguage: langLabels[outputLanguage] || outputLanguage } };
+    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0 };
     timelineDetails = {};
     timelineState = {};
     TIMELINE_NODES.forEach(n => { timelineState[n.id] = 'pending'; });
@@ -1830,6 +1905,7 @@ async function reconnectToSession(sessionId, query) {
     document.getElementById('queryInput').value = query || '';
     setInputEnabled(false);
     pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: {} };
+    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0 };
     timelineDetails = {};
     timelineState = {};
     TIMELINE_NODES.forEach(n => { timelineState[n.id] = 'pending'; });
@@ -1900,12 +1976,15 @@ function handleEvent(data) {
     if (data.event === 'keepalive') return;
 
     if (data.event === 'progress') {
-        const tlStepId = findTimelineStep(data.node);
-        if (tlStepId) {
-            timelineDetails[tlStepId] = esc(data.detail || '');
-            const detailEl = document.getElementById(`tl-detail-${tlStepId}`);
-            if (detailEl) detailEl.innerHTML = timelineDetails[tlStepId];
+        _progressData = { node: data.node || '', detail: data.detail || '', current: data.current || 0, total: data.total || 0, progress: data.progress || 0 };
+        // Update timeline detail for this node
+        const tlStep = findTimelineStep(data.node);
+        if (tlStep) {
+            timelineDetails[tlStep] = data.detail;
+            const detailEl = document.getElementById(`tl-detail-${tlStep}`);
+            if (detailEl) detailEl.innerHTML = esc(data.detail);
         }
+        updateLivePreview();
         return;
     }
 
@@ -1928,22 +2007,10 @@ function handleEvent(data) {
         renderTimelineState();
         const totalSecs = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
         const tm = Math.floor(totalSecs / 60), ts = totalSecs % 60;
-        const statusText = document.getElementById('statusText');
-        if (statusText) { statusText.style.color = 'var(--done)'; statusText.textContent = '분석 완료'; }
-        const statusDetail = document.getElementById('statusDetail');
-        if (statusDetail) statusDetail.textContent = '';
-        const statusElapsed = document.getElementById('statusElapsed');
-        if (statusElapsed) statusElapsed.textContent = `${tm > 0 ? tm + '분 ' : ''}${ts}초 소요`;
-        // Collapse timeline after 1.5s
-        setTimeout(() => {
-            const timeline = document.getElementById('timeline');
-            if (timeline) {
-                timeline.classList.add('collapsing');
-                setTimeout(() => { timeline.classList.add('collapsed'); timeline.classList.remove('collapsing'); }, 600);
-            }
-            const statusBar = document.querySelector('.analysis-status-bar');
-            if (statusBar) statusBar.style.transition = 'opacity 0.4s'; // keep visible with completion info
-        }, 1500);
+        // Remove analysis layout, show results only
+        const results = document.getElementById('results');
+        const completionInfo = `<div style="text-align:center;padding:12px 0 8px;"><span style="color:var(--done);font-weight:600;font-size:1em;">분석 완료</span><span style="color:var(--text-light);font-size:0.82em;margin-left:10px;">${tm > 0 ? tm + '분 ' : ''}${ts}초 소요</span></div>`;
+        results.innerHTML = completionInfo + '<div id="resultArea" style="display:none"></div>';
         renderResults();
         setInputEnabled(true);
         loadHistory();
@@ -2123,26 +2190,40 @@ function updateLivePreview() {
     const panel = document.getElementById('livePreview');
     if (!panel) return;
 
+    const hasQuery = pipelineData.refined_query || (pipelineData.keywords && pipelineData.keywords.length);
     const hasPapers = pipelineData.papers.length > 0;
     const hasLimitations = pipelineData.limitations && pipelineData.limitations.length > 0;
     const hasGaps = pipelineData.gaps && pipelineData.gaps.length > 0;
+    const hasProgress = _progressData.total > 0;
 
-    if (!hasPapers && !hasLimitations && !hasGaps) return; // keep empty state
+    if (!hasQuery && !hasPapers && !hasLimitations && !hasGaps && !hasProgress) return;
 
     let html = '';
 
+    // Progress bar (limitation extraction etc.)
+    if (hasProgress && !hasGaps) {
+        html += `<div class="preview-progress">
+            <div class="preview-progress-label">${esc(_progressData.detail)}</div>
+            <div class="preview-progress-bar"><div class="preview-progress-fill" style="width:${_progressData.progress}%"></div></div>
+            <div class="preview-progress-detail">${_progressData.current} / ${_progressData.total} (${_progressData.progress}%)</div>
+        </div>`;
+    }
+
+    // GAPs
     if (hasGaps) {
         html += `<div class="preview-section"><div class="preview-section-title">연구 GAP (${pipelineData.gaps.length})</div>`;
         pipelineData.gaps.forEach(gap => {
-            const isDynamic = gap.axis_type === 'dynamic';
-            html += `<div class="preview-gap-card${isDynamic ? ' dynamic' : ''}">
-                <div class="preview-gap-axis">${esc(gap.axis_label || gap.axis || '')}${isDynamic ? ' <span style="color:var(--accent2);font-weight:600">질문 특화</span>' : ''}</div>
+            const axisLabel = gap.axis_label || gap.axis || '';
+            const ac = getAxisColor(axisLabel);
+            html += `<div class="preview-gap-card" style="border-left:3px solid ${ac.border}">
+                <div class="preview-gap-axis"><span class="axis-badge" style="background:${ac.bg};color:${ac.color}">${esc(axisLabel)}</span></div>
                 <div class="preview-gap-statement">${esc(gap.gap_statement || '')}</div>
             </div>`;
         });
         html += '</div>';
     }
 
+    // Limitations
     if (hasLimitations) {
         const limCount = pipelineData.limitations.length;
         const showLims = pipelineData.limitations.slice(0, 5);
@@ -2155,6 +2236,7 @@ function updateLivePreview() {
         html += '</div>';
     }
 
+    // Papers
     if (hasPapers) {
         html += `<div class="preview-section"><div class="preview-section-title">검색된 논문 (${pipelineData.papers.length}/${pipelineData.total_searched || '?'})</div>`;
         pipelineData.papers.slice(0, 8).forEach(p => {
@@ -2164,6 +2246,24 @@ function updateLivePreview() {
             </div>`;
         });
         if (pipelineData.papers.length > 8) html += `<div style="text-align:center;color:var(--text-light);font-size:0.78em;padding:4px">외 ${pipelineData.papers.length - 8}편...</div>`;
+        html += '</div>';
+    }
+
+    // Query & Keywords (show at bottom as context)
+    if (hasQuery) {
+        html += `<div class="preview-section">`;
+        if (pipelineData.refined_query) {
+            html += `<div class="preview-query-box">
+                <div class="preview-query-label">정제된 쿼리</div>
+                <div class="preview-query-text">${esc(pipelineData.refined_query)}</div>
+            </div>`;
+        }
+        if (pipelineData.keywords && pipelineData.keywords.length) {
+            html += `<div class="preview-query-box">
+                <div class="preview-query-label">확장 키워드</div>
+                <div class="preview-keywords">${pipelineData.keywords.map(k => `<span class="preview-keyword-tag">${esc(k)}</span>`).join('')}</div>
+            </div>`;
+        }
         html += '</div>';
     }
 
@@ -2208,15 +2308,12 @@ function renderResults() {
     if (pipelineData.gaps.length) {
         pipelineData.gaps.forEach((gap, i) => {
             const isTop = i === 0;
-            const isDynamic = gap.axis_type === 'dynamic';
             const activeClass = (selectedItem.type === 'gap' && selectedItem.index === i) ? ' active' : '';
-            const dynamicClass = isDynamic ? ' dynamic' : '';
-            const badgeClass = isDynamic ? 'dynamic' : 'fixed';
-            const badgeText = isDynamic ? 'Dynamic' : 'Fixed';
-            leftHTML += `<div class="gap-item-compact${activeClass}${dynamicClass}" onclick="selectGap(${i})" id="gap-item-${i}">
+            const axisLabel = gap.axis_label || gap.axis || '';
+            const ac = getAxisColor(axisLabel);
+            leftHTML += `<div class="gap-item-compact${activeClass}" onclick="selectGap(${i})" id="gap-item-${i}" style="border-left-color:${ac.border}">
                 <span class="gap-compact-rank ${isTop ? 'top' : ''}">${isTop ? 'TOP' : '#' + (i + 1)}</span>
-                <span class="gap-compact-axis">${esc(gap.axis_label || gap.axis || '')}</span>
-                <span class="gap-compact-axis-badge ${badgeClass}">${badgeText}</span>
+                <span class="axis-badge" style="background:${ac.bg};color:${ac.color}">${esc(axisLabel)}</span>
                 <div class="gap-compact-statement">${esc(gap.gap_statement || '')}</div>
             </div>`;
         });
@@ -2285,15 +2382,11 @@ function getGapDetailHTML(index) {
         return '<div style="padding:20px;color:var(--text-light);text-align:center">GAP을 선택하세요</div>';
     }
     const gap = pipelineData.gaps[index];
-    const isDynamic = gap.axis_type === 'dynamic';
-    const axisType = isDynamic ? 'Dynamic' : 'Fixed';
+    const axisLabel = gap.axis_label || gap.axis || '';
+    const ac = getAxisColor(axisLabel);
 
     let html = '';
-    if (isDynamic) {
-        html += `<div class="detail-gap-axis" style="color:var(--accent2);font-weight:600">&#x2728; 질문 특화 &middot; ${esc(gap.axis_label || gap.axis || '')} &middot; ${gap.repeat_count || 0}편 논문</div>`;
-    } else {
-        html += `<div class="detail-gap-axis">${axisType}: ${esc(gap.axis_label || gap.axis || '')} &middot; ${gap.repeat_count || 0}편 논문</div>`;
-    }
+    html += `<div class="detail-gap-axis"><span class="axis-badge" style="background:${ac.bg};color:${ac.color};font-size:0.82em;padding:3px 10px">${esc(axisLabel)}</span> <span style="margin-left:6px">${gap.repeat_count || 0}편 논문에서 도출</span></div>`;
     html += `<div class="detail-gap-statement">${esc(gap.gap_statement || '')}</div>`;
     html += `<div class="detail-gap-elaboration">${esc(gap.elaboration || '')}</div>`;
 
@@ -2408,6 +2501,7 @@ async function exploreDirection(topic) {
 
     setInputEnabled(false);
     pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: {} };
+    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0 };
     timelineDetails = {};
     timelineState = {};
     TIMELINE_NODES.forEach(n => { timelineState[n.id] = 'pending'; });
