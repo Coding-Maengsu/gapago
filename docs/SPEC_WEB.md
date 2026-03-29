@@ -1,10 +1,10 @@
 # GAPAGO 웹 프론트엔드 스펙
 
-> **최종 업데이트:** 2026-03-28 (웹 대규모 수정 반영)
+> **최종 업데이트:** 2026-03-29 (스펙-코드 일치 검증 반영)
 
 ## 1. 개요
 
-GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 인터페이스를 제공한다. 세 가지 구현이 존재하며, 메인 프론트엔드는 Vanilla JS SPA(`frontend/index.html`, 2,140줄)이고, Streamlit(`app.py`)과 Gradio(`app_gradio.py`)는 대안 구현이다.
+GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 인터페이스를 제공한다. 세 가지 구현이 존재하며, 메인 프론트엔드는 Vanilla JS SPA(`frontend/index.html`, 2,700줄)이고, Streamlit(`app.py`)과 Gradio(`app_gradio.py`)는 대안 구현이다.
 
 **주요 변경 (2026-03-28):**
 - 전체 UI 텍스트 한국어 통일
@@ -20,7 +20,7 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 
 | 구현 | 프레임워크 | 파일 | 용도 |
 |------|-----------|------|------|
-| **메인 웹 UI** | HTML5 + CSS3 + Vanilla JavaScript | `frontend/index.html` | 프로덕션 SPA (~2,160줄) |
+| **메인 웹 UI** | HTML5 + CSS3 + Vanilla JavaScript | `frontend/index.html` | 프로덕션 SPA (~2,700줄) |
 | **대안 UI 1** | Streamlit (Python) | `app.py` | Python 네이티브 웹 UI |
 | **대안 UI 2** | Gradio (Python) | `app_gradio.py` | 경량 인터페이스 |
 
@@ -99,18 +99,28 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 
 #### 상태 2: 파이프라인 실행 중
 
-**3단계 스테퍼(Stepper) 표시:**
+**8단계 세로 타임라인 표시** (`TIMELINE_STEPS`):
 
-| 단계 | 이름 | 포함 노드 |
-|------|------|----------|
-| Stage 1 | Searching | `query_subgraph`, `meaning_expand`, `paper_retrieval` |
-| Stage 2 | Analyzing | `limitation_extract`, `limitation_eval`, `recency_check`, `gap_infer`, `critic_score` |
-| Stage 3 | Done | `final_response` |
+| 타임라인 단계 | SSE 노드 | 완료 시 표시 정보 |
+|-------------|---------|-----------------|
+| 질문 분석 & 검색어 확장 | `query_subgraph`, `meaning_expand` | 정제된 쿼리 + 키워드 태그 |
+| 논문 검색 | `paper_retrieval` | "N편 중 M편 선별" + 상위 3편 제목 |
+| 한계점 추출 | `limitation_extract` | "N개 한계점 추출" |
+| 한계점 품질 평가 | `limitation_eval` | "N개 통과" 또는 판정 |
+| 최신성 검증 | `recency_check` | "미해결 N / 부분 M / 해결 K" |
+| 연구 GAP 도출 | `gap_infer` | "N개 연구 GAP 도출" |
+| 결과 검증 | `critic_score` | "품질 검증 통과" 또는 "재검토 중..." |
+| 리포트 작성 | `final_response` | "리포트 작성 완료" |
 
-- 실시간 상태 메시지 (애니메이션 씽킹 표시 + `THINKING_MESSAGES` 8초 간격 순환)
+**상태별 스타일:**
+- `pending`: 회색 원 + 회색 텍스트
+- `active`: 파란 펄스 애니메이션 + 파란 텍스트
+- `done`: 초록 체크 아이콘 + 상세 텍스트 표시
+
+- 실시간 상태 메시지 (애니메이션 씽킹 표시 + `THINKING_MESSAGES` 순환)
 - 경과 시간 카운터
 - 중지(Stop) 버튼
-- **타임라인 자동 접힘**: 분석 완료(`complete` 이벤트) 시 타임라인이 애니메이션으로 접힘
+- **타임라인 자동 접힘**: 분석 완료(`complete` 이벤트) 시 `.timeline.collapsing` → `.timeline.collapsed` 애니메이션
 - **progress 이벤트 처리**: 노드 내 중간 진행률을 타임라인 detail에 실시간 반영
 
 #### 상태 3: 인터럽트/명확화 (Clarification)
@@ -121,33 +131,65 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
   - **Continue**: 사용자 응답으로 파이프라인 재개
   - **Skip**: 명확화 생략, 강제 진행
 
-#### 상태 4: 결과 표시 (탭 기반)
+#### 상태 4: 결과 표시 (2패널 구조)
 
-**Papers 탭:**
-- 검색된 논문 테이블
-- 컬럼: # | Title (링크) | Year | Authors
-- GAPs에서 논문 참조 시 해당 행 하이라이트
+```
+┌─────────────────────────────────────────────────────┐
+│  [분석 옵션 바] LLM: azure | 연도: auto | 언어: auto │
+│  [결과 요약 헤더]                                     │
+│  정제된 쿼리: ... | 논문 15/130편 | GAP 7개            │
+├─────────────────┬───────────────────────────────────┤
+│  좌측 (35%)     │  우측 상세 (65%)                    │
+│                 │                                    │
+│  [연구 GAP (7)] │  GAP #1 상세:                      │
+│  ★ TOP Data    │  - 축 뱃지 + 논문 수               │
+│    #2 Method    │  - Gap Statement (굵은 큰 텍스트)   │
+│    ...          │  - Elaboration                     │
+│  ────────────  │  - 근거 논문 (클릭 가능 칩)          │
+│  [논문 15/130]  │  - 근거 인용                        │
+│  1. Paper A     │  - 제안 연구 방향 (accent 박스)     │
+│     Nature 2024 │  - [이 방향으로 추가 탐색 →]        │
+│  2. Paper B     │                                    │
+│     arXiv 2023  │                                    │
+├─────────────────┴───────────────────────────────────┤
+│  [전체 리포트 보기 ▼] (접힌 섹션)                      │
+└─────────────────────────────────────────────────────┘
+```
 
-**Research GAPs 탭 (기본 활성):**
-- GAP 카드 구성:
-  - 랭크 뱃지 (TOP GAP / GAP #N)
-  - 축 유형 (Fixed/Dynamic) + 라벨
-  - 논문 수
-  - Gap Statement (볼드, 강조)
-  - Elaboration 텍스트
-  - Proposed Topic (컬러 박스 + 아이콘)
-  - Supporting Papers (클릭 시 Papers 탭으로 이동)
-- TOP GAP: 노란색 좌측 보더로 특별 스타일링
+**좌측 패널 (`panel-left`, 35%):**
+- **GAP 리스트** (`gap-item-compact`):
+  - 랭크 뱃지 (TOP / #N) + 축 뱃지 (색상 자동 할당 `getAxisColor`)
+  - gap_statement 2줄 truncate
+  - 클릭 → 우측 패널에 상세 (`selectGap`)
+  - 활성 항목: 좌측 accent 보더 (`.active`)
+- **논문 리스트** (`paper-item-compact`):
+  - 번호 + 제목 (truncate) + venue 뱃지 + 연도
+  - **"N/M편 선별"** 형식 헤더 (`total_searched` 활용)
+  - 클릭 → 우측 패널에 논문 상세 (`selectPaper`)
 
-**Final Report 탭:**
-- 마크다운 렌더링 (헤딩, 볼드/이탤릭, 코드 블록, 테이블, 리스트, 블록쿼트)
-- **클립보드 복사** 버튼
-- **마크다운 다운로드** (.md 파일) 버튼
+**우측 상세 패널 (`panel-right`, 65%):**
+- **GAP 선택 시** (`getGapDetailHTML`):
+  - 축 뱃지 + "N편 논문에서 도출"
+  - Gap Statement (굵은 큰 텍스트)
+  - Elaboration
+  - 근거 논문 목록 (클릭 가능 칩 → 논문 상세로 전환)
+  - 근거 인용 (supporting_quotes)
+  - 제안 연구 방향 (accent 박스)
+  - **"이 방향으로 추가 탐색 →"** 버튼 (`exploreDirection`)
+- **논문 선택 시** (`getPaperDetailHTML`):
+  - 논문 메타데이터 (제목, 저자, 연도, venue 뱃지, URL 링크)
+  - Abstract 전문
+  - 이 논문에서 추출된 한계점 목록
+
+**하단 리포트 섹션** (`report-collapse`):
+- 접힌(collapsible) 상태로 기본 표시
+- "전체 리포트 보기" 클릭 → 마크다운 렌더링 보고서 표시 (`toggleReport`)
+- 클립보드 복사 (`copyReport`) + .md 다운로드 (`downloadReport`) 버튼
 
 #### 상태 5: 저장된 결과 보기
 - 히스토리에서 로드 시 표시
 - 쿼리, 정제된 쿼리, 타임스탬프 표시
-- 모든 탭 기능 정상 작동
+- 2패널 구조 + 리포트 접힌 섹션 정상 작동
 
 ### 3.4 실시간 스트리밍 (SSE)
 
@@ -193,13 +235,13 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
   → 연구 질문 입력 + 설정 구성
   → [분석] 클릭
   → SSE 스트림 시작
-  → 스테퍼 + 실시간 진행 표시
+  → 8단계 세로 타임라인 + 실시간 진행 표시
   → [인터럽트?]
      ├─ 명확화 카드 표시 → 응답 입력 → [Continue/Skip]
      └─ (인터럽트 없음) → 계속 진행
-  → 결과 탭 표시
-  → Papers | Research GAPs | Final Report
-  → [새 분석] 또는 히스토리에서 이전 결과 조회
+  → 2패널 결과 표시
+  → 좌측: GAP/논문 리스트 | 우측: 상세 패널 | 하단: 접힌 리포트
+  → [추가 탐색] 또는 [새 분석] 또는 히스토리에서 이전 결과 조회
 ```
 
 ---

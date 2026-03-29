@@ -69,7 +69,8 @@ query_analysis
 | `route_after_critic` | `DECISION: ACCEPT` | `final_response` |
 | | `DECISION: REDO_RETRIEVAL` | `meaning_expand` |
 | | `DECISION: REFINE_QUERY` | `query_subgraph` |
-| | `critic_loop_count >= 2` | `final_response` (강제) |
+| | 태그 매칭 실패 | `final_response` (fallback) |
+| `critic_score_node` 내부 | `critic_loop_count >= 2` | 강제 `ACCEPT` 생성 (노드 내부에서 판정) |
 
 ### 2.4 체크포인팅
 
@@ -100,8 +101,8 @@ query_analysis
 
 **구현:**
 - `llm.with_structured_output(QueryResult)` 사용
-- 5개 가중 기준으로 점수 계산 (도메인, 태스크, 방법론, 데이터, 시간적 명확성)
-- 임계값: `WEIGHTED_SCORE_THRESHOLD = 0.6`
+- SemRank 기반 질적 판정 규칙: `general_topic` vs `specific_phrases` 존재 여부로 분류
+- `specific_phrases` 없음 → `TOO_BROAD`, 1개+ → `SEARCHABLE`, 조합이 너무 희귀 → `TOO_NARROW`
 
 **출력 상태 업데이트:**
 ```python
@@ -700,7 +701,8 @@ class Paper(BaseModel):
     url: str
     year: int
     authors: List[str]
-    score_bm25: float           # BM25 랭킹 점수
+    score_bm25: float = 0.0     # BM25 랭킹 점수
+    venue: str = ""             # 게재지/소스 (저널명, "arXiv preprint" 등)
     full_text_sections: dict    # 전체 텍스트 (있는 경우)
 ```
 

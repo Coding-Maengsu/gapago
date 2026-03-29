@@ -109,7 +109,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.4 `GET /api/stream/{session_id}` — SSE 스트림
+### 3.5 `GET /api/stream/{session_id}` — SSE 스트림
 
 실시간 파이프라인 진행 상황을 SSE로 스트리밍한다.
 
@@ -181,7 +181,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.5 `GET /api/status/{session_id}` — 세션 상태 조회
+### 3.6 `GET /api/status/{session_id}` — 세션 상태 조회
 
 **응답:**
 ```json
@@ -194,7 +194,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.6 `GET /api/stop/{session_id}` — 분석 중지
+### 3.7 `GET /api/stop/{session_id}` — 분석 중지
 
 실행 중인 분석을 중지한다.
 
@@ -205,7 +205,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.7 `GET /api/clarify` — 명확화 응답 제출
+### 3.8 `GET /api/clarify` — 명확화 응답 제출
 
 인터럽트된 파이프라인에 사용자 응답을 전달하고 재개한다.
 
@@ -218,7 +218,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 **응답:**
 ```json
-{"status": "resumed", "accumulated_events": 5}
+{"session_id": "...", "status": "resumed", "events_count": 5}
 ```
 
 **내부 동작:**
@@ -228,7 +228,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.8 `GET /api/history` — 분석 히스토리 목록
+### 3.9 `GET /api/history` — 분석 히스토리 목록
 
 **쿼리 파라미터:**
 
@@ -257,7 +257,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.9 `GET /api/history/{filename}` — 저장된 결과 상세
+### 3.10 `GET /api/history/{filename}` — 저장된 결과 상세
 
 **응답:** 저장된 JSON 결과 파일 전체 내용
 
@@ -282,7 +282,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.10 `GET /` — 정적 파일 서빙
+### 3.11 `GET /` — 정적 파일 서빙
 
 - `frontend/index.html` 반환
 - `/logo.png`, `/new_logo.png`, `/middle_image.png` 정적 이미지 서빙
@@ -349,7 +349,9 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
   "decision": "PASS|RETRY",
   "call1_results": [...],
   "call2_result": {...},
-  "warnings": [...]
+  "eval_warnings": [...],
+  "limitations_count": 12,
+  "detail": "12 limitations evaluated — PASS"
 }
 ```
 
@@ -377,7 +379,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
     {
       "axis": "data",
       "axis_label": "Data & Dataset",
-      "axis_type": "fixed|dynamic",
+      "axis_type": "dynamic",
       "gap_statement": "갭 설명 (25단어 이내)",
       "elaboration": "상세 설명",
       "proposed_topic": "제안 연구 방향",
@@ -569,6 +571,7 @@ class Configuration:
   "url": "https://...",
   "year": 2024,
   "authors": ["Author A", "Author B"],
+  "venue": "arXiv preprint",
   "source": "arxiv|semantic_scholar|openalex|scienceon|web"
 }
 ```
