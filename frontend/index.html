@@ -1923,22 +1923,10 @@ function handleEvent(data) {
         renderTimelineState();
         const totalSecs = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
         const tm = Math.floor(totalSecs / 60), ts = totalSecs % 60;
-        const statusText = document.getElementById('statusText');
-        if (statusText) { statusText.style.color = 'var(--done)'; statusText.textContent = '분석 완료'; }
-        const statusDetail = document.getElementById('statusDetail');
-        if (statusDetail) statusDetail.textContent = '';
-        const statusElapsed = document.getElementById('statusElapsed');
-        if (statusElapsed) statusElapsed.textContent = `${tm > 0 ? tm + '분 ' : ''}${ts}초 소요`;
-        // Collapse timeline after 1.5s
-        setTimeout(() => {
-            const timeline = document.getElementById('timeline');
-            if (timeline) {
-                timeline.classList.add('collapsing');
-                setTimeout(() => { timeline.classList.add('collapsed'); timeline.classList.remove('collapsing'); }, 600);
-            }
-            const statusBar = document.querySelector('.analysis-status-bar');
-            if (statusBar) statusBar.style.transition = 'opacity 0.4s'; // keep visible with completion info
-        }, 1500);
+        // Remove analysis layout, show results only
+        const results = document.getElementById('results');
+        const completionInfo = `<div style="text-align:center;padding:12px 0 8px;"><span style="color:var(--done);font-weight:600;font-size:1em;">분석 완료</span><span style="color:var(--text-light);font-size:0.82em;margin-left:10px;">${tm > 0 ? tm + '분 ' : ''}${ts}초 소요</span></div>`;
+        results.innerHTML = completionInfo + '<div id="resultArea" style="display:none"></div>';
         renderResults();
         setInputEnabled(true);
         loadHistory();
