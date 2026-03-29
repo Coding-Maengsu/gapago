@@ -15,7 +15,7 @@ from datetime import datetime
 # 1. 그래프 빌드
 # =====================================================================
 from graphs.graph import build_graph
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 app = build_graph()
 OUTPUT_DIR = Path("outputs")
@@ -278,7 +278,54 @@ def run():
     print("is_ambiguous =", values.get("is_ambiguous"))
     print("refined_query =", values.get("refined_query"))
 
-    save_result(user_input, values)
+    result_path = save_result(user_input, values)
+
+    # -----------------------------------------------------------------
+    # [STEP 5] 결과 검토 후 대화 모드
+    # -----------------------------------------------------------------
+    print_divider("[STEP 5] 결과 검토 및 대화")
+
+    print("\n분석이 완료되었습니다!")
+    print(f"결과 파일: {result_path}")
+
+    chat_choice = input("\n결과에 대해 질문하거나 추가 분석을 원하시나요? > ").strip()
+
+    # 빈 입력이면 종료
+    if not chat_choice:
+        print("\n프로그램을 종료합니다.")
+    else:
+        # LLM이 긍정/부정 의도 파악
+        from llm import get_llm
+        from utils.parse_json import parse_json
+
+        llm = get_llm()
+        intent_prompt = f"""사용자 응답이 대화 모드 진입을 원하는지 판단하세요.
+
+질문: "결과에 대해 질문하거나 추가 분석을 원하시나요?"
+사용자 응답: "{chat_choice}"
+
+응답이 긍정적이면(yes, 예, 네, 응, 좋아, 그래 등) "yes", 부정적이면(no, 아니, 괜찮아, 됐어 등) "no"를 반환하세요.
+애매하거나 질문이면 "yes"로 처리하세요 (질문이 있으면 대화 모드로 진입).
+
+JSON만 출력:
+{{"intent": "yes" or "no", "reasoning": "판단 근거"}}"""
+
+        try:
+            result = llm.invoke([
+                SystemMessage(content="You are an intent classifier. Always respond with valid JSON only."),
+                HumanMessage(content=intent_prompt)
+            ])
+            parsed = parse_json(result.content)
+            should_chat = parsed.get("intent", "yes") == "yes"
+        except Exception:
+            # 파싱 실패 시 기본값: 대화 모드 진입
+            should_chat = True
+
+        if should_chat:
+            from agents import interactive_chat_loop
+            interactive_chat_loop(values)
+        else:
+            print("\n프로그램을 종료합니다.")
 
 if __name__ == "__main__":
     run()

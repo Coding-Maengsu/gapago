@@ -33,7 +33,7 @@ class Configuration:
         },
     )
     arxiv_max_docs: int = field(
-        default=_int_env("ARXIV_MAX_RESULTS", 10),
+        default=_int_env("ARXIV_MAX_RESULTS", 20),
         metadata={"description": "Maximum number of ArXiv documents", "range": [1, 50]},
     )
     scienceon_client_id: Optional[str] = field(
@@ -53,11 +53,11 @@ class Configuration:
         metadata={"description": "ScienceON default target"},
     )
     scienceon_default_row_count: int = field(
-        default=_int_env("SCIENCEON_DEFAULT_ROW_COUNT", 10),
+        default=_int_env("SCIENCEON_DEFAULT_ROW_COUNT", 20),
         metadata={"description": "ScienceON default row count", "range": [1, 100]},
     )
     bm25_top_k: int = field(
-        default=_int_env("BM25_TOP_K", 30),
+        default=_int_env("BM25_TOP_K", 50),
         metadata={"description": "BM25 1st stage filter count", "range": [10, 100]},
     )
     reranker_top_k: int = field(
