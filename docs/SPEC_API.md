@@ -33,13 +33,13 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ### 3.2 `GET /api/providers` — LLM 프로바이더 목록
 
-**응답:**
+**응답** (키는 숫자 문자열 — `AVAILABLE_PROVIDERS` 기반):
 ```json
 {
-  "azure": {"id": "azure", "name": "Azure OpenAI"},
-  "claude": {"id": "claude", "name": "Claude (Bedrock)"},
-  "gemini": {"id": "gemini", "name": "Google Gemini"},
-  "exaone": {"id": "exaone", "name": "LG EXAONE"}
+  "1": {"id": "azure", "name": "Azure OpenAI (GPT)"},
+  "2": {"id": "claude", "name": "Claude (AWS Bedrock)"},
+  "3": {"id": "gemini", "name": "Google Gemini"},
+  "4": {"id": "exaone", "name": "LG EXAONE (Local GPU)"}
 }
 ```
 
@@ -243,14 +243,17 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
     "filename": "gapago_result_20260328_143022.json",
     "query": "연구 질문 미리보기",
     "timestamp": "2026-03-28T14:30:22",
+    "refined_query": "정제된 쿼리",
     "gaps_count": 7,
-    "status": "completed"
+    "status": "completed",
+    "session_id": "uuid-string",
+    "parent_session_id": ""
   }
 ]
 ```
 
-- 활성 세션 + 저장된 파일 결과 모두 포함
-- 타임스탬프 역순 정렬
+- 활성 세션 (`running`/`interrupted`) + 저장된 파일 결과 모두 포함
+- `HistoryItem` Pydantic 모델로 구조화
 
 ---
 
@@ -263,6 +266,8 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
   "query": "원본 질문",
   "timestamp": "ISO8601",
   "user_id": "사용자 ID",
+  "session_id": "세션 ID",
+  "parent_session_id": "부모 세션 ID (추가 탐색 시)",
   "refined_query": "정제된 검색 쿼리",
   "keywords": ["keyword1", "keyword2"],
   "papers": [...],
@@ -417,9 +422,11 @@ _sessions[session_id] = {
     "event_signal": Event,  # 새 이벤트 알림용
     "query": str,           # 원본 쿼리
     "user_id": str,         # 사용자 ID
+    "started_at": str,      # ISO8601 시작 시간
     "filename": str,        # 결과 파일명 (완료 시)
     "cancelled": Event,     # 중지 시그널
-    "parent_session_id": str,  # 추가 탐색 시 부모 세션 (선택)
+    "clarify_prompt": str,  # 명확화 프롬프트 (인터럽트 시)
+    "parent_session_id": str,  # 추가 탐색 시 부모 세션 (/api/explore에서만)
 }
 ```
 

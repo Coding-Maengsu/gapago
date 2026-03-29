@@ -2,7 +2,7 @@
 
 ## 1. 개요
 
-GAPAGO의 핵심은 LangGraph StateGraph 기반의 멀티 에이전트 파이프라인이다. 10개의 에이전트 노드가 순차적/조건부로 실행되며, 사용자의 연구 질문에서 시작하여 논문 검색 → 한계점 추출 → 갭 추론 → 품질 평가 → 최종 보고서를 생성한다.
+GAPAGO의 핵심은 LangGraph StateGraph 기반의 멀티 에이전트 파이프라인이다. 10개의 에이전트 노드가 순차적/조건부로 실행되며(+ 1개 파이프라인 외부 대화 에이전트), 사용자의 연구 질문에서 시작하여 논문 검색 → 한계점 추출 → 갭 추론 → 품질 평가 → 최종 보고서를 생성한다.
 
 ---
 
@@ -169,11 +169,28 @@ query_analysis
 | `scienceon_report_search_tool` | ScienceON | 국가 R&D 보고서 |
 | `web_search_tool` | Tavily | 웹 검색 (트렌드용) |
 
-**필터링 파이프라인:**
-1. **연도 필터**: `year_range` → YYYY-YYYY 형식 변환
-2. **BM25 랭킹 (1차)**: `bm25_top_k` (기본 30) 광범위 필터링
-3. **LLM 리랭커 (2차)**: `reranker_top_k` (기본 15) 정밀 재정렬
-4. **중복 제거**: DOI + title + year 기반
+**필터링 파이프라인 (5단계):**
+1. **중복 제거**: DOI + title + year 기반 → `total_candidates_count` 기록
+2. **연도 필터**: `year_range` → YYYY-YYYY 형식 변환 (`_resolve_year_range`)
+3. **BM25 랭킹 (1차, 동적 k)**: 점수 분포 기반 적응적 컷오프
+   ```python
+   scores = bm25.get_scores(query_tokens)
+   threshold = mean(scores) + 0.5 * std(scores)
+   dynamic_k = max(10, min(sum(scores > threshold), bm25_top_k))
+   ```
+   - 범위: 10 ~ `bm25_top_k` (기본 30)
+   - 주제별 논문 밀도에 따라 자동 적응
+4. **Full text 접근 가능 필터** (`_filter_fulltext_available`): 병렬 HTTP HEAD 요청으로 원문 접근 가능한 논문만 필터
+   - arXiv: ar5iv HTML HEAD 체크
+   - DOI 기반 소스: PDF 링크 존재 확인
+   - ScienceON 특허/보고서: fulltext_url 존재 확인
+   - `ThreadPoolExecutor` (5 워커) 병렬 처리
+5. **LLM 리랭커 (2차)** (`_llm_rerank`): `reranker_top_k` (기본 15) 정밀 재정렬
+   - GAP 분석 적합성 기준: 주제 관련도, 한계점 논의 가능성, 관점 다양성, 최신성
+
+**venue 정규화:**
+- 결정 우선순위: 명시적 venue > journal > source 라벨
+- source 라벨 매핑: `arxiv→"arXiv preprint"`, `semantic_scholar→"Semantic Scholar"`, `openalex→"OpenAlex"`, `scienceon→"ScienceON"`, `scienceon_patent→"Patent"`, `scienceon_report→"R&D Report"`
 
 **진행률 보고:**
 - `report_progress(session_id, "paper_retrieval", ...)` 호출
@@ -183,6 +200,7 @@ query_analysis
 ```python
 {
     "papers": [정규화된 논문 목록],
+    "total_candidates_count": 130,   # BM25 전 전체 후보 수
     "web_results": [웹 검색 결과 (별도)]
 }
 ```
@@ -336,65 +354,120 @@ query_analysis
 
 **파일:** `agents/gap_agent.py`
 
-**역할:** 5단계 연구 갭 추론 파이프라인
+**역할:** 4단계 연구 갭 추론 파이프라인 (완전 동적 축 — 고정 축 없음)
 
-#### Step 1: 고정 축 로딩 (5개)
+**핵심 설계 원칙:**
+1. limitation의 단순 반전(반사적 반전) 금지
+2. recency_status 활용 → "아직 아무도 안 푼" limitation만 GAP 후보로 승격
+3. web_results 맥락 주입 → 창의적 방향 제안 시 최신 동향 반영
+4. 사전 정의 카테고리 없이 LLM이 귀납적으로 도메인 특화 축 도출
 
-| 축 | 라벨 |
-|----|------|
-| `data` | Data & Dataset |
-| `methodology` | Methodology |
-| `generalizability` | Generalizability |
-| `evaluation` | Evaluation & Metrics |
-| `scalability` | Scalability & Efficiency |
+**파라미터:**
 
-#### Step 2: 동적 축 생성 (최대 2개)
-- LLM이 한계점 코퍼스에서 도메인 특화 축 추출
-- 조건: 각 축에 2개 이상 한계점 필요
-- 고정 축과 중복되지 않도록 필터링
+| 파라미터 | 값 | 설명 |
+|---------|-----|------|
+| `GAP_AXES_DYNAMIC_MIN` | 3 | 최소 축 생성 수 |
+| `GAP_AXES_DYNAMIC_MAX` | 7 | 최대 축 생성 수 |
+| `GAP_AXES_DYNAMIC_MIN_PAPERS` | 2 | 축 후보 인정 최소 limitation 수 |
 
-#### Step 3: 최종 축 구축
-- 고정 (5) + 동적 (≤2) = 최종 축 세트
-- 각 축에 `type: "fixed" | "dynamic"` 태깅
+#### Step 1: 완전 동적 축 생성 (`_generate_all_axes`)
 
-#### Step 4: 배치 분류 + 최신성 가중치
-- 각 한계점을 최종 축으로 분류 (배치 LLM)
-- 최신성 가중치 적용:
-  - `unresolved`: 1.0
-  - `partial`: 0.5
-  - `resolved`: 0.0 (GAP 후보에서 제외)
-- `axis_groups` 구축: `weighted_count`, `unresolved_lims`
+- **고정 축 완전 제거** — 사전 정의된 "Data", "Methodology" 등의 카테고리를 사용하지 않음
+- LLM이 전체 limitations를 분석하여 연구 질문과 논문 도메인에 특화된 축을 자유롭게 생성
+- 각 축은 limitations의 실제 패턴에서 귀납적으로 도출
+- 상호 배타적 범위 (낮은 중복)
 
-#### Step 5a: 긴급도 점수
-- LLM 점수 (0-10):
-  - 미해결 한계점 수 (최신성 가중)
-  - 연구 질문 직접 관련성
-  - 연쇄 영향 (다른 축에 미치는 영향)
-  - 현재 진전 가능성
+**좋은 축 예시** (도메인 특화):
+  - "Clinical Note Heterogeneity" (not "Data")
+  - "Discharge-to-Admission Temporal Lag" (not "Generalizability")
+  - "ICD Coding Ambiguity Handling" (not "Evaluation")
+
+**축 생성 출력 구조:**
+```json
+{
+  "name": "snake_case_key",
+  "label": "Human-readable Label (3-6 words)",
+  "description": "어떤 limitation이 이 축에 속하는지 한 문장 설명",
+  "rationale": "이 축이 연구 질문에 중요한 이유",
+  "type": "dynamic"
+}
+```
+
+#### Step 1 Fallback: 동적 축 실패 시 재시도 (`_generate_fallback_axes`)
+
+- 동적 축 생성이 실패하거나 결과가 2개 미만이면 단순 프롬프트로 재시도
+- 3-5개 thematic cluster로 그룹핑
+- 최종 fallback: `"general_limitation"` 단일 축
+
+#### Step 2: 최종 축 딕셔너리 구성 (`_build_final_axes`)
+
+- 동적 축 리스트를 `{name: info_dict}` 형태로 변환
+- 모든 축에 `type: "dynamic"` 태깅
+
+#### Step 3: 배치 분류 + recency 가중치 적용
+
+**배치 분류** (`_classify_limitations_batch`):
+- 각 한계점을 최종 축 중 하나로 분류 (배치 LLM, BATCH_SIZE=20)
+- 분류 실패 시 첫 번째 축으로 fallback
+
+**recency 가중치** (`_build_axis_groups_with_recency`):
+
+| 상태 | 가중치 | 설명 |
+|------|--------|------|
+| `unresolved` | 1.0 | GAP 후보 승격 |
+| `partial` | 0.5 | 부분 기여 |
+| `resolved` | 0.0 | GAP 후보에서 제외 (카운트는 유지) |
+
+- `axis_groups` 구축: `weighted_count`, `unresolved_lims`, `total_count`
+
+#### Step 4a: 긴급도 점수 (`_score_axis_urgency`)
+
+- LLM 점수 (0-10) 기준:
+  1. 미해결 한계점 수 (recency-weighted)
+  2. 연구 질문과의 직접적 관련성
+  3. 연쇄 영향 (cascade impact — 다른 축에 미치는 영향)
+  4. 현재 진전 가능성
 - **최종 점수 = 60% LLM 긴급도 + 40% 정규화된 weighted_count**
+- 모든 활성 축(weighted_count > 0)에 대해 계산
 
-#### Step 5b: 장벽 분석 (상위 N 축)
-- LLM: 한계점이 왜 지속되는가?
+#### Step 4b: 장벽 분석 (`_analyze_barriers`)
+
+- LLM: N편의 논문이 이 문제를 인정하면서도 왜 해결하지 못했는가?
+- resolved된 limitation과 대조하여 분석
 
 | 출력 | 설명 |
 |------|------|
 | `gap_statement` | 정확한 미해결 문제 (≤25단어) |
 | `barriers` | 3가지 기술적/구조적 이유 |
-| `barrier_type` | 분류 (data_scarcity, benchmark_absence 등) |
-| `what_was_tried` | 이전 시도된 접근법 (반복 방지) |
+| `barrier_type` | 분류 (`data_scarcity`, `benchmark_absence`, `computational_cost`, `evaluation_mismatch`, `methodological_gap`, `domain_shift`, `conflicting_objectives`, `other`) |
+| `what_was_tried` | 이전 시도된 접근법 2-3가지 (반복 방지) |
 
-#### Step 5c: 창의적 방향 생성
+#### Step 4c: 창의적 방향 생성 (`_generate_creative_directions`)
+
 - LLM: 3가지 독립적 후보 방향 생성
 - **반 단순 뒤집기(Anti-simple-reversal)**: 한계점을 단순히 뒤집는 것 금지
   - "small data" → "use more data" (금지)
   - 장벽을 우회하는 예상치 못한 각도 필요
-- 최신 웹 결과 반영
-- 최고 후보 선택: 신규성 + 실현 가능성 + 영향력
+- 이미 시도된 접근(`what_was_tried`) 재사용 금지
+- 최신 웹 결과(`web_results`) 반영 — 최신 동향 활용하되 이미 다룬 것 제외
+- cascade_impact 활용 — 다른 축에도 이점이 있는 방향 우선
+- 최고 후보 선택: 신규성(novelty_score) + 실현 가능성 + 영향력
 - **함수 파라미터**: `lang_instruction: str = ""`, `provider: str = None`
+
+**후보별 출력:**
+```json
+{
+  "direction_id": 1,
+  "core_insight": "핵심 인사이트 한 문장",
+  "proposed_topic": "논문 스타일 제목: 방법 + 데이터셋 + 베이스라인 + 목표",
+  "methodology_hint": "구현 계획 2-3문장",
+  "novelty_score": 8
+}
+```
 
 **언어 설정:**
 - `gap_infer_node`에서 `get_language_instruction(output_language)`로 `lang_instruction` 생성
-- 모든 내부 함수(`_generate_dynamic_axes`, `_classify_limitations_batch`, `_score_axis_urgency`, `_analyze_barriers`, `_generate_creative_directions`)에 `lang_instruction` 파라미터 전달
+- 모든 내부 함수(`_generate_all_axes`, `_classify_limitations_batch`, `_score_axis_urgency`, `_analyze_barriers`, `_generate_creative_directions`)에 `lang_instruction` 파라미터 전달
 
 **진행률 보고:**
 - `report_progress(session_id, "gap_infer", ...)` 호출
@@ -405,15 +478,25 @@ query_analysis
 {
     "gaps": [
         {
-            "axis": "data",
-            "axis_label": "Data & Dataset",
-            "axis_type": "fixed",
+            # GapCandidate 기본 필드
+            "axis": "clinical_note_heterogeneity",
+            "axis_label": "Clinical Note Heterogeneity",
+            "axis_type": "dynamic",
             "gap_statement": "갭 설명 (≤25단어)",
-            "elaboration": "왜 중요한지 상세 설명",
-            "proposed_topic": "제안 연구 방향",
+            "elaboration": "핵심 인사이트 (1-2문장)",
+            "proposed_topic": "제안 연구 방향 (논문 스타일 제목)",
             "repeat_count": 3,
             "supporting_papers": ["arxiv:xxx", "s2:yyy"],
-            "supporting_quotes": ["인용1", "인용2"]
+            "supporting_quotes": ["인용1", "인용2"],
+            # 확장 필드 (GapCandidate 스키마 외 병합)
+            "detail": "리포트 상세 섹션용 풍부한 컨텍스트 (마크다운)",
+            "barriers": ["장벽1", "장벽2", "장벽3"],
+            "barrier_type": "benchmark_absence",
+            "what_was_tried": ["이전 접근1", "이전 접근2"],
+            "alt_topics": ["대안 방향1", "대안 방향2"],
+            "novelty_score": 8,
+            "urgency_score": 7.4,
+            "urgency_rationale": "긴급도 근거 한 문장"
         }
     ]
 }
@@ -468,6 +551,39 @@ query_analysis
 **구현 특징:**
 - `create_agent` 사용
 - **새로운 메시지**로 시작 (메시지 누적 없음 — 토큰 절약)
+
+---
+
+### 3.11 Gap Chat Agent (결과 검토 대화)
+
+**파일:** `agents/gap_chat_agent.py`
+
+**역할:** 파이프라인 완료 후 사용자와 대화형 결과 검토
+
+**파이프라인 외부 에이전트** — 메인 StateGraph에 포함되지 않으며, `main.py`에서 파이프라인 완료 후 별도 호출.
+
+**핵심 함수:**
+
+| 함수 | 역할 |
+|------|------|
+| `detect_user_intent(user_input, num_gaps)` | LLM 기반 의도 분류 (`exit`, `help`, `show_gap_detail`, `question`) |
+| `gap_chat_respond(state, user_question)` | GAP/limitation/papers 컨텍스트 기반 답변 생성 |
+| `format_gap_details(gap)` | GAP 상세 정보 포맷팅 (축, 진술, 제안 주제, 지지 논문, 인용구) |
+| `interactive_chat_loop(state)` | 대화형 루프 실행 (의도 파악 → 처리 반복) |
+
+**대화 루프 흐름:**
+```
+사용자 입력 → LLM 의도 분류 →
+  ├─ exit → 대화 종료
+  ├─ help → 도움말 표시
+  ├─ show_gap_detail → N번 GAP 상세 표시
+  └─ question → LLM 답변 생성 (GAP/limitation 컨텍스트 활용)
+```
+
+**`main.py` 연동:**
+- 파이프라인 완료 후 "결과에 대해 질문하시나요?" 프롬프트 표시
+- LLM이 사용자 응답의 긍정/부정 의도 파악
+- 긍정 시 `interactive_chat_loop(state_values)` 호출
 
 ---
 
@@ -603,17 +719,50 @@ class LimitationItem(BaseModel):
 
 ```python
 class GapCandidate(BaseModel):
-    axis: str                   # data, methodology 등
-    axis_label: str             # 표시 이름
+    axis: str                   # 동적 축 키 (snake_case)
+    axis_label: str = ""        # 표시 이름 (Human-readable)
+    axis_type: str = "dynamic"  # 항상 "dynamic" (고정 축 제거됨)
     gap_statement: str          # ≤25단어 갭 설명
-    elaboration: str            # 왜 중요한지
-    proposed_topic: str         # 제안 연구 방향
-    repeat_count: int           # 긴급도 점수
+    elaboration: str = ""       # 핵심 인사이트 (1-2문장)
+    proposed_topic: str = ""    # 제안 연구 방향 (논문 스타일 제목)
+    repeat_count: int = 0       # 해당 축에 매핑된 limitation 수
     supporting_papers: List[str] # 뒷받침 논문 ID
     supporting_quotes: List[str] # 증거 인용
 ```
 
-### 5.6 CriticScores
+**확장 필드** (GapCandidate 스키마 외, `gap_dict.update()`로 병합):
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `detail` | `str` | 리포트 상세 섹션용 마크다운 (core_insight + rationale + methodology_hint + alt_topics) |
+| `barriers` | `List[str]` | 3가지 기술적/구조적 장벽 |
+| `barrier_type` | `str` | 장벽 분류 (data_scarcity, benchmark_absence 등) |
+| `what_was_tried` | `List[str]` | 이전 시도된 접근법 |
+| `alt_topics` | `List[str]` | 채택되지 않은 대안 연구 방향 |
+| `novelty_score` | `int` | 신규성 점수 (1-10) |
+| `urgency_score` | `float` | 긴급도 최종 점수 (60% LLM + 40% weighted_count) |
+| `urgency_rationale` | `str` | 긴급도 근거 |
+
+### 5.6 DimensionScore
+
+```python
+class DimensionScore(BaseModel):
+    dimension: str              # 평가 차원 키
+    label: str                  # 표시 이름
+    score: int = Field(0, ge=0, le=10)  # 0-10 점수
+    reasoning: str = ""         # 점수 근거
+```
+
+### 5.7 EvaluationResult
+
+```python
+class EvaluationResult(BaseModel):
+    dimension_scores: list[DimensionScore]  # 차원별 점수
+    average_score: float = Field(0.0, ge=0.0, le=10.0)  # 평균
+    summary: str = ""           # 전체 평가 요약
+```
+
+### 5.8 CriticScores
 
 ```python
 class CriticScores(BaseModel):
@@ -656,7 +805,7 @@ class CriticScores(BaseModel):
 | limitation_extract | System + user (2-track) | Track 1 vs Track 2 이중 추출 |
 | limitation_eval | Call1 + Call2 system prompts | FActScore + Prometheus + LimAgents + Xu et al. |
 | recency_check | System + context prompt | 도메인별 Tavily 검색 |
-| gap_infer | 단계별 인라인 프롬프트 | 5단계 + 긴급도 점수 |
+| gap_infer | 단계별 인라인 프롬프트 | 4단계 완전 동적 축 + 긴급도 점수 |
 | critic_score | System prompt only | 판정 규칙 매트릭스 |
 | final_response | System + data context | 새 메시지 (축적 없음) |
 
@@ -711,11 +860,12 @@ class CriticScores(BaseModel):
 | 유형 | 에이전트 수 | 역할 | 워크플로우 |
 |------|-----------|------|----------|
 | **쿼리 에이전트** | 2 | Human-in-loop 질문 정제 | 분석 → 명확화 루프 → 정제 |
-| **검색 에이전트** | 1 | 멀티소스 논문 수집 | 의미 확장 → 도구 오케스트레이션 → BM25 → 리랭크 |
+| **검색 에이전트** | 1 | 멀티소스 논문 수집 | 의미 확장 → 도구 오케스트레이션 → BM25(동적k) → Full text 필터 → LLM 리랭크 |
 | **추출 에이전트** | 2 | 비구조 → 구조 변환 | 전체 텍스트 로딩 → 배치 LLM → 중복 제거; 원자적 검증 + 총체적 판단 |
-| **인텔리전스 에이전트** | 2 | 도메인 인지 신호 생성 | 한계점 분류; 최신성 웹 검증 |
-| **합성 에이전트** | 2 | 창의적 지식 결합 | 갭 축 추론 + 장벽 분석 + 방향 생성; 품질 평가 + 라우팅 |
+| **인텔리전스 에이전트** | 2 | 도메인 인지 신호 생성 | 동적 축 기반 한계점 분류; 최신성 웹 검증 |
+| **합성 에이전트** | 2 | 창의적 지식 결합 | 완전 동적 축 추론 + 장벽 분석 + 방향 생성; 품질 평가 + 라우팅 |
 | **생성 에이전트** | 1 | 사람이 읽을 수 있는 출력 | 데이터 컨텍스트 조립 + 마크다운 보고서 |
+| **대화 에이전트** | 1 | 결과 검토 대화 | LLM 의도 분류 → GAP 상세 조회 / 자유 질문 답변 |
 
 ---
 
@@ -732,7 +882,8 @@ agents/
 ├── limitation_agent.py              # 2-트랙 한계점 추출
 ├── limitation_eval_agent.py         # 이중 호출 한계점 평가
 ├── recency_agent.py                 # 최신성 웹 검증
-├── gap_agent.py                     # 5단계 갭 추론
+├── gap_agent.py                     # 4단계 완전 동적 축 갭 추론
+├── gap_chat_agent.py                # 결과 검토 대화 에이전트
 ├── critic_agent.py                  # 품질 게이트키퍼
 └── response_agent.py                # 최종 보고서 생성
 
