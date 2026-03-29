@@ -2660,6 +2660,7 @@ function renderMarkdown(text) {
 function copyReport() {
     navigator.clipboard.writeText(pipelineData.report).then(() => {
         const btn = document.querySelector('.report-actions button');
+        if (!btn) return;
         const orig = btn.textContent;
         btn.textContent = '복사 완료!';
         setTimeout(() => btn.textContent = orig, 1500);

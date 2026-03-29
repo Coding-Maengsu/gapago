@@ -20,7 +20,7 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 
 | 구현 | 프레임워크 | 파일 | 용도 |
 |------|-----------|------|------|
-| **메인 웹 UI** | HTML5 + CSS3 + Vanilla JavaScript | `frontend/index.html` | 프로덕션 SPA (1,325줄) |
+| **메인 웹 UI** | HTML5 + CSS3 + Vanilla JavaScript | `frontend/index.html` | 프로덕션 SPA (~2,160줄) |
 | **대안 UI 1** | Streamlit (Python) | `app.py` | Python 네이티브 웹 UI |
 | **대안 UI 2** | Gradio (Python) | `app_gradio.py` | 경량 인터페이스 |
 
@@ -56,21 +56,22 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 ### 3.2 사이드바 상세
 
 #### 로고 및 브랜딩
-- `new_logo.png` 표시
+- `new_logo.png` 표시 (클릭 시 홈 화면으로 이동)
 - "GAPAGO" 타이틀
 
 #### 새 분석 버튼
 - 전체 상태 초기화
 - 결과 영역을 빈 상태로 복원
 
-#### 설정 (4개 드롭다운)
+#### 설정 (3개 드롭다운)
 
 | 설정 | 옵션 | 기본값 |
 |------|------|--------|
 | LLM Provider | `azure`, `claude`, `exaone` | `azure` |
-| Research Domain | `auto`, `ai_cs`, `biomedical`, `materials_chemistry`, `physics`, `general` | `auto` |
 | Year Range | `auto`, `1y`, `3y`, `5y` | `auto` |
 | Output Language | `auto`, `ko`, `en` | `auto` |
+
+> **Note:** 연구 도메인(Domain) 드롭다운은 제거됨 (`auto` 고정)
 
 #### 분석 히스토리
 - 과거 분석 목록 (스크롤)
@@ -82,6 +83,7 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 #### 상태 1: 초기 (Empty State)
 - 히어로 이미지 (`middle_image.png`)
 - 설명 텍스트 (한국어/영어)
+- **분석 소요 시간 안내 문구**: "🧠 단순 검색이 아닌 논문 원문 기반 심층 분석을 수행합니다. ⏱️ 정확한 응답을 위해 5~10분이 소요될 수 있습니다."
 - **예시 쿼리 카드** (6개 카테고리, 각 2개 쿼리)
 
 | 카테고리 | 예시 |
@@ -105,9 +107,11 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 | Stage 2 | Analyzing | `limitation_extract`, `limitation_eval`, `recency_check`, `gap_infer`, `critic_score` |
 | Stage 3 | Done | `final_response` |
 
-- 실시간 상태 메시지 (애니메이션 씽킹 표시)
+- 실시간 상태 메시지 (애니메이션 씽킹 표시 + `THINKING_MESSAGES` 8초 간격 순환)
 - 경과 시간 카운터
 - 중지(Stop) 버튼
+- **타임라인 자동 접힘**: 분석 완료(`complete` 이벤트) 시 타임라인이 애니메이션으로 접힘
+- **progress 이벤트 처리**: 노드 내 중간 진행률을 타임라인 detail에 실시간 반영
 
 #### 상태 3: 인터럽트/명확화 (Clarification)
 - 노란색 경고 카드 표시
@@ -167,6 +171,7 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 ```
 
 - **Keepalive**: 30초 타임아웃 방지를 위한 heartbeat 이벤트
+- **Progress**: 노드 내 중간 진행률 이벤트 (`event: "progress"`) — 타임라인 detail에 실시간 반영
 - **재연결**: `from_idx` 파라미터로 이벤트 재생 지원
 - **페이지 새로고침 복구**: localStorage의 `gapago_active_session`으로 실행 중인 분석에 재연결
 
@@ -293,6 +298,8 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 - HTML 이스케이핑 (XSS 방지)
 - 지원 요소: 헤딩, 볼드/이탤릭, 코드 블록, 테이블, 리스트, 블록쿼트
 - 테이블: 파이프(`|`)와 구분 행 사용
+- **테이블 separator 정규식**: 유니코드 box-drawing 문자 대응 (`/^[-─━═┄┅┈┉╌╍—–:\s]+$/`)
+- **`richText()` 함수**: GAP 카드 등에서 볼드, 이탤릭, 줄바꿈을 HTML로 변환
 
 ---
 
