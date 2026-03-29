@@ -10,6 +10,9 @@ from llm import get_llm
 from config import Configuration
 from utils.parse_json import parse_json
 from utils.progress import report_progress
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import requests
+import re
 
 ROLE_TOOLS = build_role_tools()
 RETRIEVAL_TOOLS = ROLE_TOOLS["RETRIEVAL_TOOLS"]
@@ -304,6 +307,118 @@ def _resolve_year_range(year_range: str) -> str:
     return ""
 
 
+# =====================================================================
+# Full text 접근 가능 여부 체크 (빠른 테스트)
+# =====================================================================
+_REQUEST_HEADERS = {"User-Agent": "GAPAGO-Research-Agent/1.0"}
+
+
+def _extract_arxiv_id(paper: dict) -> str:
+    """paper_id에서 arXiv ID 추출."""
+    pid = paper.get("paper_id", "")
+    if pid.lower().startswith("arxiv:"):
+        pid = pid[len("arxiv:"):]
+    pid = pid.strip()
+    if not pid or not re.match(r"^(\d{4}\.\d{4,5}|[\w\-]+\.?[\w\-]*/\d{7})", pid):
+        return ""
+    pid = re.sub(r"v\d+$", "", pid)
+    return pid
+
+
+def _find_pdf_url_from_doi(doi: str) -> str:
+    """DOI 페이지에서 PDF URL 찾기 (다운로드 없음)."""
+    doi_url = doi if doi.startswith("http") else f"https://doi.org/{doi}"
+    try:
+        resp = requests.get(doi_url, headers=_REQUEST_HEADERS, timeout=10, allow_redirects=True)
+        resp.raise_for_status()
+
+        # 리다이렉트된 최종 URL이 PDF인 경우
+        if resp.headers.get("content-type", "").startswith("application/pdf"):
+            return resp.url
+
+        # HTML 페이지에서 PDF 링크 추출
+        pdf_patterns = [
+            r'href=["\']([^"\']*\.pdf[^"\']*)["\']',
+            r'href=["\']([^"\']*\/pdf[^"\']*)["\']',
+        ]
+        for pattern in pdf_patterns:
+            matches = re.findall(pattern, resp.text, re.IGNORECASE)
+            for url in matches:
+                if not url.startswith("http"):
+                    from urllib.parse import urljoin
+                    url = urljoin(resp.url, url)
+                return url
+    except Exception:
+        pass
+    return ""
+
+
+def _can_load_full_text_fast(paper: dict) -> bool:
+    """
+    Full text 접근 가능 여부만 빠르게 확인 (실제 다운로드 없음).
+    HTTP HEAD 요청 또는 URL 패턴 체크.
+    """
+    pid = paper.get("paper_id", "").lower()
+
+    # arXiv: ar5iv HTML HEAD 요청
+    if pid.startswith("arxiv:"):
+        arxiv_id = _extract_arxiv_id(paper)
+        if not arxiv_id:
+            return False
+        url = f"https://ar5iv.labs.arxiv.org/html/{arxiv_id}"
+        try:
+            resp = requests.head(url, headers=_REQUEST_HEADERS, timeout=3)
+            return resp.status_code == 200
+        except Exception:
+            return True  # arXiv는 거의 항상 접근 가능
+
+    # DOI 기반 소스: PDF 링크 찾기
+    if pid.startswith(("s2:", "openalex:", "scienceon:")):
+        doi = paper.get("doi", "") or paper.get("full_text_sections", {}).get("doi", "")
+        if not doi and paper.get("url") and "doi.org" in paper.get("url", ""):
+            doi = paper.get("url")
+
+        if doi:
+            pdf_url = _find_pdf_url_from_doi(doi)
+            return bool(pdf_url)
+        return False
+
+    # ScienceON 특허/보고서: URL 존재 여부
+    if pid.startswith(("scienceon_patent:", "scienceon_report:")):
+        fts = paper.get("full_text_sections", {})
+        for key in ("fulltext_url", "FulltextURL", "content_url", "ContentURL"):
+            if fts.get(key):
+                return True
+        return bool(paper.get("url"))
+
+    return False
+
+
+def _filter_fulltext_available(papers: list[dict], target_count: int = 30) -> list[dict]:
+    """
+    논문 리스트에서 full text 접근 가능한 논문만 필터링 (병렬 처리).
+    target_count: 목표 논문 수 (이 수만큼 확보되면 조기 종료 가능)
+    """
+    if not papers:
+        return []
+
+    print(f"  [fulltext_filter] {len(papers)}편 중 full text 접근 가능 여부 확인 중...")
+    fulltext_available = []
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {executor.submit(_can_load_full_text_fast, p): p for p in papers}
+        for future in as_completed(futures):
+            paper = futures[future]
+            try:
+                if future.result():
+                    fulltext_available.append(paper)
+            except Exception as e:
+                print(f"  ⚠️ Full text 체크 실패 ({paper.get('paper_id', 'unknown')}): {e}")
+
+    print(f"  [fulltext_filter] Full text 접근 가능: {len(fulltext_available)}/{len(papers)}편")
+    return fulltext_available
+
+
 def paper_retrieval_node(state: AgentState) -> AgentState:
     provider = state.get("llm_provider")
     session_id = state.get("session_id", "")
@@ -390,7 +505,11 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
         raw_papers = ranked.get("selected", raw_papers)
     print(f"  [DEBUG] BM25 1st stage: {len(raw_papers)} papers")
 
-    # ✅ LLM Reranker 2차 선별 (정밀)
+    # ✅ Full text 접근 가능 여부 필터링 (BM25와 Reranker 사이)
+    raw_papers = _filter_fulltext_available(raw_papers, target_count=30)
+    print(f"  [DEBUG] Full text filter: {len(raw_papers)} papers")
+
+    # ✅ LLM Reranker 2차 선별 (정밀) - full text 가능한 논문만 대상
     if raw_papers and query and len(raw_papers) > cfg.reranker_top_k:
         raw_papers = _llm_rerank(raw_papers, query, top_k=cfg.reranker_top_k, provider=provider)
     print(f"  [DEBUG] LLM Reranker 2nd stage: {len(raw_papers)} papers")

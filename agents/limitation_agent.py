@@ -582,6 +582,8 @@ def limitation_extract_node(state: AgentState) -> AgentState:
                 print(f"  ⚠️ Paper 변환 실패: {e}")
                 continue
 
+    print(f"  ✓ {len(papers)}편의 full text 접근 가능한 논문으로 limitation 추출 시작")
+
     provider = state.get("llm_provider")
     session_id = state.get("session_id", "")
     output_language = state.get("output_language", "auto")
