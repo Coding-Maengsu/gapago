@@ -83,35 +83,32 @@ Classify the input into ONE of three levels:
    SEARCHABLE decision rules:
 
      CASE 1 (✅ SEARCHABLE): [T] is present AND is specific enough to imply a focused area
-       - Task alone is sufficient if it is concrete and not generic
-       - "deepfake detection", "tumor segmentation", "fault diagnosis" → SEARCHABLE
-       - "classification", "prediction", "generation" alone → NOT sufficient (too generic)
+       - Task alone is sufficient if it is concrete and not generic.
+       - The key question is: "Does this task name imply a specific research community?"
+       - Examples of SEARCHABLE tasks (not exhaustive): "deepfake detection", "tumor segmentation",
+         "fault diagnosis", "named entity recognition", "speech emotion recognition"
+       - Examples of NOT SEARCHABLE tasks (too generic): "classification", "prediction",
+         "generation", "recognition" without any qualifier
 
      CASE 2 (✅ SEARCHABLE): Any TWO or more of [D], [T], [M], [P] are present together
-       - "Domain Adaptation + medical imaging"        → method + [D]
-       - "CNN + tumor detection"                      → architecture + [T]
-       - "audio-visual + deepfake detection"          → [M] + [T]
-       - "Transfer Learning + domain shift + NLP"     → method + [P] + [D]
+       - A method or architecture (CNN, Transformer, Domain Adaptation) counts as one additional
+         component only when paired with at least one of [D], [T], [M], or [P].
+       - Examples of SEARCHABLE combinations (not exhaustive):
+           "Domain Adaptation + medical imaging"     → method + [D]
+           "CNN + tumor detection"                   → architecture + [T]
+           "audio-visual + deepfake detection"       → [M] + [T]
+           "스마트팩토리 + 불량 탐지"                 → [D] + [T]
+           "vibration signal + fault diagnosis"      → [M] + [T]
 
      CASE 3 (❌ TOO_BROAD): Only [D] alone
-       - "의료영상 연구", "autonomous driving" alone → still too broad
+       - Domain alone does not define what to research within that domain.
 
      CASE 4 (❌ TOO_BROAD): Only [M] alone
-       - "MRI data", "time-series" alone → still too broad
+       - Modality alone spans many unrelated tasks and domains.
 
      CASE 5 (❌ TOO_BROAD): Only generic task alone
-       - "classification", "regression", "generation" → too generic without domain/modality
-
-   Examples:
-     "Domain Adaptation for medical image segmentation"   → method + [D] + [T] ✅
-     "CNN-based tumor detection in histopathology"        → architecture + [T] + [D] ✅
-     "audio-visual multimodal deepfake detection"         → [M] + [T] ✅
-     "오디오-비주얼 멀티모달을 활용한 딥페이크 탐지 연구"  → [M] + [T] ✅
-     "Transfer Learning for industrial fault diagnosis"   → method + [D] + [T] ✅
-     "deepfake detection"                                 → [T] alone, specific → ✅
-     "의료영상 분야 연구"                                  → [D] alone → ❌ TOO_BROAD
-     "MRI 데이터 연구"                                    → [M] alone → ❌ TOO_BROAD
-     "image classification"                               → generic [T] alone → ❌ TOO_BROAD
+       - Generic ML operations ("classification", "regression", "generation") without
+         any domain or modality are too broad.
 
 3. TOO_NARROW
    The combination of concepts is too unusual or overly specific → almost no related papers exist.
@@ -119,16 +116,17 @@ Classify the input into ONE of three levels:
 
 === CLASSIFICATION RULE ===
 
-Step 1. Extract from the input and label each element:
-  general_topic   : The broad research field or method category
-  specific_phrases: Any domain [D], task [T], modality [M], or research problem [P] explicitly mentioned
+Step 1. Extract from the input and label each element as [D], [T], [M], or [P].
 
 Step 2. Apply the decision logic:
   - Input matches TOO_BROAD Type A / B / C
     OR only [D] alone / only [M] alone / only generic [T] alone  → TOO_BROAD
-  - Specific [T] present alone (and is concrete)
+  - Specific [T] alone (concrete, implies a research community)
     OR two or more of [D] / [T] / [M] / [P] present together    → SEARCHABLE
-  - Combination exists but is extremely unusual                  → TOO_NARROW
+  - Combination exists but is extremely unusual in literature    → TOO_NARROW
+
+NOTE: The CASE examples above are illustrative, not exhaustive.
+Apply the underlying principles to any input, even if it does not match the examples exactly.
 
 === OUTPUT BY LEVEL ===
 
