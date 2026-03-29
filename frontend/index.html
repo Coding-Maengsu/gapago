@@ -28,6 +28,8 @@
             --yellow-light: #fef8ec;
             --red: #e54e4e;
             --red-light: #fef0f0;
+            --done: #3d8fd4;
+            --done-light: #eaf3fb;
             --shadow-sm: 0 1px 2px rgba(26,31,54,0.04);
             --shadow: 0 2px 8px rgba(26,31,54,0.06);
             --shadow-md: 0 4px 16px rgba(26,31,54,0.08);
@@ -155,6 +157,66 @@
         .history-item .meta .running-badge { color: var(--accent); font-weight: 600; animation: pulse-text 1.5s infinite; }
         @keyframes pulse-text { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
+        .history-group { margin-bottom: 2px; }
+        .history-group .history-toggle {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px 1px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-family: inherit;
+            font-size: 0.72em;
+            color: var(--text-light);
+            font-weight: 500;
+            transition: color 0.15s;
+            width: 100%;
+            text-align: left;
+        }
+        .history-group .history-toggle:hover { color: var(--accent); }
+        .history-group .history-toggle .toggle-icon {
+            display: inline-block;
+            transition: transform 0.2s;
+            font-size: 0.8em;
+        }
+        .history-group.collapsed .toggle-icon { transform: rotate(-90deg); }
+        .history-children {
+            overflow: hidden;
+            transition: max-height 0.25s ease, opacity 0.2s ease;
+            max-height: 500px;
+            opacity: 1;
+        }
+        .history-group.collapsed .history-children {
+            max-height: 0;
+            opacity: 0;
+        }
+        .history-children .history-item {
+            padding-left: 24px;
+            position: relative;
+        }
+        .history-children .history-item::before {
+            content: '';
+            position: absolute;
+            left: 14px;
+            top: 0;
+            bottom: 0;
+            width: 1.5px;
+            background: var(--border);
+        }
+        .history-children .history-item:last-child::before {
+            bottom: 50%;
+        }
+        .history-children .history-item::after {
+            content: '';
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            width: 6px;
+            height: 1.5px;
+            background: var(--border);
+        }
+
         /* ── Main ── */
         .main {
             flex: 1;
@@ -199,6 +261,13 @@
         .input-row input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
         .input-row input:disabled { opacity: 0.5; cursor: not-allowed; }
 
+        .input-guide {
+            font-size: 0.78em;
+            color: var(--text-light);
+            margin-top: 6px;
+            padding-left: 2px;
+        }
+
         .run-btn {
             padding: 12px 28px;
             background: var(--accent);
@@ -240,62 +309,117 @@
             padding: 28px 36px;
         }
 
-        /* ── Stepper ── */
-        .stepper {
+        /* ── Timeline ── */
+        .timeline {
+            max-width: 520px;
+            margin: 0 auto 28px;
+            padding: 0 8px;
+        }
+
+        .timeline-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            position: relative;
+            padding-bottom: 8px;
+            min-height: 48px;
+        }
+
+        .timeline-item:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            left: 15px;
+            top: 34px;
+            bottom: 0;
+            width: 2px;
+            background: var(--border);
+            transition: background 0.3s;
+        }
+
+        .timeline-item.done:not(:last-child)::after { background: var(--done); }
+        .timeline-item.active:not(:last-child)::after { background: linear-gradient(to bottom, var(--accent), var(--border)); }
+
+        .timeline-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 0;
-            margin-bottom: 24px;
-            padding: 0 20px;
-        }
-
-        .step { display: flex; align-items: center; gap: 8px; }
-
-        .step-dot {
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
+            font-size: 14px;
+            flex-shrink: 0;
             background: var(--surface2);
             border: 2px solid var(--border);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.78em;
-            font-weight: 700;
             color: var(--text-light);
             transition: all 0.3s;
+            z-index: 1;
         }
 
-        .step.active .step-dot {
+        .timeline-item.done .timeline-icon {
+            background: var(--done);
+            border-color: var(--done);
+            color: #fff;
+        }
+
+        .timeline-item.active .timeline-icon {
             background: var(--accent-light);
             border-color: var(--accent);
             color: var(--accent);
             animation: pulse 1.5s infinite;
         }
 
-        .step.done .step-dot {
-            background: var(--green);
-            border-color: var(--green);
-            color: #fff;
-        }
-
-        .step-label { font-size: 0.84em; font-weight: 500; color: var(--text-light); }
-        .step.active .step-label { color: var(--accent); font-weight: 600; }
-        .step.done .step-label { color: var(--green); }
-
-        .step-line {
-            width: 56px;
-            height: 2px;
-            background: var(--border);
-            margin: 0 8px;
-            transition: background 0.3s;
-        }
-        .step-line.done { background: var(--green); }
-
         @keyframes pulse {
             0%, 100% { box-shadow: 0 0 0 0 rgba(84,105,212,0.25); }
             50% { box-shadow: 0 0 0 8px rgba(84,105,212,0); }
+        }
+
+        .timeline-content {
+            flex: 1;
+            padding-top: 4px;
+        }
+
+        .timeline-label {
+            font-size: 0.92em;
+            font-weight: 600;
+            color: var(--text-light);
+            transition: color 0.3s;
+        }
+
+        .timeline-item.done .timeline-label { color: var(--done); }
+        .timeline-item.active .timeline-label { color: var(--accent); }
+
+        .timeline-detail {
+            font-size: 0.8em;
+            color: var(--text-light);
+            margin-top: 2px;
+            line-height: 1.5;
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transition: max-height 0.3s, opacity 0.3s;
+        }
+
+        .timeline-item.done .timeline-detail,
+        .timeline-item.active .timeline-detail {
+            max-height: 200px;
+            opacity: 1;
+        }
+
+        .timeline-detail .keyword-tag {
+            display: inline-block;
+            background: var(--accent-light);
+            color: var(--accent);
+            padding: 1px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            margin: 2px 2px 0 0;
+        }
+
+        .timeline-detail .paper-title-mini {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 340px;
         }
 
         /* ── Status ── */
@@ -309,123 +433,391 @@
         .status-msg .detail { font-size: 0.84em; font-weight: 400; color: var(--text-light); margin-top: 3px; transition: opacity 0.3s; }
         .status-msg .elapsed { font-size: 0.78em; color: var(--text-light); margin-top: 4px; opacity: 0.5; }
 
-        /* ── Sub-step Timeline ── */
-        .timeline { max-width: 420px; margin: 0 auto 20px; padding: 0 10px; }
-        .tl-item {
-            display: flex; align-items: flex-start; gap: 12px;
-            padding: 7px 0; position: relative;
-            transition: opacity 0.3s;
-        }
-        .tl-item.pending { opacity: 0.35; }
-        .tl-item.active { opacity: 1; }
-        .tl-item.done { opacity: 0.7; }
-
-        .tl-icon {
-            width: 28px; height: 28px; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 0.85em; flex-shrink: 0;
-            background: var(--surface2); border: 2px solid var(--border);
-            transition: all 0.3s;
-        }
-        .tl-item.active .tl-icon { border-color: var(--accent); background: var(--accent-light); animation: pulse 1.5s infinite; }
-        .tl-item.done .tl-icon { border-color: var(--green); background: var(--green); }
-        .tl-item.done .tl-icon::after { content: '✓'; color: #fff; font-size: 0.75em; font-weight: 700; }
-        .tl-item.done .tl-icon .tl-emoji { display: none; }
-
-        .tl-body { flex: 1; min-width: 0; }
-        .tl-label { font-size: 0.88em; font-weight: 600; color: var(--text-dim); line-height: 1.4; }
-        .tl-item.active .tl-label { color: var(--accent); }
-        .tl-item.done .tl-label { color: var(--green); }
-        .tl-detail { font-size: 0.78em; color: var(--text-light); margin-top: 2px; line-height: 1.4; }
-        .tl-progress { width: 100%; height: 4px; background: var(--surface2); border-radius: 2px; margin-top: 5px; overflow: hidden; }
-        .tl-progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.4s ease; }
-
-        /* ── Tabs ── */
-        .tabs {
+        /* ── 2-Panel Results ── */
+        .result-summary-header {
             display: flex;
-            gap: 2px;
-            margin-bottom: 20px;
-            border-bottom: 1.5px solid var(--border-light);
+            align-items: center;
+            gap: 16px;
+            padding: 14px 20px;
+            background: var(--accent-bg);
+            border-radius: var(--radius);
+            margin-bottom: 16px;
+            flex-wrap: wrap;
         }
 
-        .tab {
-            padding: 10px 20px;
-            font-size: 0.95em;
+        .result-summary-header .summary-item {
+            font-size: 0.86em;
+            color: var(--text-dim);
             font-weight: 500;
+        }
+
+        .result-summary-header .summary-item strong {
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        .result-summary-header .summary-divider {
+            width: 1px;
+            height: 16px;
+            background: var(--border);
+        }
+
+        .result-panels {
+            display: flex;
+            gap: 16px;
+            min-height: 400px;
+        }
+
+        .panel-left {
+            width: 35%;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            overflow-y: auto;
+            max-height: calc(100vh - 320px);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-lg);
+            background: var(--surface);
+        }
+
+        .panel-section-header {
+            padding: 12px 16px 8px;
+            font-size: 0.78em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
             color: var(--text-light);
+            background: var(--surface);
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .gap-item-compact {
+            padding: 12px 16px;
             cursor: pointer;
-            border: none;
-            background: none;
-            font-family: inherit;
-            border-bottom: 2.5px solid transparent;
-            margin-bottom: -1.5px;
+            border-bottom: 1px solid var(--border-light);
+            border-left: 3px solid transparent;
             transition: all 0.15s;
         }
 
-        .tab:hover { color: var(--text-dim); }
-        .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
+        .gap-item-compact:hover { background: var(--accent-bg); }
+        .gap-item-compact.active { border-left-color: var(--accent); background: var(--accent-bg); }
 
-        /* ── Papers table ── */
-        table { width: 100%; border-collapse: collapse; font-size: 0.97em; }
-
-        th {
-            text-align: left;
-            padding: 10px 14px;
-            background: var(--surface2);
-            color: var(--text-light);
-            font-weight: 600;
-            font-size: 0.8em;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
+        .gap-item-compact .gap-compact-rank {
+            display: inline-block;
+            font-size: 0.72em;
+            font-weight: 700;
+            padding: 1px 7px;
+            border-radius: 4px;
+            background: var(--accent-light);
+            color: var(--accent);
+            margin-right: 6px;
+            vertical-align: middle;
         }
-        th:first-child { border-radius: var(--radius) 0 0 0; }
-        th:last-child { border-radius: 0 var(--radius) 0 0; }
 
-        td { padding: 11px 14px; border-bottom: 1px solid var(--border-light); }
-        tr:hover { background: var(--accent-bg); }
-        td a { color: var(--accent); text-decoration: none; font-weight: 500; }
-        td a:hover { text-decoration: underline; }
+        .gap-item-compact .gap-compact-rank.top { background: var(--yellow-light); color: var(--yellow); }
 
-        /* ── GAP cards ── */
-        .gap-card {
+        .gap-item-compact .gap-compact-axis {
+            font-size: 0.75em;
+            color: var(--text-light);
+            display: inline;
+            vertical-align: middle;
+        }
+
+        .gap-item-compact .gap-compact-statement {
+            font-size: 0.88em;
+            font-weight: 500;
+            color: var(--text);
+            margin-top: 4px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .paper-item-compact {
+            padding: 10px 16px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-light);
+            border-left: 3px solid transparent;
+            transition: all 0.15s;
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        .paper-item-compact:hover { background: var(--accent-bg); }
+        .paper-item-compact.active { border-left-color: var(--accent); background: var(--accent-bg); }
+
+        .paper-item-compact .paper-num {
+            font-size: 0.78em;
+            font-weight: 700;
+            color: var(--text-light);
+            flex-shrink: 0;
+            min-width: 20px;
+        }
+
+        .paper-item-compact .paper-compact-info { flex: 1; min-width: 0; }
+
+        .paper-item-compact .paper-compact-title {
+            font-size: 0.86em;
+            font-weight: 500;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .paper-item-compact .paper-compact-meta {
+            font-size: 0.74em;
+            color: var(--text-light);
+            margin-top: 2px;
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .venue-badge {
+            display: inline-block;
+            background: var(--surface2);
+            border: 1px solid var(--border-light);
+            padding: 0 6px;
+            border-radius: 4px;
+            font-size: 0.92em;
+            font-weight: 500;
+            color: var(--text-dim);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 120px;
+        }
+
+        .panel-right {
+            flex: 1;
+            min-width: 0;
+            overflow-y: auto;
+            max-height: calc(100vh - 320px);
+        }
+
+        .detail-panel {
             background: var(--surface);
             border: 1px solid var(--border-light);
             border-radius: var(--radius-lg);
-            padding: 22px;
-            margin-bottom: 12px;
+            padding: 24px;
             box-shadow: var(--shadow-sm);
-            border-left: 4px solid var(--accent);
-            transition: box-shadow 0.15s, transform 0.1s;
         }
-        .gap-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
-        .gap-card.top { border-left-color: var(--yellow); }
 
-        .gap-rank {
-            display: inline-block;
-            font-size: 0.76em;
+        .detail-panel .detail-gap-statement {
+            font-size: 1.15em;
             font-weight: 700;
-            padding: 3px 10px;
-            border-radius: 5px;
+            color: var(--text);
+            margin-bottom: 12px;
+            line-height: 1.6;
+        }
+
+        .detail-panel .detail-gap-axis {
+            font-size: 0.84em;
+            color: var(--text-light);
+            margin-bottom: 12px;
+        }
+
+        .detail-panel .detail-gap-elaboration {
+            font-size: 0.98em;
+            color: var(--text-dim);
+            line-height: 1.75;
+            margin-bottom: 16px;
+        }
+
+        .detail-panel .detail-section-title {
+            font-size: 0.8em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: var(--text-light);
+            margin: 16px 0 8px;
+        }
+
+        .detail-panel .supporting-paper-chip {
+            display: inline-block;
             background: var(--accent-light);
             color: var(--accent);
-            margin-bottom: 10px;
-            letter-spacing: 0.3px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.82em;
+            font-weight: 500;
+            margin: 3px 4px 3px 0;
+            cursor: pointer;
+            transition: background 0.15s;
         }
-        .gap-card.top .gap-rank { background: var(--yellow-light); color: var(--yellow); }
 
-        .gap-card .axis { font-size: 0.86em; color: var(--text-light); margin-bottom: 6px; }
-        .gap-card .statement { font-size: 1.12em; font-weight: 700; color: var(--text); margin-bottom: 10px; line-height: 1.65; }
-        .gap-card .elaboration { font-size: 1em; color: var(--text-dim); line-height: 1.75; margin-bottom: 10px; }
-        .gap-card .topic { font-size: 0.96em; color: var(--accent2); font-weight: 600; padding: 10px 14px; background: linear-gradient(135deg, rgba(124,92,191,0.08), rgba(84,105,212,0.08)); border-left: 3px solid var(--accent2); border-radius: 0 8px 8px 0; margin-top: 10px; }
-        .gap-card .papers-info { font-size: 0.84em; color: var(--text-light); margin-top: 8px; line-height: 1.6; }
-        .gap-card .papers-info .paper-link { color: var(--accent); text-decoration: none; font-weight: 500; }
-        .gap-card .papers-info .paper-link:hover { text-decoration: underline; }
-        tr.highlight { background: rgba(84,105,212,0.15) !important; box-shadow: inset 4px 0 0 var(--accent); transition: background 0.5s, box-shadow 0.5s; }
+        .detail-panel .supporting-paper-chip:hover { background: var(--accent); color: #fff; }
 
-        /* ── Report ── */
-        .report-content { font-size: 1.02em; line-height: 1.55; color: var(--text); padding-bottom: 40px; }
+        .detail-panel .supporting-quote {
+            font-size: 0.88em;
+            color: var(--text-dim);
+            font-style: italic;
+            padding: 8px 14px;
+            margin: 4px 0;
+            border-left: 3px solid var(--border);
+            background: var(--surface2);
+            border-radius: 0 6px 6px 0;
+        }
+
+        .detail-panel .proposed-topic-box {
+            padding: 14px 18px;
+            background: linear-gradient(135deg, rgba(124,92,191,0.08), rgba(84,105,212,0.08));
+            border-left: 3px solid var(--accent2);
+            border-radius: 0 var(--radius) var(--radius) 0;
+            margin-top: 16px;
+        }
+
+        .detail-panel .proposed-topic-box .topic-label {
+            font-size: 0.78em;
+            font-weight: 700;
+            color: var(--accent2);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 4px;
+        }
+
+        .detail-panel .proposed-topic-box .topic-text {
+            font-size: 0.98em;
+            font-weight: 600;
+            color: var(--accent2);
+            line-height: 1.5;
+        }
+
+        .explore-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 14px;
+            padding: 10px 20px;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.88em;
+            font-family: inherit;
+            transition: background 0.15s, box-shadow 0.15s;
+        }
+
+        .explore-btn:hover { background: var(--accent-hover); box-shadow: 0 2px 8px rgba(84,105,212,0.25); }
+
+        /* Paper detail */
+        .detail-panel .paper-detail-title {
+            font-size: 1.12em;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+
+        .detail-panel .paper-detail-meta {
+            font-size: 0.84em;
+            color: var(--text-light);
+            margin-bottom: 6px;
+            line-height: 1.6;
+        }
+
+        .detail-panel .paper-detail-abstract {
+            font-size: 0.94em;
+            color: var(--text-dim);
+            line-height: 1.7;
+            margin-top: 12px;
+        }
+
+        .detail-panel .paper-detail-link {
+            display: inline-block;
+            margin-top: 8px;
+            color: var(--accent);
+            font-weight: 500;
+            text-decoration: none;
+            font-size: 0.88em;
+        }
+
+        .detail-panel .paper-detail-link:hover { text-decoration: underline; }
+
+        .detail-panel .paper-limitation-item {
+            padding: 8px 12px;
+            background: var(--surface2);
+            border-radius: 8px;
+            margin-bottom: 6px;
+            font-size: 0.88em;
+            color: var(--text-dim);
+            line-height: 1.6;
+        }
+
+        /* ── Report Collapse ── */
+        .report-collapse {
+            margin-top: 16px;
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-lg);
+            background: var(--surface);
+            overflow: hidden;
+        }
+
+        .report-collapse-toggle {
+            width: 100%;
+            padding: 14px 20px;
+            background: var(--surface);
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.92em;
+            font-weight: 600;
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: background 0.15s;
+        }
+
+        .report-collapse-toggle:hover { background: var(--surface2); }
+
+        .report-collapse-toggle .toggle-arrow {
+            transition: transform 0.2s;
+            font-size: 0.8em;
+        }
+
+        .report-collapse.open .toggle-arrow { transform: rotate(180deg); }
+
+        .report-collapse-body {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .report-collapse.open .report-collapse-body {
+            max-height: 5000px;
+        }
+
+        .report-collapse-inner {
+            padding: 0 20px 20px;
+        }
+
+        .report-actions { display: flex; gap: 8px; margin-bottom: 18px; }
+        .report-actions button {
+            padding: 8px 18px;
+            font-size: 0.84em;
+            font-family: inherit;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text-dim);
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.15s;
+        }
+        .report-actions button:hover { background: var(--surface2); color: var(--text); border-color: var(--accent); }
+
+        /* ── Report Content ── */
+        .report-content { font-size: 1.02em; line-height: 1.55; color: var(--text); }
         .report-content h1 { font-size: 1.45em; color: var(--text); margin: 20px 0 8px; padding-bottom: 6px; border-bottom: 2px solid var(--accent); font-weight: 700; }
         .report-content h2 { font-size: 1.25em; color: var(--text); margin: 16px 0 6px; padding: 4px 10px; font-weight: 700; background: linear-gradient(transparent 40%, rgba(99,102,241,0.18) 40%); display: inline-block; border-radius: 3px; }
         .report-content h3 { font-size: 1.1em; color: var(--accent); margin: 12px 0 6px; font-weight: 600; }
@@ -442,21 +834,6 @@
         .report-content hr { border: none; border-top: 1px solid var(--border-light); margin: 14px 0; }
         .report-content p { margin: 4px 0; }
         .report-content .gap-break { display: block; margin-top: 12px; }
-
-        .report-actions { display: flex; gap: 8px; margin-bottom: 18px; }
-        .report-actions button {
-            padding: 8px 18px;
-            font-size: 0.84em;
-            font-family: inherit;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            background: var(--surface);
-            color: var(--text-dim);
-            cursor: pointer;
-            font-weight: 500;
-            transition: all 0.15s;
-        }
-        .report-actions button:hover { background: var(--surface2); color: var(--text); border-color: var(--accent); }
 
         /* ── Interrupt ── */
         .interrupt-card {
@@ -499,7 +876,99 @@
         .btn-skip { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); }
         .btn-skip:hover { background: var(--surface3); }
 
-        /* ── Empty state ── */
+        /* ── Landing: Workflow Section ── */
+        .workflow-section {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0;
+            margin: 28px auto 0;
+            max-width: 680px;
+            padding: 0 16px;
+        }
+
+        .workflow-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+
+        .workflow-step .wf-icon {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            background: var(--accent-light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+
+        .workflow-step .wf-label {
+            font-size: 0.82em;
+            font-weight: 600;
+            color: var(--text);
+            text-align: center;
+        }
+
+        .workflow-arrow {
+            font-size: 1.2em;
+            color: var(--text-light);
+            margin: 0 -4px;
+            padding-bottom: 24px;
+        }
+
+        /* ── Landing: Service Cards ── */
+        .service-cards-section {
+            max-width: 720px;
+            margin: 32px auto 0;
+            padding: 0 16px;
+        }
+
+        .service-cards-section h3 {
+            text-align: center;
+            font-size: 1.06em;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 16px;
+        }
+
+        .service-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+        }
+
+        .service-card {
+            background: var(--surface);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-lg);
+            padding: 20px 16px;
+            text-align: center;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .service-card .sc-icon {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .service-card .sc-title {
+            font-size: 0.9em;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 6px;
+        }
+
+        .service-card .sc-desc {
+            font-size: 0.78em;
+            color: var(--text-light);
+            line-height: 1.5;
+        }
+
+        /* ── Empty state (examples) ── */
         .empty-state { text-align: center; padding: 60px 20px 60px; }
         .empty-state .subtitle { font-size: 0.96em; color: var(--text-dim); line-height: 1.65; max-width: 520px; margin: 0 auto; }
         .example-queries { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 32px; max-width: 720px; margin-left: auto; margin-right: auto; }
@@ -544,6 +1013,208 @@
             transition: opacity 0.15s;
         }
         .error-banner button:hover { opacity: 0.85; }
+
+        /* ── Dynamic GAP ── */
+        .gap-item-compact.dynamic {
+            border-left: 3px solid var(--accent2);
+            background: linear-gradient(135deg, rgba(124,92,191,0.04), transparent);
+        }
+        .gap-item-compact.dynamic:hover { background: linear-gradient(135deg, rgba(124,92,191,0.08), rgba(84,105,212,0.04)); }
+        .gap-item-compact.dynamic.active { border-left-color: var(--accent2); background: linear-gradient(135deg, rgba(124,92,191,0.10), rgba(84,105,212,0.05)); }
+
+        .gap-compact-axis-badge {
+            display: inline-block;
+            font-size: 0.68em;
+            font-weight: 700;
+            padding: 1px 6px;
+            border-radius: 3px;
+            margin-left: 4px;
+            vertical-align: middle;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        .gap-compact-axis-badge.fixed { background: var(--surface2); color: var(--text-light); }
+        .gap-compact-axis-badge.dynamic { background: rgba(124,92,191,0.12); color: var(--accent2); }
+
+        /* ── Analysis Options Bar ── */
+        .analysis-options-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .opt-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            background: var(--surface2);
+            border: 1px solid var(--border-light);
+            border-radius: 6px;
+            font-size: 0.78em;
+            color: var(--text-dim);
+            font-weight: 500;
+        }
+        .opt-chip .opt-label { color: var(--text-light); font-weight: 400; margin-right: 2px; }
+
+        /* ── Timeline Collapse ── */
+        .timeline.collapsing {
+            max-height: 600px;
+            overflow: hidden;
+            transition: max-height 0.6s ease, opacity 0.4s ease;
+        }
+        .timeline.collapsed {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* ── Analysis 2-Split Layout ── */
+        .analysis-layout {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .analysis-status-bar {
+            text-align: center;
+            padding: 16px 20px 12px;
+            margin-bottom: 8px;
+        }
+        .analysis-status-bar .status-text {
+            font-size: 1em;
+            font-weight: 600;
+            color: var(--text);
+        }
+        .analysis-status-bar .status-detail {
+            font-size: 0.84em;
+            font-weight: 400;
+            color: var(--text-light);
+            margin-top: 3px;
+            transition: opacity 0.3s;
+        }
+        .analysis-status-bar .status-elapsed {
+            font-size: 0.78em;
+            color: var(--text-light);
+            margin-top: 4px;
+            opacity: 0.5;
+        }
+
+        .analysis-body {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        .analysis-timeline-panel {
+            width: 280px;
+            flex-shrink: 0;
+        }
+        .analysis-timeline-panel .timeline {
+            max-width: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        .analysis-preview-panel {
+            flex: 1;
+            min-width: 0;
+            background: var(--surface);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            min-height: 300px;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .preview-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 260px;
+            color: var(--text-light);
+            font-size: 0.9em;
+            text-align: center;
+            gap: 8px;
+        }
+        .preview-empty .preview-icon { font-size: 2em; opacity: 0.4; }
+
+        .preview-section {
+            margin-bottom: 16px;
+            animation: fadeInUp 0.3s ease;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .preview-section-title {
+            font-size: 0.78em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-light);
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .preview-paper-item {
+            padding: 8px 12px;
+            background: var(--surface2);
+            border-radius: 8px;
+            margin-bottom: 6px;
+            font-size: 0.86em;
+        }
+        .preview-paper-item .preview-paper-title {
+            font-weight: 500;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .preview-paper-item .preview-paper-meta {
+            font-size: 0.82em;
+            color: var(--text-light);
+            margin-top: 2px;
+        }
+
+        .preview-limitation-item {
+            padding: 8px 12px;
+            background: var(--surface2);
+            border-radius: 8px;
+            margin-bottom: 6px;
+            font-size: 0.84em;
+            color: var(--text-dim);
+            line-height: 1.5;
+            border-left: 3px solid var(--yellow);
+        }
+
+        .preview-gap-card {
+            padding: 12px 16px;
+            background: linear-gradient(135deg, rgba(84,105,212,0.06), rgba(124,92,191,0.06));
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius);
+            margin-bottom: 8px;
+        }
+        .preview-gap-card .preview-gap-axis {
+            font-size: 0.75em;
+            color: var(--text-light);
+            margin-bottom: 4px;
+        }
+        .preview-gap-card .preview-gap-statement {
+            font-size: 0.9em;
+            font-weight: 600;
+            color: var(--text);
+            line-height: 1.5;
+        }
+        .preview-gap-card.dynamic {
+            border-left: 3px solid var(--accent2);
+        }
 
         /* ── Scrollbar ── */
         ::-webkit-scrollbar { width: 5px; }
@@ -602,27 +1273,28 @@
             .example-queries { grid-template-columns: 1fr; margin-top: 20px; }
             .example-btn { font-size: 0.78em; padding: 8px 14px; }
 
-            .stepper { padding: 0; margin-bottom: 12px; }
-            .step-dot { width: 26px; height: 26px; font-size: 0.68em; }
-            .step-label { font-size: 0.7em; }
-            .step-line { width: 32px; margin: 0 4px; }
+            .workflow-section { flex-direction: column; gap: 4px; }
+            .workflow-arrow { transform: rotate(90deg); padding-bottom: 0; margin: 0; }
+
+            .service-cards { grid-template-columns: 1fr; }
+
+            .timeline { max-width: 100%; }
+            .timeline-detail .paper-title-mini { max-width: 200px; }
+
+            .result-panels { flex-direction: column; }
+            .panel-left { width: 100%; max-height: 300px; }
+            .panel-right { max-height: none; }
 
             .status-msg { font-size: 0.82em; }
-            .timeline { max-width: 100%; padding: 0 4px; }
-            .tl-item { padding: 5px 0; gap: 8px; }
-            .tl-icon { width: 24px; height: 24px; font-size: 0.75em; }
-            .tl-label { font-size: 0.8em; }
-            .tl-detail { font-size: 0.72em; }
 
-            .tabs { gap: 0; }
-            .tab { padding: 8px 12px; font-size: 0.78em; }
+            .analysis-body { flex-direction: column; }
+            .analysis-timeline-panel { width: 100%; }
+            .analysis-preview-panel { min-height: 200px; }
 
-            table { font-size: 0.78em; }
-            th, td { padding: 8px 8px; }
+            .gap-item-compact .gap-compact-statement { font-size: 0.82em; }
+            .paper-item-compact .paper-compact-title { font-size: 0.8em; }
 
-            .gap-card { padding: 16px; margin-bottom: 10px; }
-            .gap-card .statement { font-size: 0.88em; }
-            .gap-card .elaboration { font-size: 0.8em; }
+            .detail-panel { padding: 16px; }
 
             .report-content { font-size: 0.84em; line-height: 1.7; }
 
@@ -639,8 +1311,6 @@
             .input-row input { font-size: 0.8em; padding: 9px 10px; }
             .run-btn, .stop-btn { padding: 9px 14px; font-size: 0.8em; }
             .results { padding: 12px; }
-            .step-label { display: none; }
-            .step-line { width: 24px; }
         }
     </style>
 </head>
@@ -658,44 +1328,45 @@
         </a>
     </div>
 
-    <button class="new-btn" onclick="newAnalysis()">+ New Analysis</button>
+    <button class="new-btn" onclick="newAnalysis()">+ 새 분석</button>
 
     <div class="settings-section">
-        <label>LLM Provider</label>
+        <label>LLM 프로바이더</label>
         <select id="provider">
             <option value="azure">Azure OpenAI (GPT)</option>
             <option value="claude">Claude (Anthropic)</option>
             <option value="exaone">EXAONE (Local)</option>
         </select>
-        <label>Year Range</label>
+        <label>연도 범위</label>
         <select id="yearRange">
-            <option value="auto">Auto (AI 추천)</option>
-            <option value="1y">Latest (1 year)</option>
-            <option value="3y">Recent (3 years)</option>
-            <option value="5y">Broad (5 years)</option>
+            <option value="auto">자동 (AI 추천)</option>
+            <option value="1y">최근 1년</option>
+            <option value="3y">최근 3년</option>
+            <option value="5y">최근 5년</option>
         </select>
-        <label>Language</label>
+        <label>답변 언어</label>
         <select id="outputLanguage">
-            <option value="auto">Auto (입력 언어 감지)</option>
+            <option value="auto">자동 (입력 언어 감지)</option>
             <option value="ko">한국어</option>
             <option value="en">English</option>
         </select>
     </div>
 
     <div class="history-section" id="historySection">
-        <h3>History</h3>
+        <h3>분석 히스토리</h3>
     </div>
 </aside>
 
 <!-- Main -->
 <div class="main">
     <div class="input-area">
-        <div class="input-header">Describe your research direction or topic</div>
+        <div class="input-header">연구 주제 또는 방향을 입력하세요</div>
         <div class="input-row">
-            <input type="text" id="queryInput" placeholder="e.g. Domain adaptation for fault detection in smart manufacturing"
+            <input type="text" id="queryInput" placeholder="연구하고 싶은 주제를 입력하세요"
                    onkeydown="if(event.key==='Enter') startAnalysis()">
-            <button class="run-btn" id="runBtn">Analyze</button>
+            <button class="run-btn" id="runBtn">분석 시작</button>
         </div>
+        <div class="input-guide">논문 제목이나 연구 키워드를 입력하세요</div>
     </div>
 
     <div class="results" id="results"></div>
@@ -717,45 +1388,51 @@ window.onerror = function(msg, url, line) {
     document.body.prepend(d);
 };
 
-const STAGE_MAP = {
-    query_subgraph: 0, meaning_expand: 0, paper_retrieval: 0,
-    limitation_extract: 1, limitation_eval: 1, recency_check: 1, gap_infer: 1, critic_score: 1,
-    final_response: 2
-};
-const STAGE_LABELS = ['Searching', 'Analyzing', 'Done'];
-const STAGE_DETAILS = {
-    query_subgraph: 'Refining your query to find the best papers...',
-    meaning_expand: 'Expanding search terms for broader coverage...',
-    paper_retrieval: 'Searching academic databases for relevant papers...',
-    limitation_extract: 'Reading papers and extracting limitations...',
-    limitation_eval: 'Evaluating extracted limitations for quality...',
-    recency_check: 'Checking if limitations are still relevant...',
-    gap_infer: 'Synthesizing gaps across multiple papers...',
-    critic_score: 'Reviewing results for accuracy — thinking deeper...',
-    final_response: 'Writing your research gap report...',
-};
+// ── Timeline configuration ──
+const TIMELINE_NODES = [
+    { id: 'query', label: '질문 분석 & 검색어 확장', nodes: ['query_subgraph', 'meaning_expand'] },
+    { id: 'retrieval', label: '논문 검색', nodes: ['paper_retrieval'] },
+    { id: 'limitation', label: '한계점 추출', nodes: ['limitation_extract'] },
+    { id: 'eval', label: '한계점 품질 평가', nodes: ['limitation_eval'] },
+    { id: 'recency', label: '최신성 검증', nodes: ['recency_check'] },
+    { id: 'gap', label: '연구 GAP 도출', nodes: ['gap_infer'] },
+    { id: 'critic', label: '결과 검증', nodes: ['critic_score'] },
+    { id: 'report', label: '리포트 작성', nodes: ['final_response'] },
+];
+
 const THINKING_MESSAGES = [
-    'Thinking deeply for better results...',
-    'Carefully reviewing the data...',
-    'Cross-referencing findings...',
-    'Almost there — refining the analysis...',
+    '더 나은 결과를 위해 깊이 분석 중...',
+    '데이터를 꼼꼼히 검토하고 있습니다...',
+    '교차 검증을 진행하고 있습니다...',
+    '거의 완료되었습니다 — 분석을 정리하고 있습니다...',
 ];
-const SUB_STEPS = [
-    { id: 'query',       icon: '🔍', label: '질문 분석 & 검색어 확장', nodes: ['query_subgraph', 'meaning_expand'] },
-    { id: 'retrieval',   icon: '📚', label: '논문 검색',             nodes: ['paper_retrieval'] },
-    { id: 'limitation',  icon: '📖', label: '한계점 추출',            nodes: ['limitation_extract'] },
-    { id: 'eval',        icon: '🔬', label: '한계점 품질 평가',       nodes: ['limitation_eval'] },
-    { id: 'recency',     icon: '🕐', label: '최신성 검증',            nodes: ['recency_check'] },
-    { id: 'gap',         icon: '💡', label: '연구 GAP 도출',           nodes: ['gap_infer'] },
-    { id: 'critic',      icon: '🧐', label: '결과 검증',              nodes: ['critic_score'] },
-    { id: 'report',      icon: '📝', label: '리포트 작성',            nodes: ['final_response'] },
-];
-let _completedNodes = new Set();
+
 let _thinkingInterval = null;
 let _startTime = null;
+let _elapsedInterval = null;
 let currentSessionId = null;
-let pipelineData = { papers: [], gaps: [], report: '' };
-let _activeReader = null;  // current SSE reader for stop cleanup
+let _activeReader = null;
+
+let pipelineData = {
+    refined_query: '',
+    keywords: [],
+    papers: [],
+    total_searched: 0,
+    limitations: [],
+    limitation_eval: {},
+    recency_status: {},
+    gaps: [],
+    report: '',
+    analysisOptions: {},
+};
+
+// Track timeline detail text per node
+let timelineDetails = {};
+// Track which timeline step is active/done
+let timelineState = {};  // { id: 'pending' | 'active' | 'done' }
+
+// Selected item in results panel
+let selectedItem = { type: null, index: 0 };
 
 const EXAMPLE_CATEGORIES = {
     'AI / Machine Learning': [
@@ -810,7 +1487,6 @@ const EXAMPLE_CATEGORIES = {
 
 function getRandomExamples(perCategory = 2) {
     const cats = Object.keys(EXAMPLE_CATEGORIES);
-    // Pick a random subset of 3-4 categories
     const shuffled = cats.sort(() => Math.random() - 0.5);
     const selected = shuffled.slice(0, 4);
     const examples = [];
@@ -838,12 +1514,54 @@ function getEmptyStateHTML() {
             연구 방향을 입력하면 관련 논문을 검색하고, 한계점을 분석하여<br>
             새로운 연구 기회(Research GAP)를 자동으로 발견해 드립니다.
         </p>
-        <p style="font-size:0.84em;color:var(--text-light);margin-top:12px;line-height:1.6;">
-            🧠 단순 검색이 아닌 논문 원문 기반 심층 분석을 수행합니다.<br>
-            ⏱️ 정확한 응답을 위해 5~10분이 소요될 수 있습니다.
-        </p>
+
+        <!-- Workflow Infographic -->
+        <div class="workflow-section">
+            <div class="workflow-step">
+                <div class="wf-icon">&#x1F50D;</div>
+                <div class="wf-label">질문 입력</div>
+            </div>
+            <div class="workflow-arrow">&#x2192;</div>
+            <div class="workflow-step">
+                <div class="wf-icon">&#x1F4DA;</div>
+                <div class="wf-label">논문 검색·분석</div>
+            </div>
+            <div class="workflow-arrow">&#x2192;</div>
+            <div class="workflow-step">
+                <div class="wf-icon">&#x1F4A1;</div>
+                <div class="wf-label">연구 GAP 도출</div>
+            </div>
+            <div class="workflow-arrow">&#x2192;</div>
+            <div class="workflow-step">
+                <div class="wf-icon">&#x1F9ED;</div>
+                <div class="wf-label">연구 방향 제안</div>
+            </div>
+        </div>
+
+        <!-- Service Description -->
+        <div class="service-cards-section">
+            <h3>왜 GAPAGO인가?</h3>
+            <div class="service-cards">
+                <div class="service-card">
+                    <div class="sc-icon">&#x1F4D6;</div>
+                    <div class="sc-title">논문 원문 기반 심층 분석</div>
+                    <div class="sc-desc">단순 초록이 아닌 논문 전문을 분석하여 더 정확한 한계점을 추출합니다</div>
+                </div>
+                <div class="service-card">
+                    <div class="sc-icon">&#x1F310;</div>
+                    <div class="sc-title">멀티소스 130편+ 검색</div>
+                    <div class="sc-desc">arXiv, Semantic Scholar, ScienceON 등 다중 데이터베이스에서 광범위하게 검색합니다</div>
+                </div>
+                <div class="service-card">
+                    <div class="sc-icon">&#x1F3AF;</div>
+                    <div class="sc-title">증거 기반 연구 GAP 도출</div>
+                    <div class="sc-desc">논문의 실제 한계점에 기반하여 신뢰도 높은 연구 기회를 제안합니다</div>
+                </div>
+            </div>
+        </div>
+
         <div class="example-queries">
-            <span class="label">Try an example</span>
+            <span class="label">키워드 또는 논문 제목으로 시작해보세요</span>
             ${cardsHTML}
         </div>
     </div>`;
@@ -877,22 +1595,79 @@ async function loadHistory() {
         const resp = await fetch(`api/history?user_id=${USER_ID}`);
         const items = await resp.json();
         const section = document.getElementById('historySection');
-        section.innerHTML = '<h3>History</h3>';
+        section.innerHTML = '<h3>분석 히스토리</h3>';
+
+        // Build parent-children map
+        // parentMap: parentSessionId -> [child items]
+        const parentMap = {};
+        const roots = [];
+        const sessionItemMap = {}; // sessionId -> item (for matching parents)
+
         items.forEach(item => {
+            const sid = item.session_id || '';
+            if (sid) sessionItemMap[sid] = item;
+        });
+
+        items.forEach(item => {
+            const psid = item.parent_session_id || '';
+            if (psid && sessionItemMap[psid]) {
+                // This item has a parent that exists in the list
+                if (!parentMap[psid]) parentMap[psid] = [];
+                parentMap[psid].push(item);
+            } else {
+                roots.push(item);
+            }
+        });
+
+        function renderHistoryItem(item) {
             const div = document.createElement('div');
             div.className = 'history-item';
+            const ts = item.timestamp ? new Date(item.timestamp).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
             if (item.status === 'running' || item.status === 'interrupted') {
                 div.onclick = () => reconnectToSession(item.session_id, item.query);
-                const ts = item.timestamp ? new Date(item.timestamp).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
                 div.innerHTML = `<div class="query">${esc(item.query)}</div><div class="meta"><span class="running-badge">분석 중...</span> &middot; ${ts}</div>`;
             } else {
                 div.onclick = () => loadResult(item.filename);
-                const ts = item.timestamp ? new Date(item.timestamp).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
                 div.innerHTML = `<div class="query">${esc(item.query)}</div><div class="meta">${ts} &middot; ${item.gaps_count} GAPs</div>`;
             }
-            section.appendChild(div);
+            return div;
+        }
+
+        roots.forEach(item => {
+            const sid = item.session_id || '';
+            const children = sid ? (parentMap[sid] || []) : [];
+
+            if (children.length > 0) {
+                // Render as a group with toggle
+                const group = document.createElement('div');
+                group.className = 'history-group';
+
+                // Parent item
+                group.appendChild(renderHistoryItem(item));
+
+                // Toggle button
+                const toggle = document.createElement('button');
+                toggle.className = 'history-toggle';
+                toggle.innerHTML = `<span class="toggle-icon">&#x25BC;</span> 추가 탐색 ${children.length}건`;
+                toggle.onclick = (e) => { e.stopPropagation(); group.classList.toggle('collapsed'); };
+                group.appendChild(toggle);
+
+                // Children container
+                const childrenDiv = document.createElement('div');
+                childrenDiv.className = 'history-children';
+                children.forEach(child => {
+                    childrenDiv.appendChild(renderHistoryItem(child));
+                });
+                group.appendChild(childrenDiv);
+
+                section.appendChild(group);
+            } else {
+                // Standalone item
+                section.appendChild(renderHistoryItem(item));
+            }
         });
-        if (!items.length) section.innerHTML += '<div style="padding:14px;color:var(--text-light);font-size:0.78em">No history yet.</div>';
+
+        if (!items.length) section.innerHTML += '<div style="padding:14px;color:var(--text-light);font-size:0.78em">아직 분석 기록이 없습니다.</div>';
     } catch (e) { console.error(e); }
 }
 
@@ -914,16 +1689,18 @@ function setInputEnabled(enabled) {
     document.getElementById('provider').disabled = !enabled;
     document.getElementById('yearRange').disabled = !enabled;
     document.getElementById('outputLanguage').disabled = !enabled;
+    const domainEl = document.getElementById('domain');
+    if (domainEl) domainEl.disabled = !enabled;
 
     const runBtn = document.getElementById('runBtn');
     if (enabled) {
         runBtn.className = 'run-btn';
-        runBtn.textContent = 'Analyze';
+        runBtn.textContent = '분석 시작';
         runBtn.disabled = false;
         runBtn.onclick = startAnalysis;
     } else {
         runBtn.className = 'stop-btn';
-        runBtn.textContent = 'Stop';
+        runBtn.textContent = '중지';
         runBtn.disabled = false;
         runBtn.onclick = stopAnalysis;
     }
@@ -932,6 +1709,7 @@ function setInputEnabled(enabled) {
 function newAnalysis() {
     document.getElementById('queryInput').value = '';
     clearInterval(_thinkingInterval);
+    clearInterval(_elapsedInterval);
     currentSessionId = null;
     _completedNodes = new Set();
     localStorage.removeItem('gapago_active_session');
@@ -950,26 +1728,32 @@ async function startAnalysis() {
     const outputLanguage = document.getElementById('outputLanguage').value;
 
     setInputEnabled(false);
-    pipelineData = { papers: [], gaps: [], report: '' };
+    const providerLabels = { azure: 'Azure GPT', claude: 'Claude', exaone: 'EXAONE' };
+    const yearLabels = { auto: '자동 추천', '1y': '최근 1년', '3y': '최근 3년', '5y': '최근 5년' };
+    const langLabels = { auto: '자동 감지', ko: '한국어', en: 'English' };
+    pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: { provider: providerLabels[provider] || provider, yearRange: yearLabels[yearRange] || yearRange, outputLanguage: langLabels[outputLanguage] || outputLanguage } };
+    timelineDetails = {};
+    timelineState = {};
+    TIMELINE_NODES.forEach(n => { timelineState[n.id] = 'pending'; });
     _startTime = Date.now();
     clearInterval(_thinkingInterval);
+    clearInterval(_elapsedInterval);
 
     showPipelineUI();
 
     try {
-        // Step 1: Start analysis — get session_id
         const params = new URLSearchParams({ query, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID });
         const resp = await fetch(`api/analyze?${params}`);
         if (!resp.ok) {
-            showError(`API Error (${resp.status}): ${await resp.text()}`);
+            showError(`API 오류 (${resp.status}): ${await resp.text()}`);
             setInputEnabled(true);
             return;
         }
         const { session_id } = await resp.json();
         currentSessionId = session_id;
         localStorage.setItem('gapago_active_session', session_id);
+        loadHistory();
 
-        // Step 2: Connect to SSE stream
         await connectToStream(session_id);
     } catch (e) {
         showError(e.message);
@@ -983,44 +1767,61 @@ async function stopAnalysis() {
     } catch (e) { console.error(e); }
     if (_activeReader) { try { _activeReader.cancel(); } catch(e) {} _activeReader = null; }
     clearInterval(_thinkingInterval);
+    clearInterval(_elapsedInterval);
     localStorage.removeItem('gapago_active_session');
-    document.getElementById('statusMsg').innerHTML = '<span style="color:var(--red);font-weight:600">Analysis stopped</span>';
+    const statusText = document.getElementById('statusText');
+    if (statusText) { statusText.style.color = 'var(--red)'; statusText.textContent = '분석이 중지되었습니다'; }
+    const statusDetail = document.getElementById('statusDetail');
+    if (statusDetail) statusDetail.textContent = '';
     setInputEnabled(true);
     loadHistory();
 }
 
 function showPipelineUI() {
-    _completedNodes = new Set();
-    const tlHtml = SUB_STEPS.map((s, i) => `
-        <div class="tl-item ${i === 0 ? 'active' : 'pending'}" id="tl-${s.id}">
-            <div class="tl-icon"><span class="tl-emoji">${s.icon}</span></div>
-            <div class="tl-body">
-                <div class="tl-label">${s.label}</div>
-                <div class="tl-detail" id="tl-detail-${s.id}"></div>
+    let timelineHTML = '';
+    TIMELINE_NODES.forEach((node) => {
+        timelineHTML += `
+        <div class="timeline-item" id="tl-${node.id}">
+            <div class="timeline-icon" id="tl-icon-${node.id}">&#x25CB;</div>
+            <div class="timeline-content">
+                <div class="timeline-label">${esc(node.label)}</div>
+                <div class="timeline-detail" id="tl-detail-${node.id}"></div>
             </div>
-        </div>
-    `).join('');
+        </div>`;
+    });
+
     document.getElementById('results').innerHTML = `
-        <div class="stepper" id="stepper">
-            <div class="step active" id="step-0"><div class="step-dot">1</div><span class="step-label">Searching</span></div>
-            <div class="step-line" id="line-0"></div>
-            <div class="step" id="step-1"><div class="step-dot">2</div><span class="step-label">Analyzing</span></div>
-            <div class="step-line" id="line-1"></div>
-            <div class="step" id="step-2"><div class="step-dot">3</div><span class="step-label">Done</span></div>
-        </div>
-        <div class="status-msg" id="statusMsg">Starting pipeline...<div class="elapsed">0s elapsed</div></div>
-        <div class="timeline" id="timeline">${tlHtml}</div>
-        <div id="resultArea" style="display:none">
-            <div class="tabs" id="tabBar">
-                <button class="tab active" onclick="switchTab('papers')">Papers</button>
-                <button class="tab" onclick="switchTab('gaps')">Research GAPs</button>
-                <button class="tab" onclick="switchTab('report')">Report</button>
+        <div class="analysis-layout">
+            <div class="analysis-status-bar">
+                <div class="status-text" id="statusText">파이프라인 시작 중...</div>
+                <div class="status-detail" id="statusDetail"></div>
+                <div class="status-elapsed" id="statusElapsed"></div>
             </div>
-            <div class="tab-content active" id="tab-papers"></div>
-            <div class="tab-content" id="tab-gaps"></div>
-            <div class="tab-content" id="tab-report"></div>
+            <div class="analysis-body">
+                <div class="analysis-timeline-panel">
+                    <div class="timeline" id="timeline">${timelineHTML}</div>
+                </div>
+                <div class="analysis-preview-panel" id="livePreview">
+                    <div class="preview-empty">
+                        <div class="preview-icon">&#x1F50D;</div>
+                        <div>분석이 시작되면 결과가 여기에 표시됩니다</div>
+                    </div>
+                </div>
+            </div>
         </div>
+        <div id="statusMsg" style="display:none"></div>
+        <div id="resultArea" style="display:none"></div>
     `;
+
+    // Start elapsed timer
+    _elapsedInterval = setInterval(() => {
+        const elapsedEl = document.getElementById('statusElapsed');
+        if (elapsedEl && _startTime) {
+            const elapsed = Math.floor((Date.now() - _startTime) / 1000);
+            const m = Math.floor(elapsed / 60), s = elapsed % 60;
+            elapsedEl.textContent = `${m > 0 ? m + '분 ' : ''}${s}초 경과`;
+        }
+    }, 1000);
 }
 
 async function reconnectToSession(sessionId, query) {
@@ -1028,11 +1829,18 @@ async function reconnectToSession(sessionId, query) {
     localStorage.setItem('gapago_active_session', sessionId);
     document.getElementById('queryInput').value = query || '';
     setInputEnabled(false);
-    pipelineData = { papers: [], gaps: [], report: '' };
+    pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: {} };
+    timelineDetails = {};
+    timelineState = {};
+    TIMELINE_NODES.forEach(n => { timelineState[n.id] = 'pending'; });
     _startTime = Date.now();
     clearInterval(_thinkingInterval);
+    clearInterval(_elapsedInterval);
     showPipelineUI();
-    document.getElementById('statusMsg').innerHTML = 'Reconnecting...<div class="detail">Resuming analysis from where it left off</div>';
+    const statusText = document.getElementById('statusText');
+    if (statusText) statusText.textContent = '재연결 중...';
+    const statusDetail = document.getElementById('statusDetail');
+    if (statusDetail) statusDetail.textContent = '이전 분석을 이어서 진행합니다';
     try {
         await connectToStream(sessionId);
     } catch (e) {
@@ -1044,7 +1852,7 @@ async function connectToStream(sessionId, fromIdx) {
     const url = fromIdx ? `api/stream/${sessionId}?from_idx=${fromIdx}` : `api/stream/${sessionId}`;
     const resp = await fetch(url);
     if (!resp.ok) {
-        showError(`Stream Error (${resp.status}): ${await resp.text()}`);
+        showError(`스트림 오류 (${resp.status}): ${await resp.text()}`);
         setInputEnabled(true);
         return;
     }
@@ -1053,11 +1861,12 @@ async function connectToStream(sessionId, fromIdx) {
 
 function showError(message) {
     clearInterval(_thinkingInterval);
+    clearInterval(_elapsedInterval);
     const results = document.getElementById('results');
     results.innerHTML += `
         <div class="error-banner">
             <div class="msg">${esc(message)}</div>
-            <button onclick="newAnalysis()">Try Again</button>
+            <button onclick="newAnalysis()">다시 시도</button>
         </div>`;
 }
 
@@ -1080,61 +1889,77 @@ async function processStream(resp) {
     }
 }
 
+function findTimelineStep(nodeName) {
+    for (const tl of TIMELINE_NODES) {
+        if (tl.nodes.includes(nodeName)) return tl.id;
+    }
+    return null;
+}
+
 function handleEvent(data) {
     if (data.event === 'keepalive') return;
 
     if (data.event === 'progress') {
-        updateProgress(data);
+        const tlStepId = findTimelineStep(data.node);
+        if (tlStepId) {
+            timelineDetails[tlStepId] = esc(data.detail || '');
+            const detailEl = document.getElementById(`tl-detail-${tlStepId}`);
+            if (detailEl) detailEl.innerHTML = timelineDetails[tlStepId];
+        }
         return;
     }
 
     if (data.event === 'node') {
-        const stage = STAGE_MAP[data.node];
-        if (stage !== undefined) updateStepper(stage, data.node, data.detail);
+        const tlStepId = findTimelineStep(data.node);
+        if (tlStepId) updateTimeline(tlStepId, data.node);
         collectData(data);
     } else if (data.event === 'interrupt') {
         currentSessionId = data.session_id;
         showInterrupt(data.clarify_prompt);
     } else if (data.event === 'complete') {
         clearInterval(_thinkingInterval);
+        clearInterval(_elapsedInterval);
         localStorage.removeItem('gapago_active_session');
         _activeReader = null;
-        // 모든 스텝을 done 상태로 변경
-        for (let i = 0; i < 3; i++) {
-            const step = document.getElementById(`step-${i}`);
-            const line = document.getElementById(`line-${i}`);
-            if (step) step.className = 'step done';
-            if (line) line.className = 'step-line done';
-        }
-        // 모든 타임라인 항목을 done 상태로 + 접기
-        SUB_STEPS.forEach(s => {
-            const el = document.getElementById(`tl-${s.id}`);
-            if (el) el.className = 'tl-item done';
+        // Mark all timeline steps as done
+        TIMELINE_NODES.forEach(n => {
+            timelineState[n.id] = 'done';
         });
-        const tl = document.getElementById('timeline');
-        if (tl) {
-            tl.style.transition = 'max-height 0.5s ease, opacity 0.4s ease';
-            tl.style.maxHeight = tl.scrollHeight + 'px';
-            tl.style.overflow = 'hidden';
-            requestAnimationFrame(() => {
-                tl.style.maxHeight = '0';
-                tl.style.opacity = '0';
-            });
-        }
+        renderTimelineState();
         const totalSecs = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
         const tm = Math.floor(totalSecs / 60), ts = totalSecs % 60;
-        document.getElementById('statusMsg').innerHTML = `<span style="color:var(--green);font-weight:600">Analysis complete</span><div class="elapsed">${tm > 0 ? tm + 'm ' : ''}${ts}s total</div>`;
+        const statusText = document.getElementById('statusText');
+        if (statusText) { statusText.style.color = 'var(--done)'; statusText.textContent = '분석 완료'; }
+        const statusDetail = document.getElementById('statusDetail');
+        if (statusDetail) statusDetail.textContent = '';
+        const statusElapsed = document.getElementById('statusElapsed');
+        if (statusElapsed) statusElapsed.textContent = `${tm > 0 ? tm + '분 ' : ''}${ts}초 소요`;
+        // Collapse timeline after 1.5s
+        setTimeout(() => {
+            const timeline = document.getElementById('timeline');
+            if (timeline) {
+                timeline.classList.add('collapsing');
+                setTimeout(() => { timeline.classList.add('collapsed'); timeline.classList.remove('collapsing'); }, 600);
+            }
+            const statusBar = document.querySelector('.analysis-status-bar');
+            if (statusBar) statusBar.style.transition = 'opacity 0.4s'; // keep visible with completion info
+        }, 1500);
         renderResults();
         setInputEnabled(true);
         loadHistory();
     } else if (data.event === 'stopped') {
         clearInterval(_thinkingInterval);
+        clearInterval(_elapsedInterval);
         localStorage.removeItem('gapago_active_session');
         _activeReader = null;
-        document.getElementById('statusMsg').innerHTML = '<span style="color:var(--red);font-weight:600">Analysis stopped</span>';
+        const stoppedText = document.getElementById('statusText');
+        if (stoppedText) { stoppedText.style.color = 'var(--red)'; stoppedText.textContent = '분석이 중지되었습니다'; }
+        const stoppedDetail = document.getElementById('statusDetail');
+        if (stoppedDetail) stoppedDetail.textContent = '';
         setInputEnabled(true);
     } else if (data.event === 'error') {
         clearInterval(_thinkingInterval);
+        clearInterval(_elapsedInterval);
         localStorage.removeItem('gapago_active_session');
         _activeReader = null;
         showError(data.message);
@@ -1142,194 +1967,501 @@ function handleEvent(data) {
     }
 }
 
-function _findSubStep(node) {
-    return SUB_STEPS.findIndex(s => s.nodes.includes(node));
+function updateTimeline(activeStepId, nodeName) {
+    // Mark all steps before the active one as done, the active one as active
+    let foundActive = false;
+    for (let i = TIMELINE_NODES.length - 1; i >= 0; i--) {
+        if (TIMELINE_NODES[i].id === activeStepId) { foundActive = true; break; }
+    }
+
+    if (!foundActive) return;
+
+    let reachedActive = false;
+    for (const tl of TIMELINE_NODES) {
+        if (tl.id === activeStepId) {
+            timelineState[tl.id] = 'active';
+            reachedActive = true;
+        } else if (!reachedActive) {
+            timelineState[tl.id] = 'done';
+        }
+        // leave others as they are (pending or done)
+    }
+
+    renderTimelineState();
+
+    // Update status bar
+    const statusText = document.getElementById('statusText');
+    const statusDetailEl = document.getElementById('statusDetail');
+    const activeNode = TIMELINE_NODES.find(n => n.id === activeStepId);
+    if (statusText && activeNode) {
+        statusText.style.color = '';
+        statusText.textContent = activeNode.label + '...';
+    }
+    if (statusDetailEl) {
+        statusDetailEl.textContent = timelineDetails[activeStepId] || '';
+    }
+
+    // Thinking messages rotation
+    clearInterval(_thinkingInterval);
+    _thinkingInterval = setInterval(() => {
+        const el = document.getElementById('statusDetail');
+        if (el) el.textContent = THINKING_MESSAGES[Math.floor(Math.random() * THINKING_MESSAGES.length)];
+    }, 8000);
 }
 
-function _refreshTimeline() {
-    SUB_STEPS.forEach((s, i) => {
-        const el = document.getElementById(`tl-${s.id}`);
+function renderTimelineState() {
+    TIMELINE_NODES.forEach(tl => {
+        const el = document.getElementById(`tl-${tl.id}`);
+        const iconEl = document.getElementById(`tl-icon-${tl.id}`);
+        const detailEl = document.getElementById(`tl-detail-${tl.id}`);
         if (!el) return;
-        const allDone = s.nodes.every(n => _completedNodes.has(n));
-        const anyActive = !allDone && s.nodes.some(n => _completedNodes.has(n));
-        // Mark active if: it's explicitly active, or it's the first non-done step
-        if (allDone) {
-            el.className = 'tl-item done';
-        } else if (anyActive) {
-            el.className = 'tl-item active';
+
+        const state = timelineState[tl.id] || 'pending';
+        el.className = 'timeline-item ' + state;
+
+        if (state === 'done') {
+            iconEl.innerHTML = '&#x2713;';
+        } else if (state === 'active') {
+            iconEl.innerHTML = '&#x25C9;';
         } else {
-            // Check if previous sub-step is done → this one is next
-            const prevDone = i === 0 || SUB_STEPS[i - 1].nodes.every(n => _completedNodes.has(n));
-            el.className = prevDone ? 'tl-item active' : 'tl-item pending';
+            iconEl.innerHTML = '&#x25CB;';
+        }
+
+        if (detailEl) {
+            detailEl.innerHTML = timelineDetails[tl.id] || '';
         }
     });
 }
 
-function _elapsedHtml() {
-    const elapsed = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
-    const m = Math.floor(elapsed / 60), s = elapsed % 60;
-    return `<div class="elapsed">${m > 0 ? m + 'm ' : ''}${s}s elapsed</div>`;
-}
-
-function updateStepper(activeStage, node, detailOverride) {
-    // Top stepper
-    for (let i = 0; i < 3; i++) {
-        const step = document.getElementById(`step-${i}`);
-        const line = document.getElementById(`line-${i}`);
-        if (step) step.className = i < activeStage ? 'step done' : (i === activeStage ? 'step active' : 'step');
-        if (i < activeStage && line) line.className = 'step-line done';
-    }
-
-    // Mark node as completed & update timeline
-    _completedNodes.add(node);
-    _refreshTimeline();
-
-    // Show result detail on completed sub-step
-    const ssIdx = _findSubStep(node);
-    if (ssIdx !== -1 && detailOverride) {
-        const detailEl = document.getElementById(`tl-detail-${SUB_STEPS[ssIdx].id}`);
-        if (detailEl) detailEl.textContent = detailOverride;
-    }
-
-    // Status message
-    const statusEl = document.getElementById('statusMsg');
-    if (statusEl) statusEl.innerHTML = `${STAGE_LABELS[Math.min(activeStage, 2)]}...${_elapsedHtml()}`;
-
-    // Elapsed timer
-    clearInterval(_thinkingInterval);
-    _thinkingInterval = setInterval(() => {
-        const elEl = document.querySelector('#statusMsg .elapsed');
-        if (elEl) elEl.innerHTML = _elapsedHtml().replace(/<\/?div[^>]*>/g, '');
-    }, 1000);
-}
-
-function updateProgress(data) {
-    const ssIdx = _findSubStep(data.node);
-    if (ssIdx === -1) return;
-    const ss = SUB_STEPS[ssIdx];
-    const detailEl = document.getElementById(`tl-detail-${ss.id}`);
-    if (!detailEl) return;
-
-    let html = data.detail || '';
-    if (data.progress !== undefined) {
-        html += `<div class="tl-progress"><div class="tl-progress-fill" style="width:${data.progress}%"></div></div>`;
-    }
-    detailEl.innerHTML = html;
-
-    // Ensure this sub-step shows as active
-    const el = document.getElementById(`tl-${ss.id}`);
-    if (el && el.classList.contains('pending')) el.className = 'tl-item active';
-
-    // Keep elapsed updating
-    clearInterval(_thinkingInterval);
-    _thinkingInterval = setInterval(() => {
-        const elEl = document.querySelector('#statusMsg .elapsed');
-        if (elEl) elEl.innerHTML = _elapsedHtml().replace(/<\/?div[^>]*>/g, '');
-    }, 1000);
-}
-
 function collectData(data) {
-    if (data.node === 'paper_retrieval' && data.papers) pipelineData.papers = data.papers;
-    if (data.node === 'gap_infer' && data.gaps) pipelineData.gaps = data.gaps;
-    if (data.node === 'final_response' && data.report) pipelineData.report = data.report;
+    const node = data.node;
+
+    if ((node === 'query_subgraph' || node === 'meaning_expand')) {
+        if (data.refined_query) pipelineData.refined_query = data.refined_query;
+        if (data.keywords) pipelineData.keywords = data.keywords;
+        // Build detail text
+        let detail = '';
+        if (pipelineData.refined_query) detail += esc(pipelineData.refined_query);
+        if (pipelineData.keywords && pipelineData.keywords.length) {
+            detail += '<br>' + pipelineData.keywords.slice(0, 6).map(k => `<span class="keyword-tag">${esc(k)}</span>`).join(' ');
+        }
+        timelineDetails['query'] = detail;
+    }
+
+    if (node === 'paper_retrieval') {
+        if (data.papers) pipelineData.papers = data.papers;
+        if (data.total_searched) pipelineData.total_searched = data.total_searched;
+        const totalS = pipelineData.total_searched || '?';
+        const count = pipelineData.papers.length;
+        let detail = `${totalS}편 중 ${count}편 선별`;
+        // Show top 3 paper titles
+        if (pipelineData.papers.length > 0) {
+            const top3 = pipelineData.papers.slice(0, 3);
+            detail += '<br>' + top3.map(p => `<div class="paper-title-mini">&#x2022; ${esc(p.title || '')}</div>`).join('');
+        }
+        timelineDetails['retrieval'] = detail;
+    }
+
+    if (node === 'limitation_extract') {
+        if (data.limitations) pipelineData.limitations = data.limitations;
+        const count = Array.isArray(pipelineData.limitations) ? pipelineData.limitations.length : 0;
+        timelineDetails['limitation'] = `${count}개 한계점 추출`;
+    }
+
+    if (node === 'limitation_eval') {
+        if (data.limitation_eval) pipelineData.limitation_eval = data.limitation_eval;
+        // Try to show pass count
+        const evalData = pipelineData.limitation_eval;
+        if (evalData && evalData.passed_count !== undefined) {
+            timelineDetails['eval'] = `${evalData.passed_count}개 통과`;
+        } else if (evalData && evalData.decision) {
+            timelineDetails['eval'] = esc(evalData.decision);
+        } else {
+            timelineDetails['eval'] = '품질 평가 완료';
+        }
+    }
+
+    if (node === 'recency_check') {
+        if (data.recency_status) pipelineData.recency_status = data.recency_status;
+        const rs = pipelineData.recency_status;
+        if (rs && (rs.unresolved !== undefined || rs.partial !== undefined || rs.resolved !== undefined)) {
+            timelineDetails['recency'] = `미해결 ${rs.unresolved || 0} / 부분 ${rs.partial || 0} / 해결 ${rs.resolved || 0}`;
+        } else {
+            timelineDetails['recency'] = '최신성 검증 완료';
+        }
+    }
+
+    if (node === 'gap_infer') {
+        if (data.gaps) pipelineData.gaps = data.gaps;
+        timelineDetails['gap'] = `${pipelineData.gaps.length}개 연구 GAP 도출`;
+    }
+
+    if (node === 'critic_score') {
+        if (data.decision === 'ACCEPT' || (data.critic && data.critic.decision === 'ACCEPT')) {
+            timelineDetails['critic'] = '품질 검증 통과';
+        } else {
+            timelineDetails['critic'] = '재검토 중...';
+        }
+    }
+
+    if (node === 'final_response') {
+        if (data.report) pipelineData.report = data.report;
+        timelineDetails['report'] = '리포트 작성 완료';
+    }
+
+    // Update timeline detail display
+    const tlStepId = findTimelineStep(node);
+    if (tlStepId) {
+        const detailEl = document.getElementById(`tl-detail-${tlStepId}`);
+        if (detailEl) detailEl.innerHTML = timelineDetails[tlStepId] || '';
+    }
+
+    updateLivePreview();
+}
+
+function updateLivePreview() {
+    const panel = document.getElementById('livePreview');
+    if (!panel) return;
+
+    const hasPapers = pipelineData.papers.length > 0;
+    const hasLimitations = pipelineData.limitations && pipelineData.limitations.length > 0;
+    const hasGaps = pipelineData.gaps && pipelineData.gaps.length > 0;
+
+    if (!hasPapers && !hasLimitations && !hasGaps) return; // keep empty state
+
+    let html = '';
+
+    if (hasGaps) {
+        html += `<div class="preview-section"><div class="preview-section-title">연구 GAP (${pipelineData.gaps.length})</div>`;
+        pipelineData.gaps.forEach(gap => {
+            const isDynamic = gap.axis_type === 'dynamic';
+            html += `<div class="preview-gap-card${isDynamic ? ' dynamic' : ''}">
+                <div class="preview-gap-axis">${esc(gap.axis_label || gap.axis || '')}${isDynamic ? ' <span style="color:var(--accent2);font-weight:600">질문 특화</span>' : ''}</div>
+                <div class="preview-gap-statement">${esc(gap.gap_statement || '')}</div>
+            </div>`;
+        });
+        html += '</div>';
+    }
+
+    if (hasLimitations) {
+        const limCount = pipelineData.limitations.length;
+        const showLims = pipelineData.limitations.slice(0, 5);
+        html += `<div class="preview-section"><div class="preview-section-title">한계점 (${limCount})</div>`;
+        showLims.forEach(l => {
+            const text = l.limitation_text || l.text || l.content || '';
+            html += `<div class="preview-limitation-item">${esc(truncate(text, 120))}</div>`;
+        });
+        if (limCount > 5) html += `<div style="text-align:center;color:var(--text-light);font-size:0.78em;padding:4px">외 ${limCount - 5}개...</div>`;
+        html += '</div>';
+    }
+
+    if (hasPapers) {
+        html += `<div class="preview-section"><div class="preview-section-title">검색된 논문 (${pipelineData.papers.length}/${pipelineData.total_searched || '?'})</div>`;
+        pipelineData.papers.slice(0, 8).forEach(p => {
+            html += `<div class="preview-paper-item">
+                <div class="preview-paper-title">${esc(p.title || '')}</div>
+                <div class="preview-paper-meta">${p.year || ''} ${p.venue ? '· ' + esc(p.venue) : ''}</div>
+            </div>`;
+        });
+        if (pipelineData.papers.length > 8) html += `<div style="text-align:center;color:var(--text-light);font-size:0.78em;padding:4px">외 ${pipelineData.papers.length - 8}편...</div>`;
+        html += '</div>';
+    }
+
+    panel.innerHTML = html;
 }
 
 function renderResults() {
     const area = document.getElementById('resultArea');
     area.style.display = 'block';
 
-    // Update tab labels with counts
-    const tabBar = document.getElementById('tabBar');
-    if (tabBar) {
-        tabBar.innerHTML = `
-            <button class="tab" onclick="switchTab('papers')">Papers (${pipelineData.papers.length})</button>
-            <button class="tab active" onclick="switchTab('gaps')">Research GAPs (${pipelineData.gaps.length})</button>
-            <button class="tab" onclick="switchTab('report')">Report</button>`;
+    selectedItem = { type: 'gap', index: 0 };
+
+    // Analysis options bar
+    let optionsHTML = '';
+    const opts = pipelineData.analysisOptions || {};
+    if (opts.provider || opts.yearRange || opts.outputLanguage) {
+        optionsHTML = `<div class="analysis-options-bar">`;
+        if (opts.provider) optionsHTML += `<span class="opt-chip"><span class="opt-label">LLM</span> ${esc(opts.provider)}</span>`;
+        if (opts.yearRange) optionsHTML += `<span class="opt-chip"><span class="opt-label">연도</span> ${esc(opts.yearRange)}</span>`;
+        if (opts.outputLanguage) optionsHTML += `<span class="opt-chip"><span class="opt-label">언어</span> ${esc(opts.outputLanguage)}</span>`;
+        optionsHTML += `</div>`;
     }
 
-    // Papers tab
-    let papersHtml = '';
-    if (pipelineData.papers.length) {
-        papersHtml = `<table><thead><tr><th>#</th><th>Title</th><th>Year</th><th>Authors</th></tr></thead><tbody>`;
-        pipelineData.papers.forEach((p, i) => {
-            const titleCell = p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.title)}</a>` : esc(p.title);
-            papersHtml += `<tr><td>${i+1}</td><td>${titleCell}</td><td>${p.year||''}</td><td>${(p.authors||[]).slice(0,3).join(', ')}</td></tr>`;
-        });
-        papersHtml += '</tbody></table>';
-    } else {
-        papersHtml = '<p style="color:var(--text-light);padding:24px;text-align:center">No papers retrieved.</p>';
-    }
-    document.getElementById('tab-papers').innerHTML = papersHtml;
+    // Summary header
+    const totalSearched = pipelineData.total_searched || '?';
+    const papersCount = pipelineData.papers.length;
+    const gapsCount = pipelineData.gaps.length;
+    const refinedQ = pipelineData.refined_query || '';
 
-    // GAPs tab
-    let gapsHtml = '';
+    let summaryHTML = `<div class="result-summary-header">`;
+    if (refinedQ) summaryHTML += `<span class="summary-item">정제된 쿼리: <strong>${esc(refinedQ)}</strong></span><span class="summary-divider"></span>`;
+    summaryHTML += `<span class="summary-item">논문 <strong>${papersCount}/${totalSearched}편</strong></span>`;
+    summaryHTML += `<span class="summary-divider"></span>`;
+    summaryHTML += `<span class="summary-item">GAP <strong>${gapsCount}개</strong></span>`;
+    summaryHTML += `</div>`;
+
+    // Left panel: gaps + papers
+    let leftHTML = '';
+
+    // Gaps section
+    leftHTML += `<div class="panel-section-header">연구 GAP (${gapsCount})</div>`;
     if (pipelineData.gaps.length) {
         pipelineData.gaps.forEach((gap, i) => {
             const isTop = i === 0;
-            const axisType = gap.axis_type === 'fixed' ? 'Fixed' : 'Dynamic';
-            gapsHtml += `<div class="gap-card ${isTop ? 'top' : ''}">
-                <span class="gap-rank">${isTop ? 'TOP GAP' : `GAP #${i+1}`}</span>
-                <div class="axis">${axisType}: ${esc(gap.axis_label||gap.axis||'')} &middot; ${gap.repeat_count||0} papers</div>
-                <div class="statement">${richText(gap.gap_statement||'')}</div>
-                <div class="elaboration">${richText(gap.elaboration||'')}</div>
-                <div class="topic">📌 Proposed Topic: ${richText(gap.proposed_topic||'')}</div>
-                <div class="papers-info">Supporting: ${(gap.supporting_papers||[]).slice(0,5).map(pid => {
-                    const idx = pipelineData.papers.findIndex(p => p.paper_id === pid);
-                    if (idx !== -1) {
-                        return `<a href="#" class="paper-link" onclick="event.preventDefault();switchTab('papers');document.querySelectorAll('#tab-papers tr').forEach(r=>r.classList.remove('highlight'));document.querySelectorAll('#tab-papers tr')[${idx+1}]?.scrollIntoView({behavior:'smooth',block:'center'});document.querySelectorAll('#tab-papers tr')[${idx+1}]?.classList.add('highlight');setTimeout(()=>document.querySelectorAll('#tab-papers tr')[${idx+1}]?.classList.remove('highlight'),3000)">${esc(pid)}</a>`;
-                    }
-                    return esc(pid);
-                }).join(', ')}</div>
+            const isDynamic = gap.axis_type === 'dynamic';
+            const activeClass = (selectedItem.type === 'gap' && selectedItem.index === i) ? ' active' : '';
+            const dynamicClass = isDynamic ? ' dynamic' : '';
+            const badgeClass = isDynamic ? 'dynamic' : 'fixed';
+            const badgeText = isDynamic ? 'Dynamic' : 'Fixed';
+            leftHTML += `<div class="gap-item-compact${activeClass}${dynamicClass}" onclick="selectGap(${i})" id="gap-item-${i}">
+                <span class="gap-compact-rank ${isTop ? 'top' : ''}">${isTop ? 'TOP' : '#' + (i + 1)}</span>
+                <span class="gap-compact-axis">${esc(gap.axis_label || gap.axis || '')}</span>
+                <span class="gap-compact-axis-badge ${badgeClass}">${badgeText}</span>
+                <div class="gap-compact-statement">${esc(gap.gap_statement || '')}</div>
             </div>`;
         });
     } else {
-        gapsHtml = '<p style="color:var(--text-light);padding:24px;text-align:center">No gaps identified.</p>';
+        leftHTML += '<div style="padding:16px;color:var(--text-light);font-size:0.84em;text-align:center">도출된 GAP이 없습니다.</div>';
     }
-    document.getElementById('tab-gaps').innerHTML = gapsHtml;
 
-    // Report tab
-    if (pipelineData.report) {
-        document.getElementById('tab-report').innerHTML = `
-            <div style="padding:14px 18px;background:var(--accent-bg);border-radius:var(--radius);margin-bottom:16px;font-size:0.9em;color:var(--text-dim);line-height:1.6;font-weight:600;">
-                📋 논문 검색, 한계점 분석, 연구 갭을 종합한 최종 리포트입니다. 각 GAP의 요약은 <a href="#" onclick="event.preventDefault();switchTab('gaps')" style="color:var(--accent);font-weight:600;text-decoration:none;">Research GAPs</a> 탭에서 확인하세요.<br>📥 리포트를 복사하거나 마크다운 파일로 다운로드할 수 있습니다.
-            </div>
-            <div class="report-actions">
-                <button onclick="copyReport()">Copy to clipboard</button>
-                <button onclick="downloadReport()">Download (.md)</button>
-            </div>
-            <div class="report-content">${renderMarkdown(pipelineData.report)}</div>`;
+    // Papers section
+    leftHTML += `<div class="panel-section-header">논문 ${papersCount}/${totalSearched}편 선별</div>`;
+    if (pipelineData.papers.length) {
+        pipelineData.papers.forEach((p, i) => {
+            leftHTML += `<div class="paper-item-compact" onclick="selectPaper(${i})" id="paper-item-${i}">
+                <span class="paper-num">${i + 1}</span>
+                <div class="paper-compact-info">
+                    <div class="paper-compact-title">${esc(p.title || '')}</div>
+                    <div class="paper-compact-meta">
+                        ${p.venue ? `<span class="venue-badge">${esc(p.venue)}</span>` : ''}
+                        <span>${p.year || ''}</span>
+                    </div>
+                </div>
+            </div>`;
+        });
     } else {
-        document.getElementById('tab-report').innerHTML = '<p style="color:var(--text-light);padding:24px;text-align:center">No report generated.</p>';
+        leftHTML += '<div style="padding:16px;color:var(--text-light);font-size:0.84em;text-align:center">검색된 논문이 없습니다.</div>';
     }
 
-    switchTab('gaps');
+    // Right panel: detail (default: first gap)
+    let rightHTML = getGapDetailHTML(0);
+
+    // Report collapse
+    let reportHTML = '';
+    if (pipelineData.report) {
+        reportHTML = `
+        <div class="report-collapse" id="reportCollapse">
+            <button class="report-collapse-toggle" onclick="toggleReport()">
+                <span>전체 리포트 보기</span>
+                <span class="toggle-arrow">&#x25BC;</span>
+            </button>
+            <div class="report-collapse-body">
+                <div class="report-collapse-inner">
+                    <div class="report-actions">
+                        <button onclick="copyReport()">클립보드에 복사</button>
+                        <button onclick="downloadReport()">다운로드 (.md)</button>
+                    </div>
+                    <div class="report-content">${renderMarkdown(pipelineData.report)}</div>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    area.innerHTML = `
+        ${optionsHTML}
+        ${summaryHTML}
+        <div class="result-panels">
+            <div class="panel-left" id="panelLeft">${leftHTML}</div>
+            <div class="panel-right" id="panelRight">
+                <div class="detail-panel" id="detailPanel">${rightHTML}</div>
+            </div>
+        </div>
+        ${reportHTML}
+    `;
 }
 
-function switchTab(name) {
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-    const content = document.querySelector(`.tab-content#tab-${name}`);
-    if (content) content.classList.add('active');
-    const tabs = document.querySelectorAll('.tab');
-    const idx = { papers: 0, gaps: 1, report: 2 }[name];
-    if (tabs[idx]) tabs[idx].classList.add('active');
+function getGapDetailHTML(index) {
+    if (!pipelineData.gaps.length || index >= pipelineData.gaps.length) {
+        return '<div style="padding:20px;color:var(--text-light);text-align:center">GAP을 선택하세요</div>';
+    }
+    const gap = pipelineData.gaps[index];
+    const isDynamic = gap.axis_type === 'dynamic';
+    const axisType = isDynamic ? 'Dynamic' : 'Fixed';
+
+    let html = '';
+    if (isDynamic) {
+        html += `<div class="detail-gap-axis" style="color:var(--accent2);font-weight:600">&#x2728; 질문 특화 &middot; ${esc(gap.axis_label || gap.axis || '')} &middot; ${gap.repeat_count || 0}편 논문</div>`;
+    } else {
+        html += `<div class="detail-gap-axis">${axisType}: ${esc(gap.axis_label || gap.axis || '')} &middot; ${gap.repeat_count || 0}편 논문</div>`;
+    }
+    html += `<div class="detail-gap-statement">${esc(gap.gap_statement || '')}</div>`;
+    html += `<div class="detail-gap-elaboration">${esc(gap.elaboration || '')}</div>`;
+
+    // Supporting papers
+    if (gap.supporting_papers && gap.supporting_papers.length) {
+        html += `<div class="detail-section-title">근거 논문</div>`;
+        html += '<div>';
+        gap.supporting_papers.slice(0, 8).forEach(pid => {
+            const idx = pipelineData.papers.findIndex(p => p.paper_id === pid);
+            const title = idx !== -1 ? pipelineData.papers[idx].title : pid;
+            html += `<span class="supporting-paper-chip" onclick="selectPaper(${idx !== -1 ? idx : 0})" title="${esc(title)}">${esc(truncate(title, 40))}</span>`;
+        });
+        html += '</div>';
+    }
+
+    // Supporting quotes
+    if (gap.supporting_quotes && gap.supporting_quotes.length) {
+        html += `<div class="detail-section-title">근거 인용</div>`;
+        gap.supporting_quotes.slice(0, 4).forEach(q => {
+            html += `<div class="supporting-quote">${esc(q)}</div>`;
+        });
+    }
+
+    // Proposed topic
+    if (gap.proposed_topic) {
+        html += `<div class="proposed-topic-box">
+            <div class="topic-label">제안 연구 방향</div>
+            <div class="topic-text">${esc(gap.proposed_topic)}</div>
+        </div>`;
+        html += `<button class="explore-btn" onclick="exploreDirection('${esc(gap.proposed_topic).replace(/'/g, "\\'")}')">이 방향으로 추가 탐색 &#x2192;</button>`;
+    }
+
+    return html;
+}
+
+function getPaperDetailHTML(index) {
+    if (!pipelineData.papers.length || index >= pipelineData.papers.length) {
+        return '<div style="padding:20px;color:var(--text-light);text-align:center">논문을 선택하세요</div>';
+    }
+    const p = pipelineData.papers[index];
+
+    let html = '';
+    html += `<div class="paper-detail-title">${esc(p.title || '')}</div>`;
+
+    let metaParts = [];
+    if (p.authors && p.authors.length) metaParts.push(p.authors.slice(0, 5).join(', '));
+    if (p.year) metaParts.push(p.year);
+    if (p.venue) metaParts.push(`<span class="venue-badge">${esc(p.venue)}</span>`);
+    html += `<div class="paper-detail-meta">${metaParts.join(' &middot; ')}</div>`;
+
+    if (p.url) {
+        html += `<a class="paper-detail-link" href="${esc(p.url)}" target="_blank" rel="noopener">논문 원문 보기 &#x2197;</a>`;
+    }
+
+    if (p.abstract) {
+        html += `<div class="detail-section-title">초록</div>`;
+        html += `<div class="paper-detail-abstract">${esc(p.abstract)}</div>`;
+    }
+
+    // Limitations from this paper
+    if (pipelineData.limitations && pipelineData.limitations.length) {
+        const paperLimitations = pipelineData.limitations.filter(l => l.paper_id === p.paper_id);
+        if (paperLimitations.length) {
+            html += `<div class="detail-section-title">이 논문의 한계점 (${paperLimitations.length})</div>`;
+            paperLimitations.forEach(l => {
+                html += `<div class="paper-limitation-item">${esc(l.limitation_text || l.text || l.content || JSON.stringify(l))}</div>`;
+            });
+        }
+    }
+
+    return html;
+}
+
+function selectGap(index) {
+    selectedItem = { type: 'gap', index };
+    // Update active state in left panel
+    document.querySelectorAll('.gap-item-compact').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.paper-item-compact').forEach(el => el.classList.remove('active'));
+    const el = document.getElementById(`gap-item-${index}`);
+    if (el) el.classList.add('active');
+    // Render right panel
+    const dp = document.getElementById('detailPanel');
+    if (dp) dp.innerHTML = getGapDetailHTML(index);
+}
+
+function selectPaper(index) {
+    if (index < 0 || index >= pipelineData.papers.length) return;
+    selectedItem = { type: 'paper', index };
+    // Update active state
+    document.querySelectorAll('.gap-item-compact').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.paper-item-compact').forEach(el => el.classList.remove('active'));
+    const el = document.getElementById(`paper-item-${index}`);
+    if (el) el.classList.add('active');
+    // Render right panel
+    const dp = document.getElementById('detailPanel');
+    if (dp) dp.innerHTML = getPaperDetailHTML(index);
+}
+
+function toggleReport() {
+    const rc = document.getElementById('reportCollapse');
+    if (rc) rc.classList.toggle('open');
+}
+
+async function exploreDirection(topic) {
+    // Fill query input and start new analysis
+    document.getElementById('queryInput').value = topic;
+
+    const provider = document.getElementById('provider').value;
+    const domain = 'auto';
+    const yearRange = document.getElementById('yearRange').value;
+    const outputLanguage = document.getElementById('outputLanguage').value;
+
+    setInputEnabled(false);
+    pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: {} };
+    timelineDetails = {};
+    timelineState = {};
+    TIMELINE_NODES.forEach(n => { timelineState[n.id] = 'pending'; });
+    _startTime = Date.now();
+    clearInterval(_thinkingInterval);
+    clearInterval(_elapsedInterval);
+
+    showPipelineUI();
+
+    try {
+        // Try /api/explore first, fallback to /api/analyze
+        let resp;
+        try {
+            const exploreParams = new URLSearchParams({ session_id: currentSessionId || '', topic, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID });
+            resp = await fetch(`api/explore?${exploreParams}`);
+            if (!resp.ok) throw new Error('explore not available');
+        } catch (e) {
+            const params = new URLSearchParams({ query: topic, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID });
+            resp = await fetch(`api/analyze?${params}`);
+        }
+
+        if (!resp.ok) {
+            showError(`API 오류 (${resp.status}): ${await resp.text()}`);
+            setInputEnabled(true);
+            return;
+        }
+        const { session_id } = await resp.json();
+        currentSessionId = session_id;
+        localStorage.setItem('gapago_active_session', session_id);
+        loadHistory();
+
+        await connectToStream(session_id);
+    } catch (e) {
+        showError(e.message);
+    }
 }
 
 function showInterrupt(prompt) {
     const results = document.getElementById('results');
-    const statusEl = document.getElementById('statusMsg');
-    if (statusEl) statusEl.innerHTML = '<span style="color:var(--yellow);font-weight:600">Waiting for your input...</span>';
+    const statusText = document.getElementById('statusText');
+    if (statusText) { statusText.style.color = 'var(--yellow)'; statusText.textContent = '입력을 기다리고 있습니다...'; }
+    const statusDetail = document.getElementById('statusDetail');
+    if (statusDetail) statusDetail.textContent = '';
     const div = document.createElement('div');
     div.className = 'interrupt-card';
     div.id = 'interruptCard';
     const formatted = prompt ? esc(prompt).replace(/\n/g, '<br>') : '';
     div.innerHTML = `
-        <h3>Query Clarification Needed</h3>
+        <h3>질의 명확화 필요</h3>
         ${formatted ? `<div class="prompt">${formatted}</div>` : ''}
         <input type="text" id="clarifyInput" placeholder="번호를 입력하거나 원하는 방향을 직접 입력하세요..." onkeydown="if(event.key==='Enter') resumePipeline()">
         <div class="interrupt-actions">
-            <button class="btn-resume" onclick="resumePipeline()">Continue</button>
-            <button class="btn-skip" onclick="skipClarification()">Skip (proceed as-is)</button>
+            <button class="btn-resume" onclick="resumePipeline()">계속</button>
+            <button class="btn-skip" onclick="skipClarification()">건너뛰기 (현재 상태로 진행)</button>
         </div>
     `;
     results.appendChild(div);
@@ -1347,14 +2479,15 @@ async function skipClarification() { await sendClarification('proceed as is'); }
 async function sendClarification(response) {
     const card = document.getElementById('interruptCard');
     if (card) card.remove();
-    const statusEl = document.getElementById('statusMsg');
-    if (statusEl) statusEl.innerHTML = 'Resuming analysis...<div class="detail">Processing your input...</div>';
+    const statusText = document.getElementById('statusText');
+    if (statusText) { statusText.style.color = ''; statusText.textContent = '분석 재개 중...'; }
+    const statusDetail = document.getElementById('statusDetail');
+    if (statusDetail) statusDetail.textContent = '입력을 처리하고 있습니다...';
     try {
         const params = new URLSearchParams({ session_id: currentSessionId, response });
         const resp = await fetch(`api/clarify?${params}`);
-        if (!resp.ok) { showError(`Clarify Error (${resp.status}): ${await resp.text()}`); return; }
+        if (!resp.ok) { showError(`명확화 오류 (${resp.status}): ${await resp.text()}`); return; }
         const data = await resp.json();
-        // Reconnect to stream, skipping already-consumed events
         await connectToStream(currentSessionId, data.events_count || 0);
     } catch (e) { showError(e.message); }
 }
@@ -1362,58 +2495,51 @@ async function sendClarification(response) {
 function renderSavedResult(data) {
     const results = document.getElementById('results');
     pipelineData = {
+        refined_query: data.refined_query || '',
+        keywords: data.keywords || [],
         papers: data.papers || [],
+        total_searched: data.total_searched || 0,
+        limitations: data.limitations || [],
+        limitation_eval: data.limitation_eval || {},
+        recency_status: data.recency_status || {},
         gaps: data.gaps || [],
-        report: ((data.messages||[]).find(m => m.name === 'final_response') || {}).content || '',
+        report: ((data.messages || []).find(m => m.name === 'final_response') || {}).content || data.report || '',
+        analysisOptions: data.analysisOptions || {},
     };
 
     results.innerHTML = `
         <div style="margin-bottom:20px">
-            <h3 style="font-size:1em;font-weight:600;margin-bottom:4px;color:var(--text)">${esc(data.query||'')}</h3>
-            ${data.refined_query ? `<p style="color:var(--text-dim);font-size:0.8em">Refined: ${esc(data.refined_query)}</p>` : ''}
-            <p style="color:var(--text-light);font-size:0.7em;margin-top:3px">${data.timestamp||''}</p>
+            <h3 style="font-size:1em;font-weight:600;margin-bottom:4px;color:var(--text)">${esc(data.query || '')}</h3>
+            ${data.refined_query ? `<p style="color:var(--text-dim);font-size:0.8em">정제된 쿼리: ${esc(data.refined_query)}</p>` : ''}
+            <p style="color:var(--text-light);font-size:0.7em;margin-top:3px">${data.timestamp || ''}</p>
         </div>
-        <div id="resultArea">
-            <div class="tabs" id="tabBar">
-                <button class="tab active" onclick="switchTab('papers')">Papers (${pipelineData.papers.length})</button>
-                <button class="tab" onclick="switchTab('gaps')">Research GAPs (${pipelineData.gaps.length})</button>
-                <button class="tab" onclick="switchTab('report')">Report</button>
-            </div>
-            <div class="tab-content active" id="tab-papers"></div>
-            <div class="tab-content" id="tab-gaps"></div>
-            <div class="tab-content" id="tab-report"></div>
-        </div>
+        <div id="resultArea" style="display:block"></div>
     `;
 
-    renderResults();
+    // Need to set area reference before renderResults
+    const area = document.getElementById('resultArea');
+    if (area) {
+        renderResults();
+    }
 }
 
 function renderMarkdown(text) {
-    // Remove system tags
     text = text.replace(/FINAL\s*ANSWER\s*/gi, '');
-    // Remove unicode box-drawing lines and standalone separator lines (---, ────, etc.)
-    text = text.replace(/^[─━═┄┅┈┉╌╍\-\s]+$/gm, function(line) {
-        // Keep --- as <hr> only if it's exactly 3 dashes (handled later)
-        if (/^---$/.test(line.trim())) return '---';
-        return '';
-    });
-    // Escape HTML
+    text = text.replace(/^[─━═┄┅┈┉╌╍]+$/gm, '---');
     text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    // Parse tables: find consecutive lines starting with |
+    // Parse tables
     text = text.replace(/(^\|.+\|$\n?)+/gm, function(tableBlock) {
         const rows = tableBlock.trim().split('\n').filter(r => r.trim());
         if (rows.length < 2) return tableBlock;
-
         let html = '<table>';
         let headerDone = false;
         rows.forEach((row) => {
             const cells = row.split('|').filter((c, j, a) => j > 0 && j < a.length).map(c => c.trim());
-            // Skip separator row (|---|---| including unicode dashes ─━═—–)
-            if (cells.every(c => /^[-─━═┄┅┈┉╌╍—–:\s]+$/.test(c))) { headerDone = true; return; }
+            if (cells.every(c => /^[-:\s]+$/.test(c))) { headerDone = true; return; }
             const tag = !headerDone ? 'th' : 'td';
             html += '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
-            if (!headerDone) headerDone = true; // first row is header even without separator
+            if (!headerDone) headerDone = true;
         });
         html += '</table>';
         return html;
@@ -1440,8 +2566,9 @@ function renderMarkdown(text) {
 function copyReport() {
     navigator.clipboard.writeText(pipelineData.report).then(() => {
         const btn = document.querySelector('.report-actions button');
+        if (!btn) return;
         const orig = btn.textContent;
-        btn.textContent = 'Copied!';
+        btn.textContent = '복사 완료!';
         setTimeout(() => btn.textContent = orig, 1500);
     });
 }
@@ -1453,6 +2580,11 @@ function downloadReport() {
     a.download = 'gapago_report.md';
     a.click();
     URL.revokeObjectURL(a.href);
+}
+
+function truncate(str, max) {
+    if (!str) return '';
+    return str.length > max ? str.slice(0, max) + '...' : str;
 }
 
 function esc(str) {
