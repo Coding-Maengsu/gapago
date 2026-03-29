@@ -133,7 +133,7 @@ def gap_chat_respond(state: AgentState, user_question: str) -> str:
     messages = [SystemMessage(content=system_prompt)]
 
     # 최근 대화 히스토리 추가
-    for msg in recent_me좋ssages:
+    for msg in recent_messages:
         if isinstance(msg, HumanMessage):
             messages.append(HumanMessage(content=msg.content))
         elif isinstance(msg, AIMessage) and getattr(msg, "name", None) == "gap_chat":

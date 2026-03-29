@@ -400,23 +400,45 @@ def _can_load_full_text_fast(paper: dict) -> bool:
 def _filter_fulltext_available(papers: list[dict], target_count: int = 30) -> list[dict]:
     """
     논문 리스트에서 full text 접근 가능한 논문만 필터링 (병렬 처리).
-    target_count: 목표 논문 수 (이 수만큼 확보되면 조기 종료 가능)
+    원래 순서(BM25 랭킹 순서)를 유지합니다.
+
+    Args:
+        papers: 필터링할 논문 리스트 (BM25 순서대로 정렬되어 있어야 함)
+        target_count: 반환할 최대 논문 수
+
+    Returns:
+        Full text 접근 가능한 논문 리스트 (원래 순서 유지, 최대 target_count개)
     """
     if not papers:
         return []
 
     print(f"  [fulltext_filter] {len(papers)}편 중 full text 접근 가능 여부 확인 중...")
-    fulltext_available = []
 
+    # 병렬 처리: 각 논문에 대해 인덱스와 함께 future 생성
     with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = {executor.submit(_can_load_full_text_fast, p): p for p in papers}
-        for future in as_completed(futures):
-            paper = futures[future]
+        future_to_index = {
+            executor.submit(_can_load_full_text_fast, paper): (i, paper)
+            for i, paper in enumerate(papers)
+        }
+
+        # 결과를 (인덱스, 논문, 접근가능여부) 튜플로 수집
+        results = []
+        for future in as_completed(future_to_index):
+            i, paper = future_to_index[future]
             try:
-                if future.result():
-                    fulltext_available.append(paper)
+                is_available = future.result()
+                results.append((i, paper, is_available))
             except Exception as e:
                 print(f"  ⚠️ Full text 체크 실패 ({paper.get('paper_id', 'unknown')}): {e}")
+                results.append((i, paper, False))
+
+    # 원래 순서대로 정렬 후, full text 접근 가능한 논문만 필터링
+    results.sort(key=lambda x: x[0])  # 인덱스 기준 정렬 (원래 순서 복원)
+    fulltext_available = [paper for _, paper, is_available in results if is_available]
+
+    # target_count 제한 적용
+    if len(fulltext_available) > target_count:
+        fulltext_available = fulltext_available[:target_count]
 
     print(f"  [fulltext_filter] Full text 접근 가능: {len(fulltext_available)}/{len(papers)}편")
     return fulltext_available
@@ -519,7 +541,7 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
     print(f"  [DEBUG] BM25 1st stage: {len(raw_papers)} papers")
 
     # ✅ Full text 접근 가능 여부 필터링 (BM25와 Reranker 사이)
-    raw_papers = _filter_fulltext_available(raw_papers, target_count=30)
+    raw_papers = _filter_fulltext_available(raw_papers, target_count=cfg.bm25_top_k)
     print(f"  [DEBUG] Full text filter: {len(raw_papers)} papers")
 
     # ✅ LLM Reranker 2차 선별 (정밀) - full text 가능한 논문만 대상
