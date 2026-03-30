@@ -153,6 +153,83 @@ def arxiv_api_call(search_query: str, max_total: int, page_size: int, max_pages:
     return list(uniq.values())
 
 
+# ============================== Crossref ==============================
+_CROSSREF_API = "https://api.crossref.org/works"
+_CROSSREF_HEADERS = {"User-Agent": "GAPAGO-Research-Agent/1.0 (mailto:gapago@research.org)"}
+
+
+def crossref_search(query: str, rows: int = 40, year: str = "") -> list[dict]:
+    """Crossref API로 학술 논문 검색. 1.5억+ 메타데이터, 넉넉한 rate limit."""
+    params = {
+        "query": query,
+        "rows": min(rows, 1000),
+        "sort": "relevance",
+        "order": "desc",
+        "mailto": "gapago@research.org",
+    }
+
+    # 연도 필터
+    if year and "-" in year:
+        parts = year.split("-")
+        from_year = parts[0].strip()
+        to_year = parts[1].strip() if parts[1].strip() else "2026"
+        params["filter"] = f"from-pub-date:{from_year},until-pub-date:{to_year}"
+
+    try:
+        r = requests.get(_CROSSREF_API, params=params, headers=_CROSSREF_HEADERS, timeout=30)
+        r.raise_for_status()
+        data = r.json()
+    except Exception as e:
+        print(f"  [crossref] API 오류: {e}")
+        return []
+
+    items = data.get("message", {}).get("items", [])
+    results: list[dict] = []
+    for item in items:
+        title_list = item.get("title", [])
+        title = _norm(title_list[0]) if title_list else ""
+        if not title:
+            continue
+
+        abstract = _norm(item.get("abstract", ""))
+
+        # 저자
+        authors = []
+        for a in item.get("author", []):
+            name_parts = [a.get("given", ""), a.get("family", "")]
+            name = " ".join(p for p in name_parts if p).strip()
+            if name:
+                authors.append(name)
+
+        # 연도
+        date_parts = item.get("published-print", item.get("published-online", item.get("created", {})))
+        year_val = 0
+        if date_parts and date_parts.get("date-parts"):
+            try:
+                year_val = int(date_parts["date-parts"][0][0])
+            except (IndexError, TypeError, ValueError):
+                pass
+
+        doi = item.get("DOI", "")
+        url = f"https://doi.org/{doi}" if doi else ""
+
+        results.append({
+            "paper_id": f"crossref:{doi}" if doi else f"crossref:{title[:50]}",
+            "title": title,
+            "abstract": abstract,
+            "url": url,
+            "year": year_val,
+            "authors": authors,
+            "doi": doi,
+            "score_bm25": 0.0,
+            "venue": _norm((item.get("container-title") or [""])[0]) if item.get("container-title") else "",
+            "source": "crossref",
+            "full_text_sections": {"doi": doi} if doi else {},
+        })
+
+    return results
+
+
 def bm25_rank(papers: list[dict], query_text: str, top_k: int) -> dict:
     if not papers:
         return {"selected": [], "avg_bm25": 0.0}
@@ -680,10 +757,16 @@ def openalex_search(query: str, per_page: int = 20, year: str = "") -> list[dict
 # =========================== Tool APIs ==========================
 class ArxivApiCallInput(BaseModel):
     search_query: str = Field(description="arXiv API search_query")
-    max_total: int = Field(default=80, description="총 최대 결과 수")
-    page_size: int = Field(default=40, description="페이지당 결과 수")
-    max_pages: int = Field(default=3, description="최대 페이지 수")
+    max_total: int = Field(default=30, description="총 최대 결과 수")
+    page_size: int = Field(default=30, description="페이지당 결과 수")
+    max_pages: int = Field(default=1, description="최대 페이지 수")
     year: str = Field(default="", description="연도 필터 (e.g. '2022-2026'). submittedDate 범위로 변환")
+
+
+class CrossrefSearchInput(BaseModel):
+    query: str = Field(description="Crossref 검색 쿼리")
+    rows: int = Field(default=50, description="최대 결과 수 (max 1000)")
+    year: str = Field(default="", description="연도 필터 (e.g. '2022-2026')")
 
 
 class WebSearchInput(BaseModel):
@@ -692,13 +775,13 @@ class WebSearchInput(BaseModel):
 
 class SemanticScholarSearchInput(BaseModel):
     query: str = Field(description="Semantic Scholar 검색 쿼리")
-    limit: int = Field(default=20, description="최대 결과 수 (max 100)")
+    limit: int = Field(default=40, description="최대 결과 수 (max 100)")
     year: str = Field(default="", description="연도 필터 (e.g. '2020-2025', '2023-')")
 
 
 class OpenAlexSearchInput(BaseModel):
     query: str = Field(description="OpenAlex 검색 쿼리")
-    per_page: int = Field(default=20, description="최대 결과 수 (max 200)")
+    per_page: int = Field(default=40, description="최대 결과 수 (max 200)")
     year: str = Field(default="", description="연도 필터 (e.g. '2022-2026')")
 
 
@@ -706,7 +789,7 @@ class ScienceOnSearchInput(BaseModel):
     query: str = Field(description="ScienceON 검색 쿼리")
     target: str = Field(default="ARTI", description="ScienceON target")
     cur_page: int = Field(default=1, description="현재 페이지 번호")
-    row_count: int = Field(default=10, description="가져올 결과 수")
+    row_count: int = Field(default=15, description="가져올 결과 수")
     year: str = Field(default="", description="연도 필터 (e.g. '2022-2026')")
 
 
@@ -737,9 +820,9 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
     @tool(args_schema=ArxivApiCallInput)
     def arxiv_api_call_tool(
         search_query: str,
-        max_total: int = 80,
-        page_size: int = 40,
-        max_pages: int = 3,
+        max_total: int = 30,
+        page_size: int = 30,
+        max_pages: int = 1,
         year: str = "",
     ) -> str:
         """Call arXiv API directly and return a paper list as JSON string. Use year param for date filtering (e.g. '2022-2026')."""
@@ -765,6 +848,19 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
         except Exception as e:
             return f"<Error>Arxiv API call failed: {str(e)}</Error>"
 
+    @tool(args_schema=CrossrefSearchInput)
+    def crossref_search_tool(query: str, rows: int = 50, year: str = "") -> str:
+        """Search Crossref for academic papers. Covers 150M+ scholarly works with DOI, abstracts, and citation metadata. Very reliable with no rate limit issues. Use year param for filtering (e.g. '2022-2026')."""
+        try:
+            results = crossref_search(query=query, rows=rows, year=year)
+            return json.dumps({
+                "source": "crossref",
+                "query": query,
+                "results": results,
+            }, ensure_ascii=False)
+        except Exception as e:
+            return f"<Error>Crossref search failed: {str(e)}</Error>"
+
     @tool(args_schema=WebSearchInput)
     def web_search_tool(query: str) -> str:
         """Search the web API and return results as JSON string."""
@@ -779,7 +875,7 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
             return f"<Error>Web search failed: {str(e)}</Error>"
 
     @tool(args_schema=SemanticScholarSearchInput)
-    def semantic_scholar_search_tool(query: str, limit: int = 20, year: str = "") -> str:
+    def semantic_scholar_search_tool(query: str, limit: int = 40, year: str = "") -> str:
         """Search Semantic Scholar for academic papers. Returns papers with metadata. Good for finding highly-cited and cross-domain papers."""
         try:
             results = semantic_scholar_search(query=query, limit=limit, year=year)
@@ -792,7 +888,7 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
             return f"<Error>Semantic Scholar search failed: {str(e)}</Error>"
 
     @tool(args_schema=OpenAlexSearchInput)
-    def openalex_search_tool(query: str, per_page: int = 20, year: str = "") -> str:
+    def openalex_search_tool(query: str, per_page: int = 40, year: str = "") -> str:
         """Search OpenAlex for academic papers. Covers 200M+ works across all disciplines. No API key needed. Use year param for filtering (e.g. '2022-2026')."""
         try:
             results = openalex_search(query=query, per_page=per_page, year=year)
@@ -805,7 +901,7 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
             return f"<Error>OpenAlex search failed: {str(e)}</Error>"
 
     @tool(args_schema=ScienceOnSearchInput)
-    def scienceon_search_tool(query: str, target: str = "ARTI", cur_page: int = 1, row_count: int = 10, year: str = "") -> str:
+    def scienceon_search_tool(query: str, target: str = "ARTI", cur_page: int = 1, row_count: int = 15, year: str = "") -> str:
         """Search ScienceON paper records. Use year param for filtering (e.g. '2022-2026')."""
         if not cfg.scienceon_client_id:
             return "<Error>ScienceON client_id is not configured. Set SCIENCEON_CLIENT_ID.</Error>"
@@ -864,6 +960,7 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
 
     return [
         web_search_tool,
+        crossref_search_tool,
         arxiv_api_call_tool,
         semantic_scholar_search_tool,
         openalex_search_tool,

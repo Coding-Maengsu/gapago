@@ -24,9 +24,10 @@ _RETRIEVAL_PROMPT_TEMPLATE = """ROLE: Paper Retrieval Agent
 You are a retrieval orchestrator. Your job is to SELECT and CALL the most appropriate search tools.
 
 Available tools (ALL academic tools MUST be used every time):
-- arxiv_api_call_tool: arXiv preprint search. Covers CS, physics, math, quantitative biology, and more.
-- semantic_scholar_search_tool: Semantic Scholar search. Covers 200M+ papers across all disciplines with citation data. Good for finding highly-cited and influential papers.
-- openalex_search_tool: OpenAlex search. Covers 200M+ works across all disciplines including humanities, social sciences, and engineering. No API key needed.
+- crossref_search_tool: PRIMARY search tool, 50 results default, most reliable. Covers 150M+ scholarly works with DOI and citation metadata. Very reliable, no rate limit issues.
+- arxiv_api_call_tool: arXiv preprint search, 30 results, single page to avoid rate limits. Covers CS, physics, math, quantitative biology, and more. NOTE: May fail due to rate limits — if it fails, rely on crossref and other sources.
+- semantic_scholar_search_tool: Semantic Scholar search, 40 results, excellent for AI/ML. Covers 200M+ papers across all disciplines with citation data. Returns arXiv papers via arxiv: ID for full text access.
+- openalex_search_tool: OpenAlex search, 40 results, broad interdisciplinary coverage. Covers 200M+ works across all disciplines including humanities, social sciences, and engineering. No API key needed.
 - scienceon_search_tool: ScienceON/KISTI academic paper search. Covers both domestic and international journal articles, conference papers, and theses indexed by KISTI.
 - scienceon_patent_search_tool: ScienceON/KISTI patent search. Returns patent title, abstract, applicants, IPC classification, and application/publication dates. Useful for finding related prior art and technology trends.
 - scienceon_report_search_tool: ScienceON/KISTI national R&D report search. Returns government-funded research reports with full-text links. Useful for finding national research projects, policy-driven studies, and R&D trends.
@@ -44,7 +45,7 @@ Inputs may include a previous Meaning Expansion Agent message containing:
 Rules:
 1) Do not perform meaning expansion yourself.
 2) Use only the available tools above.
-3) You MUST call ALL of these academic search tools for every retrieval: arxiv_api_call_tool, semantic_scholar_search_tool, openalex_search_tool, and scienceon_search_tool. Do NOT skip any. Use different query variations per source to maximize diversity and coverage.
+3) You MUST call ALL of these academic search tools for every retrieval: crossref_search_tool, arxiv_api_call_tool, semantic_scholar_search_tool, openalex_search_tool, and scienceon_search_tool. Do NOT skip any. Use different query variations per source to maximize diversity and coverage. If arxiv_api_call_tool fails due to rate limits, continue with the other sources — crossref covers most arxiv papers too.
 4) Use scienceon_patent_search_tool and scienceon_report_search_tool when the topic involves applied technology, engineering, or industry applications. Patent data reveals prior art and technology gaps. R&D reports reveal government-funded research directions and policy-driven gaps.
 5) Use web_search_tool ONLY for discovering latest trends, emerging issues, recent developments, and community discussions related to the research topic. Do NOT use it to search for academic papers.
 6) Normalize academic results into one combined papers list. Keep web trend results separate in web_results. Keep patent and report results separate in patent_results and report_results.
@@ -138,7 +139,7 @@ def _parse_papers_from_tool_messages(messages: list) -> list[dict]:
             continue
 
         source = data.get("source", "")
-        if source in ("arxiv", "scienceon", "semantic_scholar", "openalex"):
+        if source in ("arxiv", "crossref", "scienceon", "semantic_scholar", "openalex"):
             papers.extend(data.get("results", []))
         elif source in ("scienceon_patent", "scienceon_report"):
             # 특허/보고서 결과를 papers 형식으로 정규화
@@ -541,7 +542,7 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
     print(f"  [DEBUG] BM25 1st stage: {len(raw_papers)} papers")
 
     # ✅ Full text 접근 가능 여부 필터링 (BM25와 Reranker 사이)
-    raw_papers = _filter_fulltext_available(raw_papers, target_count=cfg.bm25_top_k)
+    raw_papers = _filter_fulltext_available(raw_papers, target_count=cfg.fulltext_target_count)
     print(f"  [DEBUG] Full text filter: {len(raw_papers)} papers")
 
     # ✅ LLM Reranker 2차 선별 (정밀) - full text 가능한 논문만 대상
