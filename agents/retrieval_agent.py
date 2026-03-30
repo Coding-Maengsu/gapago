@@ -1,7 +1,10 @@
 # 3-3) Paper Retrieval Agent (tool-using selector)
 from __future__ import annotations
 
+import re
 import numpy as np
+import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from states import AgentState, Paper
 from langchain.agents import create_agent
@@ -13,9 +16,6 @@ from llm import get_llm
 from config import Configuration
 from utils.parse_json import parse_json
 from utils.progress import report_progress
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import requests
-import re
 
 # ── SPECTER2 + FAISS / CrossEncoder (lazy load) ─────────────────────────────
 _specter_model = None
@@ -274,6 +274,128 @@ def _dedupe_papers(raw_papers: list[dict]) -> list[dict]:
 
 
 
+# =====================================================================
+# Full text 접근 가능 여부 체크 (빠른 테스트)
+# =====================================================================
+_REQUEST_HEADERS = {"User-Agent": "GAPAGO-Research-Agent/1.0"}
+
+
+def _extract_arxiv_id(paper: dict) -> str:
+    """paper_id에서 arXiv ID 추출."""
+    pid = paper.get("paper_id", "")
+    if pid.lower().startswith("arxiv:"):
+        pid = pid[len("arxiv:"):]
+    pid = pid.strip()
+    if not pid or not re.match(r"^(\d{4}\.\d{4,5}|[\w\-]+\.?[\w\-]*/\d{7})", pid):
+        return ""
+    pid = re.sub(r"v\d+$", "", pid)
+    return pid
+
+
+def _find_pdf_url_from_doi(doi: str) -> str:
+    """DOI 페이지에서 PDF URL 찾기 (다운로드 없음)."""
+    doi_url = doi if doi.startswith("http") else f"https://doi.org/{doi}"
+    try:
+        resp = requests.get(doi_url, headers=_REQUEST_HEADERS, timeout=10, allow_redirects=True)
+        resp.raise_for_status()
+
+        if resp.headers.get("content-type", "").startswith("application/pdf"):
+            return resp.url
+
+        pdf_patterns = [
+            r'href=["\'][^"\']*\.pdf[^"\']*["\']',
+            r'href=["\'][^"\']*\/pdf[^"\']*["\']',
+        ]
+        for pattern in pdf_patterns:
+            matches = re.findall(pattern, resp.text, re.IGNORECASE)
+            for url in matches:
+                if not url.startswith("http"):
+                    from urllib.parse import urljoin
+                    url = urljoin(resp.url, url)
+                return url
+    except Exception:
+        pass
+    return ""
+
+
+def _can_load_full_text_fast(paper: dict) -> bool:
+    """
+    Full text 접근 가능 여부만 빠르게 확인 (실제 다운로드 없음).
+    HTTP HEAD 요청 또는 URL 패턴 체크.
+    """
+    pid = paper.get("paper_id", "").lower()
+
+    # arXiv: ar5iv HTML HEAD 요청
+    if pid.startswith("arxiv:"):
+        arxiv_id = _extract_arxiv_id(paper)
+        if not arxiv_id:
+            return False
+        url = f"https://ar5iv.labs.arxiv.org/html/{arxiv_id}"
+        try:
+            resp = requests.head(url, headers=_REQUEST_HEADERS, timeout=3)
+            return resp.status_code == 200
+        except Exception:
+            return True  # arXiv는 거의 항상 접근 가능
+
+    # DOI 기반 소스: PDF 링크 찾기
+    if pid.startswith(("s2:", "openalex:", "scienceon:")):
+        doi = paper.get("doi", "") or paper.get("full_text_sections", {}).get("doi", "")
+        if not doi and paper.get("url") and "doi.org" in paper.get("url", ""):
+            doi = paper.get("url")
+
+        if doi:
+            pdf_url = _find_pdf_url_from_doi(doi)
+            return bool(pdf_url)
+        return False
+
+    # ScienceON 특허/보고서: URL 존재 여부
+    if pid.startswith(("scienceon_patent:", "scienceon_report:")):
+        fts = paper.get("full_text_sections", {})
+        for key in ("fulltext_url", "FulltextURL", "content_url", "ContentURL"):
+            if fts.get(key):
+                return True
+        return bool(paper.get("url"))
+
+    return False
+
+
+def _filter_fulltext_available(papers: list[dict], target_count: int = 30) -> list[dict]:
+    """
+    논문 리스트에서 full text 접근 가능한 논문만 필터링 (병렬 처리).
+    원래 순서(BM25 랭킹 순서)를 유지합니다.
+    """
+    if not papers:
+        return []
+
+    print(f"  [fulltext_filter] {len(papers)}편 중 full text 접근 가능 여부 확인 중...")
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_index = {
+            executor.submit(_can_load_full_text_fast, paper): (i, paper)
+            for i, paper in enumerate(papers)
+        }
+
+        results = []
+        for future in as_completed(future_to_index):
+            i, paper = future_to_index[future]
+            try:
+                is_available = future.result()
+                results.append((i, paper, is_available))
+            except Exception as e:
+                print(f"  ⚠️ Full text 체크 실패 ({paper.get('paper_id', 'unknown')}): {e}")
+                results.append((i, paper, False))
+
+    results.sort(key=lambda x: x[0])
+    fulltext_available = [paper for _, paper, is_available in results if is_available]
+
+    if len(fulltext_available) > target_count:
+        fulltext_available = fulltext_available[:target_count]
+
+    print(f"  [fulltext_filter] Full text 접근 가능: {len(fulltext_available)}/{len(papers)}편")
+    return fulltext_available
+
+
+
 def _faiss_filter(papers: list[dict], query: str, top_k: int) -> list[dict]:
     """
     SPECTER2 임베딩 + FAISS 코사인 유사도 기반 2차 필터.
@@ -454,140 +576,6 @@ def _resolve_year_range(year_range: str) -> str:
     return ""
 
 
-# =====================================================================
-# Full text 접근 가능 여부 체크 (빠른 테스트)
-# =====================================================================
-_REQUEST_HEADERS = {"User-Agent": "GAPAGO-Research-Agent/1.0"}
-
-
-def _extract_arxiv_id(paper: dict) -> str:
-    """paper_id에서 arXiv ID 추출."""
-    pid = paper.get("paper_id", "")
-    if pid.lower().startswith("arxiv:"):
-        pid = pid[len("arxiv:"):]
-    pid = pid.strip()
-    if not pid or not re.match(r"^(\d{4}\.\d{4,5}|[\w\-]+\.?[\w\-]*/\d{7})", pid):
-        return ""
-    pid = re.sub(r"v\d+$", "", pid)
-    return pid
-
-
-def _find_pdf_url_from_doi(doi: str) -> str:
-    """DOI 페이지에서 PDF URL 찾기 (다운로드 없음)."""
-    doi_url = doi if doi.startswith("http") else f"https://doi.org/{doi}"
-    try:
-        resp = requests.get(doi_url, headers=_REQUEST_HEADERS, timeout=10, allow_redirects=True)
-        resp.raise_for_status()
-
-        # 리다이렉트된 최종 URL이 PDF인 경우
-        if resp.headers.get("content-type", "").startswith("application/pdf"):
-            return resp.url
-
-        # HTML 페이지에서 PDF 링크 추출
-        pdf_patterns = [
-            r'href=["\']([^"\']*\.pdf[^"\']*)["\']',
-            r'href=["\']([^"\']*\/pdf[^"\']*)["\']',
-        ]
-        for pattern in pdf_patterns:
-            matches = re.findall(pattern, resp.text, re.IGNORECASE)
-            for url in matches:
-                if not url.startswith("http"):
-                    from urllib.parse import urljoin
-                    url = urljoin(resp.url, url)
-                return url
-    except Exception:
-        pass
-    return ""
-
-
-def _can_load_full_text_fast(paper: dict) -> bool:
-    """
-    Full text 접근 가능 여부만 빠르게 확인 (실제 다운로드 없음).
-    HTTP HEAD 요청 또는 URL 패턴 체크.
-    """
-    pid = paper.get("paper_id", "").lower()
-
-    # arXiv: ar5iv HTML HEAD 요청
-    if pid.startswith("arxiv:"):
-        arxiv_id = _extract_arxiv_id(paper)
-        if not arxiv_id:
-            return False
-        url = f"https://ar5iv.labs.arxiv.org/html/{arxiv_id}"
-        try:
-            resp = requests.head(url, headers=_REQUEST_HEADERS, timeout=3)
-            return resp.status_code == 200
-        except Exception:
-            return True  # arXiv는 거의 항상 접근 가능
-
-    # DOI 기반 소스: PDF 링크 찾기
-    if pid.startswith(("s2:", "openalex:", "scienceon:")):
-        doi = paper.get("doi", "") or paper.get("full_text_sections", {}).get("doi", "")
-        if not doi and paper.get("url") and "doi.org" in paper.get("url", ""):
-            doi = paper.get("url")
-
-        if doi:
-            pdf_url = _find_pdf_url_from_doi(doi)
-            return bool(pdf_url)
-        return False
-
-    # ScienceON 특허/보고서: URL 존재 여부
-    if pid.startswith(("scienceon_patent:", "scienceon_report:")):
-        fts = paper.get("full_text_sections", {})
-        for key in ("fulltext_url", "FulltextURL", "content_url", "ContentURL"):
-            if fts.get(key):
-                return True
-        return bool(paper.get("url"))
-
-    return False
-
-
-def _filter_fulltext_available(papers: list[dict], target_count: int = 30) -> list[dict]:
-    """
-    논문 리스트에서 full text 접근 가능한 논문만 필터링 (병렬 처리).
-    원래 순서(BM25 랭킹 순서)를 유지합니다.
-
-    Args:
-        papers: 필터링할 논문 리스트 (BM25 순서대로 정렬되어 있어야 함)
-        target_count: 반환할 최대 논문 수
-
-    Returns:
-        Full text 접근 가능한 논문 리스트 (원래 순서 유지, 최대 target_count개)
-    """
-    if not papers:
-        return []
-
-    print(f"  [fulltext_filter] {len(papers)}편 중 full text 접근 가능 여부 확인 중...")
-
-    # 병렬 처리: 각 논문에 대해 인덱스와 함께 future 생성
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        future_to_index = {
-            executor.submit(_can_load_full_text_fast, paper): (i, paper)
-            for i, paper in enumerate(papers)
-        }
-
-        # 결과를 (인덱스, 논문, 접근가능여부) 튜플로 수집
-        results = []
-        for future in as_completed(future_to_index):
-            i, paper = future_to_index[future]
-            try:
-                is_available = future.result()
-                results.append((i, paper, is_available))
-            except Exception as e:
-                print(f"  ⚠️ Full text 체크 실패 ({paper.get('paper_id', 'unknown')}): {e}")
-                results.append((i, paper, False))
-
-    # 원래 순서대로 정렬 후, full text 접근 가능한 논문만 필터링
-    results.sort(key=lambda x: x[0])  # 인덱스 기준 정렬 (원래 순서 복원)
-    fulltext_available = [paper for _, paper, is_available in results if is_available]
-
-    # target_count 제한 적용
-    if len(fulltext_available) > target_count:
-        fulltext_available = fulltext_available[:target_count]
-
-    print(f"  [fulltext_filter] Full text 접근 가능: {len(fulltext_available)}/{len(papers)}편")
-    return fulltext_available
-
-
 def paper_retrieval_node(state: AgentState) -> AgentState:
     provider = state.get("llm_provider")
     session_id = state.get("session_id", "")
@@ -607,22 +595,33 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
     print(f"  [DEBUG] 전체 messages 수: {len(messages)}")
     for i, m in enumerate(messages):
         print(f"  [DEBUG] msg[{i}] type={type(m).__name__} name={getattr(m, 'name', None)} content={getattr(m, 'content', '')[:80]}")
-    # ✅ meaning_expand 메시지 우선, 없으면 query_analysis, 그것도 없으면 user_question
-    query_messages = [
+    # ✅ user query HumanMessage를 항상 앞에 추가
+    # LLM이 "user message가 없다"며 도구 호출을 거부하는 문제 방지
+    user_query_text = state.get("user_question") or state.get("refined_query", "")
+    user_query_msg = HumanMessage(content=user_query_text) if user_query_text else None
+
+    # meaning_expand 메시지 우선, 없으면 query_analysis, 그것도 없으면 user_question
+    agent_messages = [
         m for m in state.get("messages", [])
         if getattr(m, "name", None) == "meaning_expand"
     ]
-    if not query_messages:
-        query_messages = [
+    if not agent_messages:
+        agent_messages = [
             m for m in state.get("messages", [])
             if getattr(m, "name", None) == "query_analysis"
         ]
-    if not query_messages:
+    if not agent_messages:
         fallback_text = state.get("refined_query") or state.get("user_question", "")
-        query_messages = [HumanMessage(content=fallback_text)]
+        agent_messages = [HumanMessage(content=fallback_text)]
 
-    # 가장 최신 메시지 1개만 전달
-    query_messages = query_messages[-1:]
+    # 가장 최신 agent 메시지 1개 선택
+    agent_messages = agent_messages[-1:]
+
+    # user query + agent 메시지 순서로 전달 (LLM이 context를 올바르게 인식)
+    if user_query_msg:
+        query_messages = [user_query_msg] + agent_messages
+    else:
+        query_messages = agent_messages
 
     result = paper_retrieval_agent.invoke({
         **state,
@@ -703,7 +702,11 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
     else:
         stage1_papers = raw_papers
 
-    # ✅ 2단계: CrossEncoder reranking → 실패 시 LLM Reranker fallback
+    # ✅ 2단계: Full text 접근 가능 여부 필터링 (의미 없는 논문 제거)
+    stage1_papers = _filter_fulltext_available(stage1_papers, target_count=cfg.bm25_top_k)
+    print(f"  [fulltext_filter] after filter: {len(stage1_papers)} papers")
+
+    # ✅ 3단계: CrossEncoder reranking → 실패 시 LLM Reranker fallback
     if stage1_papers and query and len(stage1_papers) > cfg.reranker_top_k:
         ce_result = _cross_encoder_rerank(stage1_papers, query, top_k=cfg.reranker_top_k)
         if ce_result is not None:
