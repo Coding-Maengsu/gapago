@@ -28,7 +28,6 @@ beautifulsoup4
 feedparser
 PyMuPDF
 pymupdf4llm
-sentence-transformers
 faiss-cpu
 requests
 python-dotenv
