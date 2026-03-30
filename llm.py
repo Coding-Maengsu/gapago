@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import AzureChatOpenAI
+from langchain_google_vertexai import ChatVertexAI 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_aws import ChatBedrockConverse
 from langchain_groq import ChatGroq
@@ -51,8 +52,10 @@ def get_llm(provider: str | None = None, model: str | None = None) -> BaseChatMo
 
     # ── Google Gemini ──
     if provider in ("gemini", "google"):
-        return ChatGoogleGenerativeAI(
-            model=model or "gemini-2.0-flash",
+        return ChatVertexAI(
+            model_name=model or "gemini-2.0-flash",
+            project=os.getenv("GOOGLE_CLOUD_PROJECT", "coding-beast"),
+            location=os.getenv("GOOGLE_CLOUD_LOCATION", "global"),
         )
 
     # ── LG EXAONE (로컬 GPU, transformers) ──
