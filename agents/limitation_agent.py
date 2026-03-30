@@ -6,8 +6,14 @@ import time
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import hashlib
+import json
+import os
+from pathlib import Path
+
 import requests
 import pymupdf as fitz
+import pymupdf4llm
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
@@ -44,15 +50,18 @@ MAX_SECTION_CHARS = 3000  # 섹션별 최대 글자 수 (토큰 비용 제한)
 # 섹션 분리 유틸
 # =====================================================================
 def _split_sections(full_text: str) -> dict:
-    """전체 텍스트에서 섹션별로 분리."""
+    """전체 텍스트에서 섹션별로 분리. plain text 및 Markdown 헤딩 모두 지원."""
+    _kw_alt = "|".join(
+        re.escape(kw)
+        for kws in SECTION_KEYWORDS.values()
+        for kw in kws
+    )
     heading_pattern = re.compile(
-        r"(?m)^(\d+[\.\d]*\s+)?("
-        + "|".join(
-            kw.title()
-            for kws in SECTION_KEYWORDS.values()
-            for kw in kws
-        )
-        + r")(\s*:)?\s*$",
+        # plain text:  "3.1 Conclusion:" 또는 "Conclusion"
+        # markdown:    "## Conclusion" 또는 "# 3. Methods"
+        r"(?m)^(?:#{1,4}\s+)?(?:\d+[\.\d]*\.?\s+)?("
+        + _kw_alt
+        + r")(?:\s*[:\.]?)?\s*$",
         re.IGNORECASE,
     )
 
@@ -85,6 +94,42 @@ def _split_sections(full_text: str) -> dict:
 # =====================================================================
 _REQUEST_HEADERS = {"User-Agent": "GAPAGO-Research-Agent/1.0"}
 
+# ── Full text 캐시 ──
+_CACHE_DIR = Path(".cache/fulltext")
+_CACHE_TTL_DAYS = 7
+
+
+def _cache_key(paper_id: str) -> str:
+    return hashlib.sha256(paper_id.encode()).hexdigest()[:16]
+
+
+def _cache_get(paper_id: str) -> Optional[dict]:
+    """캐시에서 full text 섹션 로드. TTL 초과 시 None."""
+    path = _CACHE_DIR / f"{_cache_key(paper_id)}.json"
+    if not path.exists():
+        return None
+    try:
+        age_days = (time.time() - path.stat().st_mtime) / 86400
+        if age_days > _CACHE_TTL_DAYS:
+            path.unlink(missing_ok=True)
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        pass
+    return None
+
+
+def _cache_put(paper_id: str, sections: dict) -> None:
+    """섹션 데이터를 캐시에 저장."""
+    try:
+        _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        path = _CACHE_DIR / f"{_cache_key(paper_id)}.json"
+        path.write_text(json.dumps(sections, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+
 
 def _extract_arxiv_id(paper: Paper) -> Optional[str]:
     """paper_id ('arxiv:2401.12345v1') 에서 순수 arXiv ID를 추출."""
@@ -110,7 +155,7 @@ def _load_arxiv_html(paper: Paper) -> dict:
     try:
         from bs4 import BeautifulSoup
 
-        resp = requests.get(url, headers=_REQUEST_HEADERS, timeout=15)
+        resp = requests.get(url, headers=_REQUEST_HEADERS, timeout=8)
         resp.raise_for_status()
 
         soup = BeautifulSoup(resp.text, "html.parser")
@@ -167,11 +212,15 @@ def _load_arxiv_full_text(paper: Paper) -> dict:
 
 
 def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
-    """PyMuPDF로 PDF 바이트에서 텍스트 추출."""
+    """pymupdf4llm으로 PDF 바이트에서 Markdown 텍스트 추출 (섹션 헤딩 보존)."""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    text = ""
-    for page in doc:
-        text += page.get_text()
+    try:
+        text = pymupdf4llm.to_markdown(doc)
+    except Exception:
+        # fallback: plain text
+        text = ""
+        for page in doc:
+            text += page.get_text()
     doc.close()
     return text
 
@@ -180,7 +229,7 @@ def _find_pdf_url_from_doi(doi: str) -> Optional[str]:
     """DOI 페이지에 접근하여 PDF 다운로드 링크를 찾는다."""
     doi_url = doi if doi.startswith("http") else f"https://doi.org/{doi}"
     try:
-        resp = requests.get(doi_url, headers=_REQUEST_HEADERS, timeout=15, allow_redirects=True)
+        resp = requests.get(doi_url, headers=_REQUEST_HEADERS, timeout=8, allow_redirects=True)
         resp.raise_for_status()
 
         # 리다이렉트된 최종 URL이 PDF인 경우
@@ -227,7 +276,7 @@ def _load_doi_full_text(paper: Paper) -> dict:
         return {}
 
     try:
-        resp = requests.get(pdf_url, headers=_REQUEST_HEADERS, timeout=30)
+        resp = requests.get(pdf_url, headers=_REQUEST_HEADERS, timeout=15)
         resp.raise_for_status()
 
         if not resp.content[:4] == b"%PDF":
@@ -272,7 +321,7 @@ def _load_scienceon_pdf_from_url(paper: Paper, url: str, label: str) -> dict:
     if not url:
         return {}
     try:
-        resp = requests.get(url, headers=_REQUEST_HEADERS, timeout=30, allow_redirects=True)
+        resp = requests.get(url, headers=_REQUEST_HEADERS, timeout=15, allow_redirects=True)
         resp.raise_for_status()
 
         # 직접 PDF인 경우
@@ -298,7 +347,7 @@ def _load_scienceon_pdf_from_url(paper: Paper, url: str, label: str) -> dict:
                         from urllib.parse import urljoin
                         pdf_url = urljoin(resp.url, pdf_url)
                     try:
-                        pdf_resp = requests.get(pdf_url, headers=_REQUEST_HEADERS, timeout=30)
+                        pdf_resp = requests.get(pdf_url, headers=_REQUEST_HEADERS, timeout=15)
                         pdf_resp.raise_for_status()
                         if pdf_resp.content[:4] == b"%PDF":
                             full_text = _extract_text_from_pdf_bytes(pdf_resp.content)
@@ -366,39 +415,36 @@ def _load_scienceon_report_full_text(paper: Paper) -> dict:
 def _load_full_text_sections(paper: Paper) -> dict:
     """
     논문 소스별로 full text를 로드하고 섹션으로 분리.
-    - arXiv → a5iv HTML / ArxivLoader PDF
-    - ScienceON 논문 → DOI 경유 PDF 다운로드
-    - ScienceON 특허 → ContentURL에서 PDF/HTML
-    - ScienceON 보고서 → FulltextURL에서 PDF
-    - 그 외 → abstract fallback (빈 dict)
+    캐시 히트 시 네트워크 요청 없이 즉시 반환.
     """
     if paper.full_text_sections and any(
         k in paper.full_text_sections for k in SECTION_KEYWORDS
     ):
         return paper.full_text_sections
 
+    # ── 캐시 체크 ──
+    cached = _cache_get(paper.paper_id or "")
+    if cached is not None:
+        print(f"  [fulltext:cache] '{paper.title[:50]}' → cache hit")
+        return cached
+
     pid = (paper.paper_id or "").lower()
+    sections: dict = {}
 
     if pid.startswith("arxiv:"):
-        return _load_arxiv_full_text(paper)
-
-    if pid.startswith("scienceon_patent:"):
-        return _load_scienceon_patent_full_text(paper)
-
-    if pid.startswith("scienceon_report:"):
-        return _load_scienceon_report_full_text(paper)
-
-    if pid.startswith("scienceon:"):
-        return _load_scienceon_full_text(paper)
-
-    # Semantic Scholar / OpenAlex: DOI 경유 시도, 없으면 abstract fallback
-    if pid.startswith(("s2:", "openalex:")):
+        sections = _load_arxiv_full_text(paper)
+    elif pid.startswith("scienceon_patent:"):
+        sections = _load_scienceon_patent_full_text(paper)
+    elif pid.startswith("scienceon_report:"):
+        sections = _load_scienceon_report_full_text(paper)
+    elif pid.startswith("scienceon:"):
+        sections = _load_scienceon_full_text(paper)
+    elif pid.startswith(("s2:", "openalex:")):
         sections = _load_doi_full_text(paper)
-        if sections:
-            return sections
 
-    # 웹 소스 등은 abstract fallback
-    return {}
+    # ── 캐시 저장 (빈 dict도 저장하여 반복 실패 방지) ──
+    _cache_put(paper.paper_id or "", sections)
+    return sections
 
 
 # =====================================================================
@@ -673,7 +719,7 @@ def limitation_extract_node(state: AgentState) -> AgentState:
     # ── Step 1: Full text 로드 (병렬, LLM 호출 아님) ──
     print(f"  🔄 {len(papers)}편 논문 full text 로드 중...")
     paper_sections = {}
-    with ThreadPoolExecutor(max_workers=min(5, len(papers))) as executor:
+    with ThreadPoolExecutor(max_workers=min(8, len(papers))) as executor:
         futures = {executor.submit(_load_full_text_sections, p): p for p in papers}
         for future in as_completed(futures):
             paper = futures[future]
