@@ -202,6 +202,7 @@ class AgentState(TypedDict):
     # -2- RETRIEVE AGENT
     papers: List[dict]
     total_candidates_count: int  # BM25 전 전체 검색 결과 수 (예: 130)
+    backup_papers: List[dict]  # full text 실패 시 대체할 후보 논문 (arXiv 우선)
     web_results: List[dict]  # 웹 검색 결과 (논문 풀과 분리, recency_check에서 사용)
     research_domain: str     # 연구 도메인 (auto/ai_cs/biomedical/materials_chemistry/physics/general)
     llm_provider: str        # LLM 프로바이더 (azure/claude/gemini/exaone)

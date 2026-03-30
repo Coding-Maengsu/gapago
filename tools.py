@@ -213,6 +213,26 @@ def crossref_search(query: str, rows: int = 40, year: str = "") -> list[dict]:
         doi = item.get("DOI", "")
         url = f"https://doi.org/{doi}" if doi else ""
 
+        # PDF URL 추출: link 필드에서 application/pdf 타입 우선
+        # Elsevier TDM API URL (api.elsevier.com, httpAccept=text/xml) 등은 제외
+        pdf_url = ""
+        for link in (item.get("link") or []):
+            ct = (link.get("content-type") or "").lower()
+            link_url = link.get("URL", "")
+            if "api.elsevier.com" in link_url or "httpAccept=text/xml" in link_url:
+                continue
+            if "pdf" in ct and link_url:
+                pdf_url = link_url
+                break
+        if not pdf_url:
+            for link in (item.get("link") or []):
+                link_url = link.get("URL", "")
+                if "api.elsevier.com" in link_url or "httpAccept=text/xml" in link_url:
+                    continue
+                if link_url:
+                    pdf_url = link_url
+                    break
+
         results.append({
             "paper_id": f"crossref:{doi}" if doi else f"crossref:{title[:50]}",
             "title": title,
@@ -224,7 +244,7 @@ def crossref_search(query: str, rows: int = 40, year: str = "") -> list[dict]:
             "score_bm25": 0.0,
             "venue": _norm((item.get("container-title") or [""])[0]) if item.get("container-title") else "",
             "source": "crossref",
-            "full_text_sections": {"doi": doi} if doi else {},
+            "full_text_sections": {"doi": doi, "pdf_url": pdf_url} if doi else {},
         })
 
     return results
@@ -617,7 +637,7 @@ def scienceon_report_search(*, client_id: str, query: str, cur_page: int = 1, ro
 
 # =========================== Semantic Scholar ===========================
 _S2_API = "https://api.semanticscholar.org/graph/v1/paper/search/bulk"
-_S2_FIELDS = "paperId,title,abstract,year,authors,url,externalIds,venue,publicationVenue"
+_S2_FIELDS = "paperId,title,abstract,year,authors,url,externalIds,venue,publicationVenue,openAccessPdf,isOpenAccess"
 
 
 def semantic_scholar_search(query: str, limit: int = 20, year: str = "") -> list[dict]:
@@ -655,6 +675,7 @@ def semantic_scholar_search(query: str, limit: int = 20, year: str = "") -> list
                     venue = p.get("venue") or ""
                 if not venue and arxiv_id:
                     venue = "arXiv preprint"
+                oa_pdf = (p.get("openAccessPdf") or {}).get("url", "")
                 papers.append({
                     "paper_id": paper_id,
                     "title": _norm(p.get("title", "")),
@@ -665,8 +686,7 @@ def semantic_scholar_search(query: str, limit: int = 20, year: str = "") -> list
                     "score_bm25": 0.0,
                     "venue": venue,
                     "source": "semantic_scholar",
-                    "full_text_sections": {},
-                    "doi": doi,
+                    "full_text_sections": {"doi": doi, "pdf_url": oa_pdf},
                 })
             last_error = None
             break
@@ -687,7 +707,7 @@ def openalex_search(query: str, per_page: int = 20, year: str = "") -> list[dict
     params = {
         "search": query,
         "per_page": min(per_page, 200),
-        "select": "id,title,publication_year,doi,authorships,abstract_inverted_index,primary_location",
+        "select": "id,title,publication_year,doi,authorships,abstract_inverted_index,primary_location,open_access,best_oa_location",
     }
     # 연도 필터: OpenAlex filter 파라미터 사용
     if year and "-" in year:
@@ -738,6 +758,16 @@ def openalex_search(query: str, per_page: int = 20, year: str = "") -> list[dict
             if isinstance(source_info, dict):
                 venue = source_info.get("display_name", "")
 
+        # OA PDF URL 추출
+        oa_pdf = ""
+        best_oa = p.get("best_oa_location") or {}
+        if isinstance(best_oa, dict):
+            oa_pdf = best_oa.get("pdf_url") or ""
+        if not oa_pdf:
+            oa_info = p.get("open_access") or {}
+            if isinstance(oa_info, dict):
+                oa_pdf = oa_info.get("oa_url") or ""
+
         papers.append({
             "paper_id": f"openalex:{openalex_id}",
             "title": title,
@@ -748,8 +778,7 @@ def openalex_search(query: str, per_page: int = 20, year: str = "") -> list[dict
             "score_bm25": 0.0,
             "venue": venue,
             "source": "openalex",
-            "full_text_sections": {},
-            "doi": doi,
+            "full_text_sections": {"doi": doi, "pdf_url": oa_pdf},
         })
     return papers
 
@@ -757,15 +786,15 @@ def openalex_search(query: str, per_page: int = 20, year: str = "") -> list[dict
 # =========================== Tool APIs ==========================
 class ArxivApiCallInput(BaseModel):
     search_query: str = Field(description="arXiv API search_query")
-    max_total: int = Field(default=30, description="총 최대 결과 수")
-    page_size: int = Field(default=30, description="페이지당 결과 수")
+    max_total: int = Field(default=100, description="총 최대 결과 수")
+    page_size: int = Field(default=100, description="페이지당 결과 수")
     max_pages: int = Field(default=1, description="최대 페이지 수")
     year: str = Field(default="", description="연도 필터 (e.g. '2022-2026'). submittedDate 범위로 변환")
 
 
 class CrossrefSearchInput(BaseModel):
     query: str = Field(description="Crossref 검색 쿼리")
-    rows: int = Field(default=50, description="최대 결과 수 (max 1000)")
+    rows: int = Field(default=60, description="최대 결과 수 (max 1000)")
     year: str = Field(default="", description="연도 필터 (e.g. '2022-2026')")
 
 
@@ -775,7 +804,7 @@ class WebSearchInput(BaseModel):
 
 class SemanticScholarSearchInput(BaseModel):
     query: str = Field(description="Semantic Scholar 검색 쿼리")
-    limit: int = Field(default=40, description="최대 결과 수 (max 100)")
+    limit: int = Field(default=50, description="최대 결과 수 (max 100)")
     year: str = Field(default="", description="연도 필터 (e.g. '2020-2025', '2023-')")
 
 
@@ -820,8 +849,8 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
     @tool(args_schema=ArxivApiCallInput)
     def arxiv_api_call_tool(
         search_query: str,
-        max_total: int = 30,
-        page_size: int = 30,
+        max_total: int = 100,
+        page_size: int = 100,
         max_pages: int = 1,
         year: str = "",
     ) -> str:
@@ -849,7 +878,7 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
             return f"<Error>Arxiv API call failed: {str(e)}</Error>"
 
     @tool(args_schema=CrossrefSearchInput)
-    def crossref_search_tool(query: str, rows: int = 50, year: str = "") -> str:
+    def crossref_search_tool(query: str, rows: int = 60, year: str = "") -> str:
         """Search Crossref for academic papers. Covers 150M+ scholarly works with DOI, abstracts, and citation metadata. Very reliable with no rate limit issues. Use year param for filtering (e.g. '2022-2026')."""
         try:
             results = crossref_search(query=query, rows=rows, year=year)
@@ -875,7 +904,7 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
             return f"<Error>Web search failed: {str(e)}</Error>"
 
     @tool(args_schema=SemanticScholarSearchInput)
-    def semantic_scholar_search_tool(query: str, limit: int = 40, year: str = "") -> str:
+    def semantic_scholar_search_tool(query: str, limit: int = 50, year: str = "") -> str:
         """Search Semantic Scholar for academic papers. Returns papers with metadata. Good for finding highly-cited and cross-domain papers."""
         try:
             results = semantic_scholar_search(query=query, limit=limit, year=year)

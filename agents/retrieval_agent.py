@@ -24,9 +24,9 @@ _RETRIEVAL_PROMPT_TEMPLATE = """ROLE: Paper Retrieval Agent
 You are a retrieval orchestrator. Your job is to SELECT and CALL the most appropriate search tools.
 
 Available tools (ALL academic tools MUST be used every time):
-- crossref_search_tool: PRIMARY search tool, 50 results default, most reliable. Covers 150M+ scholarly works with DOI and citation metadata. Very reliable, no rate limit issues.
-- arxiv_api_call_tool: arXiv preprint search, 30 results, single page to avoid rate limits. Covers CS, physics, math, quantitative biology, and more. NOTE: May fail due to rate limits — if it fails, rely on crossref and other sources.
-- semantic_scholar_search_tool: Semantic Scholar search, 40 results, excellent for AI/ML. Covers 200M+ papers across all disciplines with citation data. Returns arXiv papers via arxiv: ID for full text access.
+- arxiv_api_call_tool: arXiv API direct search. Best for CS, ML, physics, math preprints. Returns papers with arxiv: ID for guaranteed full text access (ar5iv HTML). Use arxiv_query_candidates from Meaning Expansion.
+- crossref_search_tool: PRIMARY search tool, 60 results default, most reliable. Covers 150M+ scholarly works with DOI and citation metadata. Very reliable, no rate limit issues.
+- semantic_scholar_search_tool: Semantic Scholar search, 50 results, excellent for AI/ML. Covers 200M+ papers across all disciplines with citation data. Returns arXiv papers via arxiv: ID for full text access.
 - openalex_search_tool: OpenAlex search, 40 results, broad interdisciplinary coverage. Covers 200M+ works across all disciplines including humanities, social sciences, and engineering. No API key needed.
 - scienceon_search_tool: ScienceON/KISTI academic paper search. Covers both domestic and international journal articles, conference papers, and theses indexed by KISTI.
 - scienceon_patent_search_tool: ScienceON/KISTI patent search. Returns patent title, abstract, applicants, IPC classification, and application/publication dates. Useful for finding related prior art and technology trends.
@@ -45,7 +45,7 @@ Inputs may include a previous Meaning Expansion Agent message containing:
 Rules:
 1) Do not perform meaning expansion yourself.
 2) Use only the available tools above.
-3) You MUST call ALL of these academic search tools for every retrieval: crossref_search_tool, arxiv_api_call_tool, semantic_scholar_search_tool, openalex_search_tool, and scienceon_search_tool. Do NOT skip any. Use different query variations per source to maximize diversity and coverage. If arxiv_api_call_tool fails due to rate limits, continue with the other sources — crossref covers most arxiv papers too.
+3) You MUST call ALL of these academic search tools for every retrieval: arxiv_api_call_tool, crossref_search_tool, semantic_scholar_search_tool, openalex_search_tool, and scienceon_search_tool. Do NOT skip any. Use different query variations per source to maximize diversity and coverage. arXiv papers have guaranteed full text access, so prioritize them when available.
 4) Use scienceon_patent_search_tool and scienceon_report_search_tool when the topic involves applied technology, engineering, or industry applications. Patent data reveals prior art and technology gaps. R&D reports reveal government-funded research directions and policy-driven gaps.
 5) Use web_search_tool ONLY for discovering latest trends, emerging issues, recent developments, and community discussions related to the research topic. Do NOT use it to search for academic papers.
 6) Normalize academic results into one combined papers list. Keep web trend results separate in web_results. Keep patent and report results separate in patent_results and report_results.
@@ -314,7 +314,10 @@ def _resolve_year_range(year_range: str) -> str:
 # =====================================================================
 # Full text 접근 가능 여부 체크 (빠른 테스트)
 # =====================================================================
-_REQUEST_HEADERS = {"User-Agent": "GAPAGO-Research-Agent/1.0"}
+_REQUEST_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,application/pdf;q=0.8,*/*;q=0.7",
+}
 
 
 def _extract_arxiv_id(paper: dict) -> str:
@@ -357,91 +360,89 @@ def _find_pdf_url_from_doi(doi: str) -> str:
     return ""
 
 
-def _can_load_full_text_fast(paper: dict) -> bool:
-    """
-    Full text 접근 가능 여부만 빠르게 확인 (실제 다운로드 없음).
-    HTTP HEAD 요청 또는 URL 패턴 체크.
-    """
+# full text 확보 신뢰도 등급
+_FULLTEXT_CONFIDENCE = {
+    "guaranteed": 3,   # arXiv (ar5iv HTML 거의 100%)
+    "likely": 2,       # OA PDF URL 확보됨
+    "maybe": 1,        # DOI만 있음 (출판사 차단 가능성)
+    "none": 0,
+}
+
+
+def _fulltext_confidence(paper: dict) -> int:
+    """논문의 full text 확보 신뢰도를 반환."""
     pid = paper.get("paper_id", "").lower()
 
-    # arXiv: ar5iv HTML HEAD 요청
+    # arXiv: ar5iv HTML이 거의 항상 존재
     if pid.startswith("arxiv:"):
-        arxiv_id = _extract_arxiv_id(paper)
-        if not arxiv_id:
-            return False
-        url = f"https://ar5iv.labs.arxiv.org/html/{arxiv_id}"
-        try:
-            resp = requests.head(url, headers=_REQUEST_HEADERS, timeout=3)
-            return resp.status_code == 200
-        except Exception:
-            return True  # arXiv는 거의 항상 접근 가능
-
-    # DOI 기반 소스: PDF 링크 찾기
-    if pid.startswith(("s2:", "openalex:", "scienceon:")):
-        doi = paper.get("doi", "") or paper.get("full_text_sections", {}).get("doi", "")
-        if not doi and paper.get("url") and "doi.org" in paper.get("url", ""):
-            doi = paper.get("url")
-
-        if doi:
-            pdf_url = _find_pdf_url_from_doi(doi)
-            return bool(pdf_url)
-        return False
+        if _extract_arxiv_id(paper):
+            return _FULLTEXT_CONFIDENCE["guaranteed"]
+        return _FULLTEXT_CONFIDENCE["none"]
 
     # ScienceON 특허/보고서: URL 존재 여부
     if pid.startswith(("scienceon_patent:", "scienceon_report:")):
         fts = paper.get("full_text_sections", {})
         for key in ("fulltext_url", "FulltextURL", "content_url", "ContentURL"):
             if fts.get(key):
-                return True
-        return bool(paper.get("url"))
+                return _FULLTEXT_CONFIDENCE["likely"]
+        return _FULLTEXT_CONFIDENCE["maybe"] if paper.get("url") else _FULLTEXT_CONFIDENCE["none"]
 
-    return False
+    # API가 OA PDF URL을 제공한 경우
+    pdf_url = paper.get("pdf_url") or paper.get("full_text_sections", {}).get("pdf_url", "")
+    if pdf_url:
+        return _FULLTEXT_CONFIDENCE["likely"]
+
+    # DOI 기반 소스: DOI가 있으면 가능성은 있지만 확실하지 않음
+    if pid.startswith(("crossref:", "s2:", "openalex:", "scienceon:")):
+        doi = paper.get("doi", "") or paper.get("full_text_sections", {}).get("doi", "")
+        if not doi and paper.get("url") and "doi.org" in paper.get("url", ""):
+            doi = paper.get("url")
+        if doi:
+            return _FULLTEXT_CONFIDENCE["maybe"]
+
+    return _FULLTEXT_CONFIDENCE["none"]
+
+
+def _can_load_full_text_fast(paper: dict) -> bool:
+    """Full text 접근 가능 여부를 메타데이터만으로 빠르게 판별."""
+    return _fulltext_confidence(paper) > _FULLTEXT_CONFIDENCE["none"]
 
 
 def _filter_fulltext_available(papers: list[dict], target_count: int = 30) -> list[dict]:
     """
-    논문 리스트에서 full text 접근 가능한 논문만 필터링 (병렬 처리).
-    원래 순서(BM25 랭킹 순서)를 유지합니다.
-
-    Args:
-        papers: 필터링할 논문 리스트 (BM25 순서대로 정렬되어 있어야 함)
-        target_count: 반환할 최대 논문 수
-
-    Returns:
-        Full text 접근 가능한 논문 리스트 (원래 순서 유지, 최대 target_count개)
+    논문 리스트에서 full text 접근 가능한 논문만 필터링.
+    arXiv(guaranteed) → OA PDF(likely) → DOI(maybe) 순으로 우선 배치.
+    각 신뢰도 그룹 내에서는 BM25 순서 유지.
     """
     if not papers:
         return []
 
     print(f"  [fulltext_filter] {len(papers)}편 중 full text 접근 가능 여부 확인 중...")
 
-    # 병렬 처리: 각 논문에 대해 인덱스와 함께 future 생성
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        future_to_index = {
-            executor.submit(_can_load_full_text_fast, paper): (i, paper)
-            for i, paper in enumerate(papers)
-        }
+    # 각 논문의 신뢰도 계산
+    scored = []
+    for i, paper in enumerate(papers):
+        conf = _fulltext_confidence(paper)
+        if conf > 0:
+            scored.append((conf, i, paper))
 
-        # 결과를 (인덱스, 논문, 접근가능여부) 튜플로 수집
-        results = []
-        for future in as_completed(future_to_index):
-            i, paper = future_to_index[future]
-            try:
-                is_available = future.result()
-                results.append((i, paper, is_available))
-            except Exception as e:
-                print(f"  ⚠️ Full text 체크 실패 ({paper.get('paper_id', 'unknown')}): {e}")
-                results.append((i, paper, False))
+    # 신뢰도 내림차순, 동일 신뢰도 내에서는 원래 순서(BM25) 유지
+    scored.sort(key=lambda x: (-x[0], x[1]))
 
-    # 원래 순서대로 정렬 후, full text 접근 가능한 논문만 필터링
-    results.sort(key=lambda x: x[0])  # 인덱스 기준 정렬 (원래 순서 복원)
-    fulltext_available = [paper for _, paper, is_available in results if is_available]
+    fulltext_available = [paper for _, _, paper in scored[:target_count]]
 
-    # target_count 제한 적용
-    if len(fulltext_available) > target_count:
-        fulltext_available = fulltext_available[:target_count]
+    # 소스별 통계 출력
+    stats = {"guaranteed": 0, "likely": 0, "maybe": 0}
+    for conf, _, _ in scored[:target_count]:
+        if conf == 3:
+            stats["guaranteed"] += 1
+        elif conf == 2:
+            stats["likely"] += 1
+        else:
+            stats["maybe"] += 1
 
-    print(f"  [fulltext_filter] Full text 접근 가능: {len(fulltext_available)}/{len(papers)}편")
+    print(f"  [fulltext_filter] {len(fulltext_available)}/{len(papers)}편 선별 "
+          f"(guaranteed={stats['guaranteed']}, likely={stats['likely']}, maybe={stats['maybe']})")
     return fulltext_available
 
 
@@ -546,9 +547,23 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
     print(f"  [DEBUG] Full text filter: {len(raw_papers)} papers")
 
     # ✅ LLM Reranker 2차 선별 (정밀) - full text 가능한 논문만 대상
+    # 선별되지 않은 논문은 backup으로 보관 (full text 실패 시 대체용)
+    backup_raw = []
     if raw_papers and query and len(raw_papers) > cfg.reranker_top_k:
-        raw_papers = _llm_rerank(raw_papers, query, top_k=cfg.reranker_top_k, provider=provider)
-    print(f"  [DEBUG] LLM Reranker 2nd stage: {len(raw_papers)} papers")
+        reranked = _llm_rerank(raw_papers, query, top_k=cfg.reranker_top_k, provider=provider)
+        reranked_ids = {p.get("paper_id") for p in reranked}
+        backup_raw = [p for p in raw_papers if p.get("paper_id") not in reranked_ids]
+        # backup은 arXiv(guaranteed) 우선, 동일 그룹 내에서는 BM25 순위(원래 순서) 유지
+        # enumerate로 원래 인덱스 보존 → stable sort
+        backup_raw = sorted(
+            backup_raw,
+            key=lambda p: (
+                0 if p.get("paper_id", "").lower().startswith("arxiv:") else 1,
+                -p.get("score_bm25", 0.0),  # BM25 점수 높은 순
+            ),
+        )
+        raw_papers = reranked
+    print(f"  [DEBUG] LLM Reranker 2nd stage: {len(raw_papers)} papers, backup: {len(backup_raw)} papers")
     report_progress(
         session_id, "paper_retrieval",
         f"{total_found}편 중 가장 관련도 높은 {len(raw_papers)}편을 선별했습니다",
@@ -564,6 +579,8 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
             fts = dict(p.get("full_text_sections") or {})
             if p.get("doi") and "doi" not in fts:
                 fts["doi"] = p["doi"]
+            if p.get("pdf_url") and "pdf_url" not in fts:
+                fts["pdf_url"] = p["pdf_url"]
             # venue 결정: 명시적 venue > journal > source 라벨
             venue = p.get("venue", "")
             if not venue:
@@ -594,13 +611,38 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
             print(f"  ⚠️ Paper 변환 실패: {e}")
             continue
 
+    # backup_papers를 dict 형태로 변환 (state에 저장)
+    backup_papers = []
+    for p in backup_raw:
+        try:
+            fts = dict(p.get("full_text_sections") or {})
+            if p.get("doi") and "doi" not in fts:
+                fts["doi"] = p["doi"]
+            if p.get("pdf_url") and "pdf_url" not in fts:
+                fts["pdf_url"] = p["pdf_url"]
+            backup_papers.append({
+                "paper_id": p.get("paper_id", ""),
+                "title": p.get("title", ""),
+                "abstract": p.get("abstract", ""),
+                "url": p.get("url", ""),
+                "year": p.get("year", 0) or 0,
+                "authors": p.get("authors") or [],
+                "score_bm25": p.get("score_bm25", 0.0),
+                "venue": p.get("venue", ""),
+                "full_text_sections": fts,
+            })
+        except Exception:
+            continue
+    arxiv_backup = sum(1 for bp in backup_papers if bp.get("paper_id", "").lower().startswith("arxiv:"))
     print(f"  ✓ Retrieved {len(papers)}/{total_candidates_count} papers + {len(web_results)} web results")
+    print(f"  ✓ Backup pool: {len(backup_papers)} papers ({arxiv_backup} arXiv)")
 
     last = AIMessage(content=last_content, name="paper_retrieval")
     return {
         "messages": [last],
         "sender": "paper_retrieval",
         "papers": papers,
+        "backup_papers": backup_papers,
         "total_candidates_count": total_candidates_count,
         "web_results": web_results,
     }
