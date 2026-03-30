@@ -56,6 +56,10 @@ class Configuration:
         default=_int_env("SCIENCEON_DEFAULT_ROW_COUNT", 20),
         metadata={"description": "ScienceON default row count", "range": [1, 100]},
     )
+    fulltext_target_count: int = field(
+        default=_int_env("FULLTEXT_TARGET_COUNT", 30),
+        metadata={"description": "Max papers after fulltext filter", "range": [15, 60]},
+    )
     bm25_top_k: int = field(
         default=_int_env("BM25_TOP_K", 50),
         metadata={"description": "BM25 1st stage filter count", "range": [10, 100]},
@@ -97,6 +101,9 @@ class Configuration:
                 configurable.get(
                     "scienceon_default_row_count", defaults.scienceon_default_row_count
                 )
+            ),
+            fulltext_target_count=int(
+                configurable.get("fulltext_target_count", defaults.fulltext_target_count)
             ),
             bm25_top_k=int(
                 configurable.get("bm25_top_k", defaults.bm25_top_k)

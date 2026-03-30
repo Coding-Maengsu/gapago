@@ -38,6 +38,7 @@ def get_llm(provider: str | None = None, model: str | None = None) -> BaseChatMo
 
     # ── Claude via AWS Bedrock ──
     if provider in ("claude", "anthropic"):
+        from botocore.config import Config as BotoConfig
         bedrock_model = model or os.getenv(
             "BEDROCK_CLAUDE_MODEL",
             "us.anthropic.claude-sonnet-4-20250514-v1:0",
@@ -45,6 +46,7 @@ def get_llm(provider: str | None = None, model: str | None = None) -> BaseChatMo
         return ChatBedrockConverse(
             model=bedrock_model,
             region_name=os.getenv("AWS_REGION", "us-east-1"),
+            config=BotoConfig(read_timeout=300, connect_timeout=10, retries={"max_attempts": 2}),
         )
 
     # ── Google Gemini ──

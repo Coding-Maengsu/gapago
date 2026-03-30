@@ -143,8 +143,8 @@ pydantic_core==2.41.5
 pydeck==0.9.1
 # pyee 제거 (pyppeteer 의존성)
 Pygments==2.19.2
-PyMuPDF==1.24.3
-PyMuPDFb==1.24.3
+PyMuPDF==1.27.2.2
+pymupdf4llm==1.27.2.2
 pyparsing==3.3.2
 # pyppeteer 제거 (websockets 10.x 요구 → google-genai와 충돌)
 pytest==9.0.2
