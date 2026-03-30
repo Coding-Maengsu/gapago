@@ -20,8 +20,9 @@ from pydantic import BaseModel, Field
 import config  # noqa: F401  (.env load, LangSmith)
 
 from graphs.graph import build_graph
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from llm import AVAILABLE_PROVIDERS, get_llm
+from agents.gap_chat_agent import gap_chat_respond
 from utils.progress import init_progress, drain_progress, cleanup_progress
 
 # ── App ──────────────────────────────────────────────────────────────
@@ -374,6 +375,75 @@ async def explore(topic: str, session_id: str = "", provider: str = "azure", dom
     asyncio.create_task(_run_pipeline(new_session_id, graph, config_dict, inputs))
 
     return {"session_id": new_session_id, "parent_session_id": session_id}
+
+
+# ── Chat history (in-memory, per session) ────────────────────────────
+_chat_histories: dict[str, list[dict]] = {}
+
+
+class ChatRequest(BaseModel):
+    session_id: str
+    message: str
+    filename: str = ""
+
+
+@app.post("/api/chat")
+async def chat(req: ChatRequest):
+    """Chat about analysis results. Works with both active sessions and saved results."""
+    # Build minimal AgentState from session or saved file
+    state: dict = {}
+
+    session = _sessions.get(req.session_id)
+    if session and session.get("filename"):
+        # Completed session — load from file
+        path = OUTPUT_DIR / session["filename"]
+        if path.exists():
+            data = json.loads(path.read_text(encoding="utf-8"))
+            state = _build_chat_state(data, session.get("query", ""))
+    elif req.filename:
+        # Load from filename directly
+        path = OUTPUT_DIR / req.filename
+        if not path.exists():
+            raise HTTPException(404, "Result not found")
+        data = json.loads(path.read_text(encoding="utf-8"))
+        state = _build_chat_state(data)
+    else:
+        raise HTTPException(400, "No completed analysis found for this session")
+
+    # Restore chat history
+    chat_key = req.session_id or req.filename
+    if chat_key not in _chat_histories:
+        _chat_histories[chat_key] = []
+
+    # Add previous chat messages to state
+    for msg in _chat_histories[chat_key]:
+        if msg["role"] == "user":
+            state.setdefault("messages", []).append(HumanMessage(content=msg["content"]))
+        else:
+            state.setdefault("messages", []).append(AIMessage(content=msg["content"], name="gap_chat"))
+
+    try:
+        response = gap_chat_respond(state, req.message)
+    except Exception as e:
+        raise HTTPException(500, f"Chat error: {e}")
+
+    # Save to history
+    _chat_histories[chat_key].append({"role": "user", "content": req.message})
+    _chat_histories[chat_key].append({"role": "assistant", "content": response})
+
+    return {"response": response}
+
+
+def _build_chat_state(data: dict, query: str = "") -> dict:
+    """Build a minimal AgentState dict from saved result data."""
+    return {
+        "refined_query": data.get("refined_query", query or data.get("query", "")),
+        "gaps": data.get("gaps", []),
+        "limitations": data.get("limitations", []),
+        "papers": data.get("papers", []),
+        "messages": [],
+        "llm_provider": data.get("llm_provider", "azure"),
+    }
 
 
 @app.get("/api/stream/{session_id}")
