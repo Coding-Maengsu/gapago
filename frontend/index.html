@@ -226,10 +226,14 @@
         }
 
         .input-area {
-            padding: 12px 36px 14px;
+            padding: 16px 36px 24px;
             background: var(--surface);
-            border-top: 1px solid var(--border-light);
+            border-top: none;
+            box-shadow: 0 -4px 16px rgba(26,31,54,0.06);
             flex-shrink: 0;
+            max-width: 780px;
+            margin: 0 auto;
+            width: 100%;
         }
 
         .input-row {
@@ -240,12 +244,12 @@
 
         .input-row textarea {
             flex: 1;
-            padding: 12px 16px;
-            background: var(--surface2);
+            padding: 14px 18px;
+            background: var(--surface);
             color: var(--text);
-            border: 1.5px solid var(--border);
+            border: 2px solid var(--border);
             border-radius: 20px;
-            font-size: 0.95em;
+            font-size: 1em;
             font-family: inherit;
             outline: none;
             transition: border-color 0.15s, box-shadow 0.15s;
@@ -253,6 +257,7 @@
             max-height: 120px;
             line-height: 1.5;
             overflow-y: auto;
+            box-shadow: 0 2px 8px rgba(26,31,54,0.05);
         }
 
         .input-row textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
@@ -1344,7 +1349,7 @@
             .history-section { display: none; }
 
             .main { height: calc(100vh - 90px); }
-            .input-area { padding: 10px 12px; }
+            .input-area { padding: 12px 12px 20px; max-width: 100%; }
             .input-row { gap: 6px; }
             .input-row textarea { padding: 10px 14px; font-size: 0.86em; }
 
@@ -1386,7 +1391,7 @@
             .sidebar-header p { display: none; }
             .new-btn { font-size: 0.74em; padding: 7px 12px; margin: 6px 8px; }
             .settings-section { padding: 6px 10px; }
-            .input-area { padding: 10px 12px; }
+            .input-area { padding: 10px 12px 18px; max-width: 100%; }
             .input-row input { font-size: 0.8em; padding: 9px 10px; }
             .run-btn, .stop-btn { padding: 9px 14px; font-size: 0.8em; }
             .results { padding: 12px; }
