@@ -5,6 +5,7 @@ fastapi
 uvicorn
 langchain
 langchain-anthropic
+langchain_groq
 langchain-aws
 langchain-community
 langchain-core

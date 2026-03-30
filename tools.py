@@ -20,7 +20,7 @@ from config import Configuration
 from utils.tavily import TavilySearch
 
 
-_ARXIV_API = "http://export.arxiv.org/api/query"
+_ARXIV_API = "https://export.arxiv.org/api/query"
 _ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
 _SCIENCEON_OPENAPI = "https://apigateway.kisti.re.kr/openapicall.do"
 _SCIENCEON_TOKEN_API = "https://apigateway.kisti.re.kr/tokenrequest.do"
@@ -133,6 +133,7 @@ def arxiv_api_call(search_query: str, max_total: int, page_size: int, max_pages:
                 if r.status_code == 429:
                     wait = 3 * (attempt + 1)
                     print(f"  [arxiv] 429 rate limit → {wait}s 대기 후 재시도 ({attempt + 1}/3)")
+                    print(f"  [arxiv] 응답 body: {r.text[:200]}")  # ← 이거 추가
                     time.sleep(wait)
                     continue
                 r.raise_for_status()

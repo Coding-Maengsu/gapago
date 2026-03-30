@@ -1,7 +1,10 @@
 # 3-3) Paper Retrieval Agent (tool-using selector)
 from __future__ import annotations
 
+import re
 import numpy as np
+import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from states import AgentState, Paper
 from langchain.agents import create_agent
@@ -13,9 +16,65 @@ from llm import get_llm
 from config import Configuration
 from utils.parse_json import parse_json
 from utils.progress import report_progress
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import requests
-import re
+
+# ── SPECTER2 + FAISS / CrossEncoder (lazy load) ─────────────────────────────
+_specter_model = None
+_cross_encoder  = None
+
+
+def _get_device() -> str:
+    """사용 가능한 디바이스 자동 감지 (CUDA > MPS > CPU)"""
+    try:
+        import torch
+        if torch.cuda.is_available():
+            device  = "cuda"
+            gpu_name = torch.cuda.get_device_name(0)
+            vram_gb  = torch.cuda.get_device_properties(0).total_memory / 1024**3
+            print(f"  [Device] GPU 감지: {gpu_name} ({vram_gb:.1f}GB VRAM) → cuda 사용")
+        elif torch.backends.mps.is_available():
+            device = "mps"
+            print("  [Device] Apple MPS 감지 → mps 사용")
+        else:
+            device = "cpu"
+            print("  [Device] GPU 없음 → cpu 사용")
+        return device
+    except ImportError:
+        print("  [Device] torch 미설치 → cpu 사용")
+        return "cpu"
+
+
+def _get_specter_model():
+    """SPECTER2 모델 lazy load (첫 호출 시에만 로드, GPU 자동 감지)"""
+    global _specter_model
+    if _specter_model is None:
+        try:
+            from sentence_transformers import SentenceTransformer
+            device = _get_device()
+            print(f"  [SPECTER2] 모델 로딩 중... device={device} (첫 호출 시 수십 초 소요)")
+            _specter_model = SentenceTransformer("allenai/specter2_base", device=device)
+            print("  [SPECTER2] 로딩 완료")
+        except Exception as e:
+            print(f"  [WARN] SPECTER2 로딩 실패: {e} → FAISS 단계 스킵")
+            _specter_model = None
+    return _specter_model
+
+
+def _get_cross_encoder():
+    """CrossEncoder 모델 lazy load (첫 호출 시에만 로드, GPU 자동 감지)"""
+    global _cross_encoder
+    if _cross_encoder is None:
+        try:
+            from sentence_transformers import CrossEncoder
+            device = _get_device()
+            print(f"  [CrossEncoder] 모델 로딩 중... device={device}")
+            # 다국어 지원 (한국어 포함) reranker
+            _cross_encoder = CrossEncoder("BAAI/bge-reranker-v2-m3", device=device)
+            print("  [CrossEncoder] 로딩 완료")
+        except Exception as e:
+            print(f"  [WARN] CrossEncoder 로딩 실패: {e} → LLM Reranker fallback")
+            _cross_encoder = None
+    return _cross_encoder
+
 
 ROLE_TOOLS = build_role_tools()
 RETRIEVAL_TOOLS = ROLE_TOOLS["RETRIEVAL_TOOLS"]
@@ -215,101 +274,6 @@ def _dedupe_papers(raw_papers: list[dict]) -> list[dict]:
     return deduped
 
 
-RERANKER_PROMPT = """You are a research paper relevance assessor for GAP analysis.
-
-Research Query: "{query}"
-
-Below are {n} candidate papers. Select the {top_k} most relevant papers for identifying research gaps, limitations, and future directions.
-
-Prioritize:
-1. Papers directly addressing the research topic (methodology, dataset, application domain match)
-2. Papers with substantive abstracts that likely contain discussable limitations
-3. Diversity of perspectives (different approaches/subfields within the topic)
-4. Recent papers (more likely to have current limitations)
-
-Papers:
-{papers_text}
-
-Return a JSON object:
-{{
-  "selected_indices": [1, 3, 5, ...],
-  "rationale": "Brief explanation of selection strategy"
-}}
-
-IMPORTANT: Return ONLY the JSON object. Select exactly {top_k} papers (or fewer if fewer are truly relevant)."""
-
-
-def _llm_rerank(papers: list[dict], query: str, top_k: int, provider: str = None) -> list[dict]:
-    """LLM Reranker: BM25 필터링된 논문에서 GAP 분석에 가장 적합한 논문 선별."""
-    if len(papers) <= top_k:
-        return papers
-
-    papers_text = "\n".join(
-        f"[{i+1}] Title: {p.get('title', '')}\n"
-        f"    Year: {p.get('year', 'N/A')}\n"
-        f"    Abstract: {(p.get('abstract', '') or '')[:300]}\n"
-        for i, p in enumerate(papers)
-    )
-
-    prompt = RERANKER_PROMPT.format(
-        query=query,
-        n=len(papers),
-        top_k=top_k,
-        papers_text=papers_text,
-    )
-
-    try:
-        llm = get_llm(provider=provider)
-        response = llm.invoke([HumanMessage(content=prompt)])
-        content = response.content if hasattr(response, "content") else str(response)
-        parsed = parse_json(content)
-
-        if not isinstance(parsed, dict) or "selected_indices" not in parsed:
-            print(f"  [WARN] LLM Reranker 파싱 실패 → BM25 top-{top_k} fallback")
-            return papers[:top_k]
-
-        indices = parsed["selected_indices"]
-        # 유효한 인덱스만 필터 (1-indexed → 0-indexed)
-        seen = set()
-        selected = []
-        for idx in indices:
-            try:
-                idx = int(idx)
-            except (ValueError, TypeError):
-                continue
-            if idx < 1 or idx > len(papers) or idx in seen:
-                continue
-            seen.add(idx)
-            selected.append(papers[idx - 1])
-            if len(selected) >= top_k:
-                break
-
-        if not selected:
-            print(f"  [WARN] LLM Reranker 유효 결과 없음 → BM25 top-{top_k} fallback")
-            return papers[:top_k]
-
-        rationale = parsed.get("rationale", "")
-        print(f"  [reranker] {len(papers)}편 → {len(selected)}편 선별 ({rationale[:80]})")
-        return selected
-
-    except Exception as e:
-        print(f"  [WARN] LLM Reranker 실패: {e} → BM25 top-{top_k} fallback")
-        return papers[:top_k]
-
-
-def _resolve_year_range(year_range: str) -> str:
-    """Convert year_range setting to 'YYYY-YYYY' format for tools."""
-    from datetime import datetime
-    current_year = datetime.now().year
-    if year_range == "1y":
-        return f"{current_year - 1}-{current_year}"
-    elif year_range == "3y":
-        return f"{current_year - 3}-{current_year}"
-    elif year_range == "5y":
-        return f"{current_year - 5}-{current_year}"
-    # "auto" or unknown → return empty (agent decides)
-    return ""
-
 
 # =====================================================================
 # Full text 접근 가능 여부 체크 (빠른 테스트)
@@ -339,14 +303,12 @@ def _find_pdf_url_from_doi(doi: str) -> str:
         resp = requests.get(doi_url, headers=_REQUEST_HEADERS, timeout=10, allow_redirects=True)
         resp.raise_for_status()
 
-        # 리다이렉트된 최종 URL이 PDF인 경우
         if resp.headers.get("content-type", "").startswith("application/pdf"):
             return resp.url
 
-        # HTML 페이지에서 PDF 링크 추출
         pdf_patterns = [
-            r'href=["\']([^"\']*\.pdf[^"\']*)["\']',
-            r'href=["\']([^"\']*\/pdf[^"\']*)["\']',
+            r'href=["\'][^"\']*\.pdf[^"\']*["\']',
+            r'href=["\'][^"\']*\/pdf[^"\']*["\']',
         ]
         for pattern in pdf_patterns:
             matches = re.findall(pattern, resp.text, re.IGNORECASE)
@@ -446,6 +408,187 @@ def _filter_fulltext_available(papers: list[dict], target_count: int = 30) -> li
     return fulltext_available
 
 
+
+def _faiss_filter(papers: list[dict], query: str, top_k: int) -> list[dict]:
+    """
+    SPECTER2 임베딩 + FAISS 코사인 유사도 기반 2차 필터.
+    BM25 통과 논문 중 의미적으로 가장 유사한 top_k 편을 선별.
+    모델 로딩 실패 시 원본 리스트 그대로 반환.
+    """
+    if len(papers) <= top_k:
+        return papers
+
+    model = _get_specter_model()
+    if model is None:
+        print(f"  [FAISS] 모델 없음 → 스킵 (BM25 결과 {len(papers)}편 유지)")
+        return papers
+
+    try:
+        import faiss
+
+        # 논문 텍스트: title + abstract 결합
+        corpus_texts = [
+            f"{p.get('title', '')} {p.get('abstract', '')}".strip()
+            for p in papers
+        ]
+
+        # 쿼리 + 논문 임베딩 (배치 처리, GPU 자동 활용)
+        all_texts  = [query] + corpus_texts
+        embeddings = model.encode(
+            all_texts,
+            batch_size=64,           # GPU면 배치 크기 키워서 속도 향상
+            show_progress_bar=False,
+            normalize_embeddings=True,
+            convert_to_numpy=True,
+        )
+
+        query_vec  = embeddings[0:1].astype("float32")   # (1, dim)
+        paper_vecs = embeddings[1:].astype("float32")    # (N, dim)
+
+        # FAISS CPU 인덱스 (코사인 유사도 = 정규화된 벡터의 내적)
+        dim   = paper_vecs.shape[1]
+        index = faiss.IndexFlatIP(dim)
+        index.add(paper_vecs)
+
+        actual_k        = min(top_k, len(papers))
+        scores, indices = index.search(query_vec, actual_k)  # (1, k)
+
+        selected = [papers[i] for i in indices[0] if 0 <= i < len(papers)]
+        print(f"  [FAISS] {len(papers)}편 → {len(selected)}편 선별 (SPECTER2 코사인 유사도)")
+        return selected
+
+    except ImportError:
+        print("  [WARN] faiss 미설치 → FAISS 단계 스킵. pip install faiss-cpu")
+        return papers
+    except Exception as e:
+        print(f"  [WARN] FAISS 필터 실패: {e} → BM25 결과 유지")
+        return papers
+
+
+def _cross_encoder_rerank(papers: list[dict], query: str, top_k: int) -> list[dict]:
+    """
+    CrossEncoder(BAAI/bge-reranker-v2-m3) 기반 3차 reranking.
+    한국어/영어 모두 지원. 로딩 실패 시 LLM Reranker로 fallback.
+    Returns top_k papers sorted by cross-encoder score (desc).
+    """
+    if len(papers) <= top_k:
+        return papers
+
+    reranker = _get_cross_encoder()
+    if reranker is None:
+        return None  # fallback 신호: None 반환 시 LLM Reranker 사용
+
+    try:
+        pairs  = [(query, f"{p.get('title', '')} {p.get('abstract', '')}") for p in papers]
+        scores = reranker.predict(pairs, show_progress_bar=False)
+
+        # 점수 내림차순 정렬 후 top_k 선택
+        ranked = sorted(zip(scores, papers), key=lambda x: x[0], reverse=True)
+        selected = [p for _, p in ranked[:top_k]]
+        print(f"  [CrossEncoder] {len(papers)}편 → {len(selected)}편 reranking 완료")
+        return selected
+
+    except Exception as e:
+        print(f"  [WARN] CrossEncoder reranking 실패: {e} → LLM Reranker fallback")
+        return None  # fallback 신호
+
+
+RERANKER_PROMPT = """You are a research paper relevance assessor for GAP analysis.
+
+Research Query: "{query}"
+
+Below are {n} candidate papers. Select the {top_k} most relevant papers for identifying research gaps, limitations, and future directions.
+
+Prioritize:
+1. Papers directly addressing the research topic (methodology, dataset, application domain match)
+2. Papers with substantive abstracts that likely contain discussable limitations
+3. Diversity of perspectives (different approaches/subfields within the topic)
+4. Recent papers (more likely to have current limitations)
+
+Papers:
+{papers_text}
+
+Return a JSON object:
+{{
+  "selected_indices": [1, 3, 5, ...],
+  "rationale": "Brief explanation of selection strategy"
+}}
+
+IMPORTANT: Return ONLY the JSON object. Select exactly {top_k} papers (or fewer if fewer are truly relevant)."""
+
+
+def _llm_rerank(papers: list[dict], query: str, top_k: int, provider: str = None) -> list[dict]:
+    """LLM Reranker: BM25 필터링된 논문에서 GAP 분석에 가장 적합한 논문 선별."""
+    if len(papers) <= top_k:
+        return papers
+
+    papers_text = "\n".join(
+        f"[{i+1}] Title: {p.get('title', '')}\n"
+        f"    Year: {p.get('year', 'N/A')}\n"
+        f"    Abstract: {(p.get('abstract', '') or '')[:300]}\n"
+        for i, p in enumerate(papers)
+    )
+
+    prompt = RERANKER_PROMPT.format(
+        query=query,
+        n=len(papers),
+        top_k=top_k,
+        papers_text=papers_text,
+    )
+
+    try:
+        llm = get_llm(provider=provider)
+        response = llm.invoke([HumanMessage(content=prompt)])
+        content = response.content if hasattr(response, "content") else str(response)
+        parsed = parse_json(content)
+
+        if not isinstance(parsed, dict) or "selected_indices" not in parsed:
+            print(f"  [WARN] LLM Reranker 파싱 실패 → BM25 top-{top_k} fallback")
+            return papers[:top_k]
+
+        indices = parsed["selected_indices"]
+        # 유효한 인덱스만 필터 (1-indexed → 0-indexed)
+        seen = set()
+        selected = []
+        for idx in indices:
+            try:
+                idx = int(idx)
+            except (ValueError, TypeError):
+                continue
+            if idx < 1 or idx > len(papers) or idx in seen:
+                continue
+            seen.add(idx)
+            selected.append(papers[idx - 1])
+            if len(selected) >= top_k:
+                break
+
+        if not selected:
+            print(f"  [WARN] LLM Reranker 유효 결과 없음 → BM25 top-{top_k} fallback")
+            return papers[:top_k]
+
+        rationale = parsed.get("rationale", "")
+        print(f"  [reranker] {len(papers)}편 → {len(selected)}편 선별 ({rationale[:80]})")
+        return selected
+
+    except Exception as e:
+        print(f"  [WARN] LLM Reranker 실패: {e} → BM25 top-{top_k} fallback")
+        return papers[:top_k]
+
+
+def _resolve_year_range(year_range: str) -> str:
+    """Convert year_range setting to 'YYYY-YYYY' format for tools."""
+    from datetime import datetime
+    current_year = datetime.now().year
+    if year_range == "1y":
+        return f"{current_year - 1}-{current_year}"
+    elif year_range == "3y":
+        return f"{current_year - 3}-{current_year}"
+    elif year_range == "5y":
+        return f"{current_year - 5}-{current_year}"
+    # "auto" or unknown → return empty (agent decides)
+    return ""
+
+
 def paper_retrieval_node(state: AgentState) -> AgentState:
     provider = state.get("llm_provider")
     session_id = state.get("session_id", "")
@@ -465,22 +608,33 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
     print(f"  [DEBUG] 전체 messages 수: {len(messages)}")
     for i, m in enumerate(messages):
         print(f"  [DEBUG] msg[{i}] type={type(m).__name__} name={getattr(m, 'name', None)} content={getattr(m, 'content', '')[:80]}")
-    # ✅ meaning_expand 메시지 우선, 없으면 query_analysis, 그것도 없으면 user_question
-    query_messages = [
+    # ✅ user query HumanMessage를 항상 앞에 추가
+    # LLM이 "user message가 없다"며 도구 호출을 거부하는 문제 방지
+    user_query_text = state.get("user_question") or state.get("refined_query", "")
+    user_query_msg = HumanMessage(content=user_query_text) if user_query_text else None
+
+    # meaning_expand 메시지 우선, 없으면 query_analysis, 그것도 없으면 user_question
+    agent_messages = [
         m for m in state.get("messages", [])
         if getattr(m, "name", None) == "meaning_expand"
     ]
-    if not query_messages:
-        query_messages = [
+    if not agent_messages:
+        agent_messages = [
             m for m in state.get("messages", [])
             if getattr(m, "name", None) == "query_analysis"
         ]
-    if not query_messages:
+    if not agent_messages:
         fallback_text = state.get("refined_query") or state.get("user_question", "")
-        query_messages = [HumanMessage(content=fallback_text)]
+        agent_messages = [HumanMessage(content=fallback_text)]
 
-    # 가장 최신 메시지 1개만 전달
-    query_messages = query_messages[-1:]
+    # 가장 최신 agent 메시지 1개 선택
+    agent_messages = agent_messages[-1:]
+
+    # user query + agent 메시지 순서로 전달 (LLM이 context를 올바르게 인식)
+    if user_query_msg:
+        query_messages = [user_query_msg] + agent_messages
+    else:
+        query_messages = agent_messages
 
     result = paper_retrieval_agent.invoke({
         **state,
@@ -520,50 +674,76 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
         if filtered_count:
             print(f"  [year_filter] {before_filter} → {len(raw_papers)} ({filtered_count}편 범위 밖 제거, {from_year}-{to_year})")
 
-    # ✅ BM25 1차 필터 (동적 k: 점수 분포 기반 적응적 컷오프)
+    # ✅ 1단계: BM25 + SPECTER2/FAISS 병렬 필터 → union → 중복 제거
     total_found = len(raw_papers)
     cfg = Configuration()
     query = state.get("refined_query") or state.get("user_question", "")
+
+    # BM25와 FAISS 각각 bm25_top_k 편씩 선별 후 합집합
+    # → CrossEncoder 입력 후보 풀: 최대 bm25_top_k * 2편 (중복 제거 후)
+    stage1_papers = []
     if raw_papers and query:
-        # 동적 k 계산: BM25 점수 분포에서 평균 + 0.5*표준편차 이상인 논문 수
+        # ── BM25: 키워드 매칭 기반 ──────────────────────────────────────
         corpus = [_tokenize(f"{p.get('title', '')} {p.get('abstract', '')}") for p in raw_papers]
         bm25 = BM25Okapi(corpus)
         scores = bm25.get_scores(_tokenize(query))
         if len(scores) > 0:
             mean_score = float(np.mean(scores))
-            std_score = float(np.std(scores))
-            threshold = mean_score + 0.5 * std_score
-            dynamic_k = int(np.sum(scores > threshold))
-            dynamic_k = max(10, min(dynamic_k, cfg.bm25_top_k))  # 10 ~ bm25_top_k 범위
+            std_score  = float(np.std(scores))
+            threshold  = mean_score + 0.5 * std_score
+            dynamic_k  = int(np.sum(scores > threshold))
+            dynamic_k  = max(10, min(dynamic_k, cfg.bm25_top_k))
             print(f"  [BM25] dynamic_k={dynamic_k} (mean={mean_score:.2f}, std={std_score:.2f}, threshold={threshold:.2f})")
         else:
             dynamic_k = cfg.bm25_top_k
-        ranked = bm25_rank(raw_papers, query, top_k=dynamic_k)
-        raw_papers = ranked.get("selected", raw_papers)
-    print(f"  [DEBUG] BM25 1st stage: {len(raw_papers)} papers")
+        ranked    = bm25_rank(raw_papers, query, top_k=dynamic_k)
+        bm25_pool = ranked.get("selected", raw_papers[:dynamic_k])
+        print(f"  [BM25] 1st pool: {len(bm25_pool)} papers")
 
-    # ✅ Full text 접근 가능 여부 필터링 (BM25와 Reranker 사이)
-    raw_papers = _filter_fulltext_available(raw_papers, target_count=cfg.fulltext_target_count)
-    print(f"  [DEBUG] Full text filter: {len(raw_papers)} papers")
+        # ── SPECTER2 + FAISS: 의미적 유사도 기반 ───────────────────────
+        faiss_pool = _faiss_filter(raw_papers, query, top_k=cfg.bm25_top_k)
+        print(f"  [FAISS] 1st pool: {len(faiss_pool)} papers")
 
-    # ✅ LLM Reranker 2차 선별 (정밀) - full text 가능한 논문만 대상
+        # ── Union + 중복 제거 ────────────────────────────────────────────
+        seen_ids = set()
+        for p in bm25_pool + faiss_pool:
+            pid = (p.get("paper_id") or p.get("title", "")).strip().lower()
+            if pid and pid not in seen_ids:
+                seen_ids.add(pid)
+                stage1_papers.append(p)
+        print(f"  [Stage1] BM25 ∪ FAISS = {len(stage1_papers)} papers (중복 제거 후)")
+    else:
+        stage1_papers = raw_papers
+
+    # ✅ 2단계: Full text 접근 가능 여부 필터링 (arXiv 우선 정렬)
+    stage1_papers = _filter_fulltext_available(stage1_papers, target_count=cfg.bm25_top_k)
+    print(f"  [fulltext_filter] after filter: {len(stage1_papers)} papers")
+
+    # ✅ 3단계: CrossEncoder reranking → 실패 시 LLM Reranker fallback
     # 선별되지 않은 논문은 backup으로 보관 (full text 실패 시 대체용)
     backup_raw = []
-    if raw_papers and query and len(raw_papers) > cfg.reranker_top_k:
-        reranked = _llm_rerank(raw_papers, query, top_k=cfg.reranker_top_k, provider=provider)
-        reranked_ids = {p.get("paper_id") for p in reranked}
-        backup_raw = [p for p in raw_papers if p.get("paper_id") not in reranked_ids]
-        # backup은 arXiv(guaranteed) 우선, 동일 그룹 내에서는 BM25 순위(원래 순서) 유지
-        # enumerate로 원래 인덱스 보존 → stable sort
+    if stage1_papers and query and len(stage1_papers) > cfg.reranker_top_k:
+        ce_result = _cross_encoder_rerank(stage1_papers, query, top_k=cfg.reranker_top_k)
+        if ce_result is not None:
+            raw_papers = ce_result
+            print(f"  [CrossEncoder] 2nd stage: {len(raw_papers)} papers")
+        else:
+            print("  [CrossEncoder] 실패 → LLM Reranker fallback")
+            raw_papers = _llm_rerank(stage1_papers, query, top_k=cfg.reranker_top_k, provider=provider)
+            print(f"  [LLM Reranker] fallback: {len(raw_papers)} papers")
+        # backup: 선별되지 않은 논문 (arXiv 우선, BM25 높은 순)
+        reranked_ids = {p.get("paper_id") for p in raw_papers}
+        backup_raw = [p for p in stage1_papers if p.get("paper_id") not in reranked_ids]
         backup_raw = sorted(
             backup_raw,
             key=lambda p: (
                 0 if p.get("paper_id", "").lower().startswith("arxiv:") else 1,
-                -p.get("score_bm25", 0.0),  # BM25 점수 높은 순
+                -p.get("score_bm25", 0.0),
             ),
         )
-        raw_papers = reranked
-    print(f"  [DEBUG] LLM Reranker 2nd stage: {len(raw_papers)} papers, backup: {len(backup_raw)} papers")
+    else:
+        raw_papers = stage1_papers
+    print(f"  [Reranker] final: {len(raw_papers)} papers, backup: {len(backup_raw)} papers")
     report_progress(
         session_id, "paper_retrieval",
         f"{total_found}편 중 가장 관련도 높은 {len(raw_papers)}편을 선별했습니다",

@@ -158,6 +158,9 @@ python-dotenv==1.2.1
 pytz==2026.1.post1
 PyYAML==6.0.3
 rank-bm25==0.2.2
+sentence-transformers>=3.0.0
+faiss-cpu
+langchain-groq>=0.2.0
 referencing==0.37.0
 regex==2026.1.15
 requests==2.32.5
