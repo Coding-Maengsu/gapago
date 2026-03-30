@@ -1,6 +1,7 @@
 import os
 from functools import lru_cache
 from dotenv import load_dotenv
+import tempfile
 
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import AzureChatOpenAI
@@ -10,6 +11,12 @@ from langchain_aws import ChatBedrockConverse
 from langchain_groq import ChatGroq
 
 load_dotenv()
+
+creds_json = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+if creds_json:
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        f.write(creds_json)
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = f.name
 
 # ── Provider 목록 (사용자 선택용) ──────────────────────────────────
 # groq, qwq는 gap_agent 추론 단계 전용 → GAP_REASONING_PROVIDER 환경변수로 설정
