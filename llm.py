@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from langchain_core.language_models import BaseChatModel
 from langchain_openai import AzureChatOpenAI
 from langchain_google_vertexai import ChatVertexAI 
-from langchain_google_genai import ChatGoogleGenerativeAI
+# from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_aws import ChatBedrockConverse
 from langchain_groq import ChatGroq
 
