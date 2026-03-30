@@ -1418,6 +1418,7 @@
         <select id="provider">
             <option value="azure">Azure OpenAI (GPT)</option>
             <option value="claude">Claude (Anthropic)</option>
+            <option value="gemini">Google Gemini</option>
             <option value="exaone">EXAONE (Local)</option>
         </select>
         <label>연도 범위</label>
@@ -1951,7 +1952,7 @@ async function startAnalysis() {
     const outputLanguage = document.getElementById('outputLanguage').value;
 
     setInputEnabled(false);
-    const providerLabels = { azure: 'Azure GPT', claude: 'Claude', exaone: 'EXAONE' };
+    const providerLabels = { azure: 'Azure GPT', claude: 'Claude', gemini: 'Gemini', exaone: 'EXAONE' };
     const yearLabels = { auto: '자동 추천', '1y': '최근 1년', '3y': '최근 3년', '5y': '최근 5년' };
     const langLabels = { auto: '자동 감지', ko: '한국어', en: 'English' };
     pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: { provider: providerLabels[provider] || provider, yearRange: yearLabels[yearRange] || yearRange, outputLanguage: langLabels[outputLanguage] || outputLanguage } };
