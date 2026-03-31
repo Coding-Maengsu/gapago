@@ -24,6 +24,7 @@ from states import AgentState, Paper, LimitationItem
 from llm import get_llm
 from utils.parse_json import parse_json
 from utils.progress import report_progress
+from utils.cancel import is_cancelled
 
 # =====================================================================
 # 섹션 키워드 정의
@@ -1289,6 +1290,10 @@ def limitation_extract_node(state: AgentState) -> AgentState:
     with ThreadPoolExecutor(max_workers=min(3, len(papers))) as executor:
         futures = {executor.submit(_load_full_text_sections, p): p for p in papers}
         for future in as_completed(futures):
+            if is_cancelled(session_id):
+                executor.shutdown(wait=False, cancel_futures=True)
+                print(f"  [limitation] 취소됨 — full text 로드 중단")
+                return {"messages": [AIMessage(content="Cancelled.", name="limitation_extract")], "limitations": []}
             paper = futures[future]
             try:
                 sections = future.result()
@@ -1423,6 +1428,10 @@ def limitation_extract_node(state: AgentState) -> AgentState:
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(_process_batch, batch): batch for batch in batches}
         for future in as_completed(futures):
+            if is_cancelled(session_id):
+                executor.shutdown(wait=False, cancel_futures=True)
+                print(f"  [limitation] 취소됨 — LLM 배치 처리 중단")
+                return {"messages": [AIMessage(content="Cancelled.", name="limitation_extract")], "limitations": all_limitations}
             result = future.result()
             all_limitations.extend(result["limitations"])
             errors.extend(result["errors"])

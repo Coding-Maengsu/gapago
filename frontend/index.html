@@ -147,9 +147,18 @@
             cursor: pointer;
             margin-bottom: 1px;
             transition: background 0.12s;
+            position: relative;
         }
 
         .history-item:hover { background: var(--surface2); }
+        .history-item .delete-btn {
+            position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+            display: none; border: none; background: none; cursor: pointer;
+            color: var(--text-light); font-size: 0.82em; padding: 4px 6px; border-radius: 4px;
+            transition: color 0.15s, background 0.15s;
+        }
+        .history-item:hover .delete-btn { display: block; }
+        .history-item .delete-btn:hover { color: #e74c3c; background: rgba(231,76,60,0.1); }
         .history-item .query { font-size: 0.86em; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
         .history-item .meta { font-size: 0.75em; color: var(--text-light); margin-top: 2px; }
         .history-item .meta .running-badge { color: var(--accent); font-weight: 600; animation: pulse-text 1.5s infinite; }
@@ -1736,6 +1745,15 @@ async function loadHistory() {
                 div.onclick = () => loadResult(item.filename);
                 div.innerHTML = `<div class="query">${esc(item.query)}</div><div class="meta">${ts} &middot; ${item.gaps_count} GAPs</div>`;
             }
+            // Delete button
+            if (item.filename) {
+                const delBtn = document.createElement('button');
+                delBtn.className = 'delete-btn';
+                delBtn.title = '삭제';
+                delBtn.innerHTML = '&#x2715;';
+                delBtn.onclick = (e) => { e.stopPropagation(); deleteHistoryItem(item.filename); };
+                div.appendChild(delBtn);
+            }
             return div;
         }
 
@@ -1775,6 +1793,15 @@ async function loadHistory() {
 
         if (!items.length) section.innerHTML += '<div style="padding:14px;color:var(--text-light);font-size:0.78em">아직 분석 기록이 없습니다.</div>';
     } catch (e) { console.error(e); }
+}
+
+async function deleteHistoryItem(filename) {
+    if (!confirm('이 분석 기록을 삭제하시겠습니까?')) return;
+    try {
+        const resp = await fetch(`api/history/${filename}`, { method: 'DELETE' });
+        if (!resp.ok) throw new Error('삭제 실패');
+        loadHistory();
+    } catch (e) { console.error(e); alert('삭제에 실패했습니다.'); }
 }
 
 async function loadResult(filename) {
@@ -2301,11 +2328,10 @@ function collectData(data) {
     if ((node === 'query_subgraph' || node === 'meaning_expand')) {
         if (data.refined_query) pipelineData.refined_query = data.refined_query;
         if (data.keywords) pipelineData.keywords = data.keywords;
-        // Build detail text
+        // Build detail text (쿼리는 우측 패널에 표시하므로 키워드만)
         let detail = '';
-        if (pipelineData.refined_query) detail += esc(pipelineData.refined_query);
         if (pipelineData.keywords && pipelineData.keywords.length) {
-            detail += '<br>' + pipelineData.keywords.slice(0, 6).map(k => `<span class="keyword-tag">${esc(k)}</span>`).join(' ');
+            detail = pipelineData.keywords.slice(0, 6).map(k => `<span class="keyword-tag">${esc(k)}</span>`).join(' ');
         }
         timelineDetails['query'] = detail;
     }
