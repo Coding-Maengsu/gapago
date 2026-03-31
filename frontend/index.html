@@ -1685,10 +1685,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                 currentSessionId = savedSessionId;
                 reconnectToSession(savedSessionId, statusData.query || '');
             } else {
+                // 세션 소멸 (서버 재시작 등) — 조용히 초기 화면으로
                 localStorage.removeItem('gapago_active_session');
+                newAnalysis();
             }
         } catch (e) {
             localStorage.removeItem('gapago_active_session');
+            newAnalysis();
         }
     }
 });
@@ -2045,9 +2048,7 @@ async function reconnectToSession(sessionId, query) {
         const statusResp = await fetch(`api/status/${sessionId}`);
         const statusData = await statusResp.json();
         if (['not_found', 'stopped', 'error', 'completed'].includes(statusData.status)) {
-            localStorage.removeItem('gapago_active_session');
-            showError('이 세션은 더 이상 사용할 수 없습니다. 새로운 분석을 시작해주세요.');
-            loadHistory();
+            newAnalysis();
             return;
         }
     } catch (e) {
@@ -2217,13 +2218,7 @@ function handleEvent(data) {
         if (stoppedDetail) stoppedDetail.textContent = '';
         setInputEnabled(true);
     } else if (data.event === 'session_ended') {
-        clearInterval(_thinkingInterval);
-        clearInterval(_elapsedInterval);
-        localStorage.removeItem('gapago_active_session');
-        _activeReader = null;
-        showError(data.message || '세션이 종료되었습니다. 새로운 분석을 시작해주세요.');
-        setInputEnabled(true);
-        loadHistory();
+        newAnalysis();
     } else if (data.event === 'error') {
         clearInterval(_thinkingInterval);
         clearInterval(_elapsedInterval);

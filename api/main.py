@@ -571,9 +571,13 @@ async def stream(session_id: str, from_idx: int = 0):
         db_session = get_session(session_id)
         if db_session:
             db_status = db_session["status"]
+            # running 상태인데 메모리에 없음 = 서버 재시작으로 소실된 세션
+            if db_status == "running":
+                update_session_status(session_id, "interrupted")
+                db_status = "interrupted"
             async def ended_stream():
                 msg = {"event": "session_ended", "reason": db_status,
-                       "message": f"세션이 {db_status} 상태입니다. 새로운 분석을 시작해주세요."}
+                       "message": "서버가 재시작되어 이전 분석이 중단되었습니다. 새로운 분석을 시작해주세요."}
                 yield f"data: {json.dumps(msg, ensure_ascii=False)}\n\n"
             return StreamingResponse(ended_stream(), media_type="text/event-stream")
         raise HTTPException(404, "Session not found")
