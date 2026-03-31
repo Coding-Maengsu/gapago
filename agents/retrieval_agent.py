@@ -44,15 +44,29 @@ def _get_device() -> str:
 
 
 def _get_specter_model():
-    """SPECTER2 모델 lazy load (첫 호출 시에만 로드, GPU 자동 감지)"""
+    """SPECTER2 모델 lazy load — ONNX Runtime 우선, fallback으로 PyTorch"""
     global _specter_model
     if _specter_model is None:
         try:
             from sentence_transformers import SentenceTransformer
             device = _get_device()
-            print(f"  [SPECTER2] 모델 로딩 중... device={device} (첫 호출 시 수십 초 소요)")
-            _specter_model = SentenceTransformer("allenai/specter2_base", device=device)
-            print("  [SPECTER2] 로딩 완료")
+
+            # ONNX 백엔드 시도 (CPU에서 2~3배 빠름)
+            if device == "cpu":
+                try:
+                    _specter_model = SentenceTransformer(
+                        "allenai/specter2_base",
+                        backend="onnx",
+                        model_kwargs={"provider": "CPUExecutionProvider"},
+                    )
+                    print("  [SPECTER2] ONNX Runtime 백엔드로 로딩 완료 (CPU 최적화)")
+                except Exception as onnx_err:
+                    print(f"  [SPECTER2] ONNX 실패({onnx_err}), PyTorch fallback")
+                    _specter_model = SentenceTransformer("allenai/specter2_base", device=device)
+                    print("  [SPECTER2] PyTorch 백엔드로 로딩 완료")
+            else:
+                _specter_model = SentenceTransformer("allenai/specter2_base", device=device)
+                print(f"  [SPECTER2] PyTorch 백엔드로 로딩 완료 (device={device})")
         except Exception as e:
             print(f"  [WARN] SPECTER2 로딩 실패: {e} → FAISS 단계 스킵")
             _specter_model = None
@@ -60,16 +74,29 @@ def _get_specter_model():
 
 
 def _get_cross_encoder():
-    """CrossEncoder 모델 lazy load (첫 호출 시에만 로드, GPU 자동 감지)"""
+    """CrossEncoder 모델 lazy load — ONNX Runtime 우선, fallback으로 PyTorch"""
     global _cross_encoder
     if _cross_encoder is None:
         try:
             from sentence_transformers import CrossEncoder
             device = _get_device()
-            print(f"  [CrossEncoder] 모델 로딩 중... device={device}")
-            # 다국어 지원 (한국어 포함) reranker
-            _cross_encoder = CrossEncoder("BAAI/bge-reranker-v2-m3", device=device)
-            print("  [CrossEncoder] 로딩 완료")
+
+            # ONNX 백엔드 시도 (CPU에서 2~3배 빠름)
+            if device == "cpu":
+                try:
+                    _cross_encoder = CrossEncoder(
+                        "BAAI/bge-reranker-v2-m3",
+                        backend="onnx",
+                        model_kwargs={"provider": "CPUExecutionProvider"},
+                    )
+                    print("  [CrossEncoder] ONNX Runtime 백엔드로 로딩 완료 (CPU 최적화)")
+                except Exception as onnx_err:
+                    print(f"  [CrossEncoder] ONNX 실패({onnx_err}), PyTorch fallback")
+                    _cross_encoder = CrossEncoder("BAAI/bge-reranker-v2-m3", device=device)
+                    print("  [CrossEncoder] PyTorch 백엔드로 로딩 완료")
+            else:
+                _cross_encoder = CrossEncoder("BAAI/bge-reranker-v2-m3", device=device)
+                print(f"  [CrossEncoder] PyTorch 백엔드로 로딩 완료 (device={device})")
         except Exception as e:
             print(f"  [WARN] CrossEncoder 로딩 실패: {e} → LLM Reranker fallback")
             _cross_encoder = None

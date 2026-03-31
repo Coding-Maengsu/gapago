@@ -29,6 +29,8 @@ feedparser
 PyMuPDF
 pymupdf4llm
 faiss-cpu
+onnxruntime
+optimum[onnxruntime]
 requests
 python-dotenv
 pydantic
