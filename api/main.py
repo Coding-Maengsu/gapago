@@ -763,7 +763,9 @@ async def app_page():
     raise HTTPException(404, "App not found")
 
 
-# ── Landing page static assets ──
-_landing_assets = LANDING_DIR / "assets"
-if _landing_assets.exists():
-    app.mount("/assets", StaticFiles(directory=str(_landing_assets)), name="landing-assets")
+# ── Landing page static assets (mounted at startup for reliability) ──
+@app.on_event("startup")
+async def mount_landing_assets():
+    _landing_assets = LANDING_DIR / "assets"
+    if _landing_assets.exists():
+        app.mount("/assets", StaticFiles(directory=str(_landing_assets)), name="landing-assets")
