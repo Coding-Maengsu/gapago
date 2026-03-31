@@ -6,6 +6,7 @@ GAPAGO - Research GAP Analysis Multi-Agent System
 # =====================================================================
 # 0. 환경 설정
 # =====================================================================
+import asyncio
 import json
 import config  # noqa: F401
 import uuid
@@ -20,6 +21,12 @@ from langchain_core.messages import HumanMessage
 app = build_graph()
 OUTPUT_DIR = Path("outputs")
 OUTPUT_DIR.mkdir(exist_ok=True)
+
+async def aenumerate(aiter, start=0):
+    i = start
+    async for item in aiter:
+        yield i, item
+        i += 1
 
 # =====================================================================
 # 2. 출력 유틸
@@ -52,7 +59,7 @@ def print_message(msg):
     msg.pretty_print()
 
 
-def print_stream_events_and_capture_interrupt(app, stream_input, config_dict):
+async def print_stream_events_and_capture_interrupt(app, stream_input, config_dict):
     """
     subgraphs=True로 이벤트를 출력하면서
     - clarify_prompt
@@ -62,7 +69,7 @@ def print_stream_events_and_capture_interrupt(app, stream_input, config_dict):
     interrupted = False
     latest_clarify_prompt = None
 
-    for i, event in enumerate(app.stream(stream_input, config_dict, subgraphs=True)):
+    async for i, event in aenumerate(app.astream(stream_input, config_dict, subgraphs=True)):
         path, update = event
 
         # subgraph 내부 이벤트는 건너뛰고 root 이벤트만 출력
@@ -156,7 +163,7 @@ def save_result(query: str, state_values: dict) -> Path:
 # =====================================================================
 # 3. 실행 로직
 # =====================================================================
-def run():
+async def run():
     config_dict = {"configurable": {"thread_id": random_uuid()}, "recursion_limit": 30} # 최대 노드 실행 개수 지정 (순환 로직에 빠지지 않기 위함)
 
     # --- LLM Provider 선택 ---
@@ -223,7 +230,7 @@ def run():
     print_divider("[STEP 1] 초기 실행")
 
     # 첫 실행은 inputs 사용
-    interrupted, latest_clarify_prompt = print_stream_events_and_capture_interrupt(
+    interrupted, latest_clarify_prompt = await print_stream_events_and_capture_interrupt(
         app, inputs, config_dict
     )
 
@@ -274,7 +281,7 @@ def run():
         print_divider("[STEP 3] 파이프라인 재개")
 
         # resume 시에는 stream_input = None
-        interrupted, latest_clarify_prompt = print_stream_events_and_capture_interrupt(
+        interrupted, latest_clarify_prompt = await print_stream_events_and_capture_interrupt(
             app, None, config_dict
         )
 
@@ -294,4 +301,4 @@ def run():
     save_result(user_input, values)
 
 if __name__ == "__main__":
-    run()
+    asyncio.run(run())
