@@ -28,8 +28,6 @@
             --yellow-light: #fef8ec;
             --red: #e54e4e;
             --red-light: #fef0f0;
-            --done: #5469d4;
-            --done-light: #eef0fb;
             --shadow-sm: 0 1px 2px rgba(26,31,54,0.04);
             --shadow: 0 2px 8px rgba(26,31,54,0.06);
             --shadow-md: 0 4px 16px rgba(26,31,54,0.08);
@@ -228,11 +226,8 @@
         .input-area {
             padding: 16px 36px 24px;
             background: var(--surface);
-            border-top: none;
-            box-shadow: 0 -4px 16px rgba(26,31,54,0.06);
+            border-top: 1px solid var(--border-light);
             flex-shrink: 0;
-            max-width: 960px;
-            margin: 0 auto;
             width: 100%;
         }
 
@@ -374,7 +369,7 @@
             transition: background 0.3s;
         }
 
-        .timeline-item.done:not(:last-child)::after { background: var(--done); }
+        .timeline-item.done:not(:last-child)::after { background: var(--accent); }
         .timeline-item.active:not(:last-child)::after { background: linear-gradient(to bottom, var(--accent), var(--border)); }
 
         .timeline-icon {
@@ -394,8 +389,8 @@
         }
 
         .timeline-item.done .timeline-icon {
-            background: var(--done);
-            border-color: var(--done);
+            background: var(--accent);
+            border-color: var(--accent);
             color: #fff;
         }
 
@@ -423,7 +418,7 @@
             transition: color 0.3s;
         }
 
-        .timeline-item.done .timeline-label { color: var(--done); }
+        .timeline-item.done .timeline-label { color: var(--accent); }
         .timeline-item.active .timeline-label { color: var(--accent); }
 
         .timeline-detail {
@@ -1202,15 +1197,6 @@
             margin-top: 3px;
             transition: opacity 0.3s;
         }
-        .analysis-status-bar .status-detail .keyword-tag {
-            display: inline-block;
-            background: var(--accent-light);
-            color: var(--accent);
-            font-size: 0.85em;
-            padding: 2px 8px;
-            border-radius: 10px;
-            margin: 2px 2px 0 0;
-        }
         .analysis-status-bar .status-elapsed {
             font-size: 0.78em;
             color: var(--text-light);
@@ -1243,6 +1229,18 @@
             padding: 20px;
             min-height: 300px;
             box-shadow: var(--shadow-sm);
+            display: none;
+        }
+        .analysis-preview-panel.has-data {
+            display: block;
+            animation: fadeIn 0.4s ease-out;
+        }
+        .analysis-body.center-timeline {
+            justify-content: center;
+        }
+        .analysis-body.center-timeline .analysis-timeline-panel {
+            width: auto;
+            max-width: 520px;
         }
 
         .preview-empty {
@@ -1371,7 +1369,7 @@
             .history-section { display: none; }
 
             .main { height: calc(100vh - 90px); }
-            .input-area { padding: 12px 12px 20px; max-width: 100%; }
+            .input-area { padding: 12px 12px 20px; }
             .input-row { gap: 6px; }
             .input-row textarea { padding: 10px 14px; font-size: 0.86em; }
 
@@ -1406,6 +1404,14 @@
 
             .interrupt-card { padding: 16px; }
             .interrupt-card .prompt { font-size: 0.8em; padding: 10px; }
+
+            .workflow-section { flex-wrap: wrap; gap: 12px; }
+            .workflow-step .wf-icon { width: 42px; height: 42px; font-size: 18px; }
+            .workflow-step .wf-label { font-size: 0.74em; }
+            .workflow-arrow { display: none; }
+
+            .service-cards { grid-template-columns: 1fr; gap: 10px; }
+            .service-card { padding: 16px 14px; }
         }
 
         @media (max-width: 420px) {
@@ -1413,7 +1419,7 @@
             .sidebar-header p { display: none; }
             .new-btn { font-size: 0.74em; padding: 7px 12px; margin: 6px 8px; }
             .settings-section { padding: 6px 10px; }
-            .input-area { padding: 10px 12px 18px; max-width: 100%; }
+            .input-area { padding: 10px 12px 18px; }
             .input-row input { font-size: 0.8em; padding: 9px 10px; }
             .run-btn, .stop-btn { padding: 9px 14px; font-size: 0.8em; }
             .results { padding: 12px; }
@@ -1480,8 +1486,6 @@
             </button>
         </div>
     </div>
-
-    <div id="chatMessages"></div>
 </div>
 
 <script>
@@ -1641,7 +1645,7 @@ function getEmptyStateHTML() {
     return `
     <div class="empty-state">
         <h2 style="font-size:1.5em;font-weight:700;color:var(--text);margin-bottom:8px;letter-spacing:-0.3px;">키워드 또는 논문 제목으로 시작해보세요</h2>
-        <p class="subtitle">연구 방향을 입력하면 논문 검색부터 Research GAP 도출까지 자동으로 진행됩니다.</p>
+        <p class="subtitle">연구 방향을 입력하면 논문 검색부터 Research GAP 도출까지 진행됩니다.</p>
 
         <div class="example-queries">
             ${cardsHTML}
@@ -1999,16 +2003,11 @@ function showPipelineUI() {
                 <div class="status-detail" id="statusDetail"></div>
                 <div class="status-elapsed" id="statusElapsed"></div>
             </div>
-            <div class="analysis-body">
+            <div class="analysis-body center-timeline" id="analysisBody">
                 <div class="analysis-timeline-panel">
                     <div class="timeline" id="timeline">${timelineHTML}</div>
                 </div>
-                <div class="analysis-preview-panel" id="livePreview">
-                    <div class="preview-empty">
-                        <div class="preview-icon">&#x1F50D;</div>
-                        <div>분석이 시작되면 결과가 여기에 표시됩니다</div>
-                    </div>
-                </div>
+                <div class="analysis-preview-panel" id="livePreview"></div>
             </div>
         </div>
         <div id="statusMsg" style="display:none"></div>
@@ -2339,12 +2338,18 @@ function updateLivePreview() {
 
     if (!hasQuery && !hasPapers && !hasLimitations && !hasGaps && !hasProgress) return;
 
+    // Show preview panel and remove center-timeline when data arrives
+    if (!panel.classList.contains('has-data')) {
+        panel.classList.add('has-data');
+        const body = document.getElementById('analysisBody');
+        if (body) body.classList.remove('center-timeline');
+    }
+
     let html = '';
 
-    // Progress bar (limitation extraction etc.)
+    // Progress bar (overall only)
     if (hasProgress && !hasGaps) {
         html += `<div class="preview-progress">
-            <div class="preview-progress-label">${esc(_progressData.detail)}</div>
             <div class="preview-progress-bar"><div class="preview-progress-fill" style="width:${_progressData.progress}%"></div></div>
             <div class="preview-progress-detail">${_progressData.current} / ${_progressData.total} (${_progressData.progress}%)</div>
         </div>`;
