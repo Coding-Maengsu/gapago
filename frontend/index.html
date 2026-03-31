@@ -2424,8 +2424,8 @@ function updateLivePreview() {
 
     let html = '';
 
-    // Limitation extraction progress bar only
-    if (hasProgress && !hasGaps) {
+    // Limitation extraction progress bar (한계점 데이터 도착 전에만 단독 표시)
+    if (hasProgress && !hasGaps && !hasLimitations) {
         html += `<div class="preview-progress">
             <div class="preview-progress-bar"><div class="preview-progress-fill" style="width:${_progressData.progress}%"></div></div>
             <div class="preview-progress-detail">${_progressData.current} / ${_progressData.total} (${_progressData.progress}%)</div>
@@ -2446,16 +2446,14 @@ function updateLivePreview() {
         html += '</div>';
     }
 
-    // Limitations
+    // Limitations — 진행 바 + 개수만 표시
     if (hasLimitations) {
         const limCount = pipelineData.limitations.length;
-        const showLims = pipelineData.limitations.slice(0, 5);
-        html += `<div class="preview-section"><div class="preview-section-title">한계점 (${limCount})</div>`;
-        showLims.forEach(l => {
-            const text = l.limitation_text || l.text || l.content || '';
-            html += `<div class="preview-limitation-item">${esc(truncate(text, 120))}</div>`;
-        });
-        if (limCount > 5) html += `<div style="text-align:center;color:var(--text-light);font-size:0.78em;padding:4px">외 ${limCount - 5}개...</div>`;
+        const limPct = hasProgress ? _progressData.progress : 100;
+        html += `<div class="preview-section"><div class="preview-section-title">한계점 추출 (${limCount}개)</div>`;
+        html += `<div class="preview-progress" style="margin-top:4px">
+            <div class="preview-progress-bar"><div class="preview-progress-fill" style="width:${limPct}%"></div></div>
+        </div>`;
         html += '</div>';
     }
 
