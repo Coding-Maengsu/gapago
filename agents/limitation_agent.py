@@ -1077,12 +1077,13 @@ Sections: introduction, method, experiment, discussion
 ## Rules
 1. Extract 1-3 limitations per paper. Prioritize Track 2 structural findings.
 2. Each limitation MUST include:
-   - claim: concise limitation statement (1-2 sentences)
+   - claim: concise limitation statement (1-2 sentences). MUST be a complete, self-contained sentence. Never leave a claim unfinished or truncated.
    - evidence_quote: exact short quote from the provided text
    - track: "author_stated" or "structural"
    - source_section: section name (e.g., "conclusion", "method", "experiment")
 3. Do NOT infer gaps. Only extract limitations from the provided text.
 4. If only abstract is provided (FALLBACK), extract 1 limitation maximum.
+5. If input text appears truncated, summarize and complete the limitation based on available context. Never output incomplete sentences.
 
 ## Output Format (strictly JSON list)
 [
@@ -1364,9 +1365,9 @@ def limitation_extract_node(state: AgentState) -> AgentState:
         for paper in batch:
             sections = paper_sections.get(paper.paper_id, {})
             paper_prompt = _build_prompt(paper, sections)
-            # 배치 시 각 논문 텍스트를 2000자로 제한
-            if len(paper_prompt) > 2000:
-                paper_prompt = paper_prompt[:2000] + "\n... (truncated)"
+            # 배치 시 각 논문 텍스트를 4000자로 제한
+            if len(paper_prompt) > 4000:
+                paper_prompt = paper_prompt[:4000] + "\n... (truncated)"
             batch_prompt_parts.append(f"=== PAPER: {paper.paper_id} ===\n{paper_prompt}")
 
         combined_prompt = "\n\n".join(batch_prompt_parts)
