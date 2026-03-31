@@ -440,12 +440,25 @@ def limitation_eval_node(state: AgentState) -> AgentState:
     print(f"  [eval] {len(limitations)}개 limitation 평가 시작")
 
     provider = state.get("llm_provider")
+    fast_mode = state.get("fast_mode", False)
 
-    # ── Call 1: Per-limitation scoring ──
-
-    print("  [eval:call1] Atomic verification + Rubric scoring...")
-    call1_results = _run_call1(limitations, refined_query, provider=provider)
-    print(f"  [eval:call1] {len(call1_results)}개 결과 수신")
+    # ── fast_mode: Call 1 스킵, Call 2만 실행 ──
+    if fast_mode:
+        print("  ⚡ [eval] fast_mode — Call 1 스킵, Call 2만 실행")
+        call1_results = []
+        for i, lim in enumerate(limitations):
+            call1_results.append({
+                "limitation_id": i,
+                "fact_score": 0.8,
+                "groundedness": 4,
+                "specificity": 4,
+                "relevance": 4,
+            })
+    else:
+        # ── Call 1: Per-limitation scoring ──
+        print("  [eval:call1] Atomic verification + Rubric scoring...")
+        call1_results = _run_call1(limitations, refined_query, provider=provider)
+        print(f"  [eval:call1] {len(call1_results)}개 결과 수신")
 
     # Call 1 실패 시 전체 PASS (평가 생략)
     if not call1_results:

@@ -696,9 +696,13 @@ def _paper_retrieval_sync(state: AgentState) -> AgentState:
     print(f"  [fulltext_filter] after filter: {len(stage1_papers)} papers")
 
     # ✅ 3단계: CrossEncoder reranking → 실패 시 LLM Reranker fallback
-    # 선별되지 않은 논문은 backup으로 보관 (full text 실패 시 대체용)
+    # fast_mode: CrossEncoder 스킵, BM25+FAISS만 사용
+    fast_mode = state.get("fast_mode", False)
     backup_raw = []
-    if stage1_papers and query and len(stage1_papers) > cfg.reranker_top_k:
+    if fast_mode:
+        print("  [fast_mode] CrossEncoder 스킵 — BM25+FAISS 결과만 사용")
+        raw_papers = stage1_papers[:cfg.reranker_top_k]
+    elif stage1_papers and query and len(stage1_papers) > cfg.reranker_top_k:
         ce_result = _cross_encoder_rerank(stage1_papers, query, top_k=cfg.reranker_top_k, model_tier=model_tier)
         if ce_result is not None:
             raw_papers = ce_result

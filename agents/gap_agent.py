@@ -995,10 +995,17 @@ def gap_infer_node(state: AgentState) -> AgentState:
         print("  ⚠️ 모든 limitation이 resolved → gaps 없음")
         return {**state, "gaps": []}
 
+    fast_mode = state.get("fast_mode", False)
+
     print(f"\n  🔄 Step 4a: {len(active_groups)}개 축 긴급도 점수화...")
     scored_axes = _score_axis_urgency(
         active_groups, final_axes, research_question, lang_instruction
     )
+
+    # fast_mode: 상위 3개 축만 분석
+    if fast_mode and len(scored_axes) > 3:
+        print(f"  ⚡ fast_mode: {len(scored_axes)}개 → 상위 3개 축만 분석")
+        scored_axes = scored_axes[:3]
 
     # ── Step 4b + 4c. 축별 장벽 분석 → 창의적 방향 제안 ────────────────────
     gaps = []

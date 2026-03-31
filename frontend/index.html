@@ -1463,6 +1463,11 @@
             <option value="ko">한국어</option>
             <option value="en">English</option>
         </select>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer">
+            <input type="checkbox" id="fastMode" style="width:16px;height:16px;cursor:pointer">
+            <span>Fast Mode</span>
+            <span style="font-size:0.75em;color:var(--text-light)">(빠른 분석, 품질 트레이드오프)</span>
+        </label>
     </div>
 
     <div class="history-section" id="historySection">
@@ -1948,7 +1953,8 @@ async function startAnalysis() {
     showPipelineUI();
 
     try {
-        const params = new URLSearchParams({ query, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID });
+        const fastMode = document.getElementById('fastMode')?.checked || false;
+        const params = new URLSearchParams({ query, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID, ...(fastMode ? {fast_mode: 'true'} : {}) });
         const resp = await fetch(`api/analyze?${params}`);
         if (!resp.ok) {
             showError(`API 오류 (${resp.status}): ${await resp.text()}`);
@@ -2699,7 +2705,8 @@ async function exploreDirection(topic) {
             resp = await fetch(`api/explore?${exploreParams}`);
             if (!resp.ok) throw new Error('explore not available');
         } catch (e) {
-            const params = new URLSearchParams({ query: topic, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID });
+            const fastMode2 = document.getElementById('fastMode')?.checked || false;
+            const params = new URLSearchParams({ query: topic, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID, ...(fastMode2 ? {fast_mode: 'true'} : {}) });
             resp = await fetch(`api/analyze?${params}`);
         }
 
