@@ -60,9 +60,9 @@ def get_llm(provider: str | None = None, model: str | None = None) -> BaseChatMo
     # ── Google Gemini ──
     if provider in ("gemini", "google"):
         return ChatVertexAI(
-            model_name=model or "gemini-2.0-flash",
+            model_name=model or "gemini-3.1-flash-lite-preview",
             project=os.getenv("GOOGLE_CLOUD_PROJECT", "coding-beast"),
-            location=os.getenv("GOOGLE_CLOUD_LOCATION", "global"),
+            location=os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1"),
         )
 
     # ── LG EXAONE (로컬 GPU, transformers) ──

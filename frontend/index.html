@@ -226,10 +226,14 @@
         }
 
         .input-area {
-            padding: 12px 36px 14px;
+            padding: 16px 36px 24px;
             background: var(--surface);
-            border-top: 1px solid var(--border-light);
+            border-top: none;
+            box-shadow: 0 -4px 16px rgba(26,31,54,0.06);
             flex-shrink: 0;
+            max-width: 780px;
+            margin: 0 auto;
+            width: 100%;
         }
 
         .input-row {
@@ -240,12 +244,12 @@
 
         .input-row textarea {
             flex: 1;
-            padding: 12px 16px;
-            background: var(--surface2);
+            padding: 14px 18px;
+            background: var(--surface);
             color: var(--text);
-            border: 1.5px solid var(--border);
+            border: 2px solid var(--border);
             border-radius: 20px;
-            font-size: 0.95em;
+            font-size: 1em;
             font-family: inherit;
             outline: none;
             transition: border-color 0.15s, box-shadow 0.15s;
@@ -253,6 +257,7 @@
             max-height: 120px;
             line-height: 1.5;
             overflow-y: auto;
+            box-shadow: 0 2px 8px rgba(26,31,54,0.05);
         }
 
         .input-row textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
@@ -1000,7 +1005,7 @@
         }
 
         /* ── Empty state (examples) ── */
-        .empty-state { text-align: center; padding: 60px 20px 60px; }
+        .empty-state { text-align: center; padding: 60px 20px 60px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; }
         .empty-state .subtitle { font-size: 0.96em; color: var(--text-dim); line-height: 1.65; max-width: 520px; margin: 0 auto; }
         .example-queries { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 32px; max-width: 720px; margin-left: auto; margin-right: auto; }
         .example-queries .label { grid-column: 1 / -1; font-size: 0.8em; color: var(--text-light); margin-bottom: 0; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
@@ -1344,22 +1349,18 @@
             .history-section { display: none; }
 
             .main { height: calc(100vh - 90px); }
-            .input-area { padding: 10px 12px; }
+            .input-area { padding: 12px 12px 20px; max-width: 100%; }
             .input-row { gap: 6px; }
             .input-row textarea { padding: 10px 14px; font-size: 0.86em; }
 
             .results { padding: 16px; }
 
-            .empty-state { padding: 50px 16px 40px; }
+            .empty-state { padding: 40px 16px 30px; min-height: 50vh; }
+            .empty-state h2 { font-size: 1.2em; }
             .empty-state .subtitle { font-size: 0.8em; }
             .empty-state .subtitle br { display: none; }
             .example-queries { grid-template-columns: 1fr; margin-top: 20px; }
             .example-btn { font-size: 0.78em; padding: 8px 14px; }
-
-            .workflow-section { flex-direction: column; gap: 4px; }
-            .workflow-arrow { transform: rotate(90deg); padding-bottom: 0; margin: 0; }
-
-            .service-cards { grid-template-columns: 1fr; }
 
             .timeline { max-width: 100%; }
             .timeline-detail .paper-title-mini { max-width: 200px; }
@@ -1390,7 +1391,7 @@
             .sidebar-header p { display: none; }
             .new-btn { font-size: 0.74em; padding: 7px 12px; margin: 6px 8px; }
             .settings-section { padding: 6px 10px; }
-            .input-area { padding: 10px 12px; }
+            .input-area { padding: 10px 12px 18px; max-width: 100%; }
             .input-row input { font-size: 0.8em; padding: 9px 10px; }
             .run-btn, .stop-btn { padding: 9px 14px; font-size: 0.8em; }
             .results { padding: 12px; }
@@ -1615,60 +1616,10 @@ function getEmptyStateHTML() {
     });
     return `
     <div class="empty-state">
-        <img src="middle_image.png" alt="GAPAGO" style="max-width:520px;width:90%;height:auto;margin-bottom:24px;opacity:0.9;">
-        <p class="subtitle">
-            논문 아이디어 탐색이 어려우셨나요?<br>
-            연구 방향을 입력하면 관련 논문을 검색하고, 한계점을 분석하여<br>
-            새로운 연구 기회(Research GAP)를 자동으로 발견해 드립니다.
-        </p>
-
-        <!-- Workflow Infographic -->
-        <div class="workflow-section">
-            <div class="workflow-step">
-                <div class="wf-icon">&#x1F50D;</div>
-                <div class="wf-label">질문 입력</div>
-            </div>
-            <div class="workflow-arrow">&#x2192;</div>
-            <div class="workflow-step">
-                <div class="wf-icon">&#x1F4DA;</div>
-                <div class="wf-label">논문 검색·분석</div>
-            </div>
-            <div class="workflow-arrow">&#x2192;</div>
-            <div class="workflow-step">
-                <div class="wf-icon">&#x1F4A1;</div>
-                <div class="wf-label">연구 GAP 도출</div>
-            </div>
-            <div class="workflow-arrow">&#x2192;</div>
-            <div class="workflow-step">
-                <div class="wf-icon">&#x1F9ED;</div>
-                <div class="wf-label">연구 방향 제안</div>
-            </div>
-        </div>
-
-        <!-- Service Description -->
-        <div class="service-cards-section">
-            <h3>왜 GAPAGO인가?</h3>
-            <div class="service-cards">
-                <div class="service-card">
-                    <div class="sc-icon">&#x1F4D6;</div>
-                    <div class="sc-title">논문 원문 기반 심층 분석</div>
-                    <div class="sc-desc">단순 초록이 아닌 논문 전문을 분석하여 더 정확한 한계점을 추출합니다</div>
-                </div>
-                <div class="service-card">
-                    <div class="sc-icon">&#x1F310;</div>
-                    <div class="sc-title">멀티소스 130편+ 검색</div>
-                    <div class="sc-desc">arXiv, Semantic Scholar, ScienceON 등 다중 데이터베이스에서 광범위하게 검색합니다</div>
-                </div>
-                <div class="service-card">
-                    <div class="sc-icon">&#x1F3AF;</div>
-                    <div class="sc-title">증거 기반 연구 GAP 도출</div>
-                    <div class="sc-desc">논문의 실제 한계점에 기반하여 신뢰도 높은 연구 기회를 제안합니다</div>
-                </div>
-            </div>
-        </div>
+        <h2 style="font-size:1.5em;font-weight:700;color:var(--text);margin-bottom:8px;letter-spacing:-0.3px;">키워드 또는 논문 제목으로 시작해보세요</h2>
+        <p class="subtitle">연구 방향을 입력하면 논문 검색부터 Research GAP 도출까지 자동으로 진행됩니다.</p>
 
         <div class="example-queries">
-            <span class="label">키워드 또는 논문 제목으로 시작해보세요</span>
             ${cardsHTML}
         </div>
     </div>`;
