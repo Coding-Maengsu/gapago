@@ -81,12 +81,13 @@ def get_pipeline_eta(session_id: str) -> dict:
 
 
 def report_progress(session_id: str, node: str, detail: str,
-                    current: int = 0, total: int = 0):
+                    current: int = 0, total: int = 0,
+                    type: str = "progress", data: Optional[dict] = None):
     q = _queues.get(session_id)
     if not q:
         return
     payload = {
-        "event": "progress",
+        "event": type,
         "node": node,
         "detail": detail,
     }
@@ -98,6 +99,9 @@ def report_progress(session_id: str, node: str, detail: str,
     eta = get_pipeline_eta(session_id)
     if eta:
         payload.update(eta)
+    # Attach partial result data if provided
+    if data is not None:
+        payload["data"] = data
     q.put(payload)
 
 

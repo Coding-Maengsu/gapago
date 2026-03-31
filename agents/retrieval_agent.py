@@ -793,6 +793,18 @@ def _paper_retrieval_sync(state: AgentState) -> AgentState:
     print(f"  ✓ Retrieved {len(papers)}/{total_candidates_count} papers + {len(web_results)} web results")
     print(f"  ✓ Backup pool: {len(backup_papers)} papers ({arxiv_backup} arXiv)")
 
+    # Stream partial papers to frontend
+    if papers:
+        partial_papers = [
+            {"paper_id": p.paper_id, "title": p.title, "year": p.year, "url": p.url, "venue": p.venue}
+            for p in papers[:15]
+        ]
+        report_progress(
+            session_id, "paper_retrieval",
+            f"{len(papers)}편 논문 검색 완료",
+            type="partial_papers", data=partial_papers,
+        )
+
     last_content = json.dumps({
         "total_candidates": total_candidates_count,
         "selected": len(papers),

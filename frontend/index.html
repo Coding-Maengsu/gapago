@@ -2109,7 +2109,7 @@ function findTimelineStep(nodeName) {
 function handleEvent(data) {
     if (data.event === 'keepalive') return;
 
-    if (data.event === 'progress') {
+    if (data.event === 'progress' || data.event === 'partial_limitations' || data.event === 'partial_papers') {
         _progressData = {
             node: data.node || '', detail: data.detail || '',
             current: data.current || 0, total: data.total || 0, progress: data.progress || 0,
@@ -2117,6 +2117,22 @@ function handleEvent(data) {
             elapsed_s: data.elapsed_s || _progressData.elapsed_s || 0,
             estimated_remaining_s: data.estimated_remaining_s || _progressData.estimated_remaining_s || 0,
         };
+        // Handle partial results streaming
+        if (data.event === 'partial_limitations' && data.data) {
+            if (!pipelineData.limitations) pipelineData.limitations = [];
+            const existing = new Set(pipelineData.limitations.map(l => l.claim || l.text || ''));
+            (data.data || []).forEach(l => {
+                const key = l.claim || l.text || '';
+                if (!existing.has(key)) { pipelineData.limitations.push(l); existing.add(key); }
+            });
+        }
+        if (data.event === 'partial_papers' && data.data) {
+            if (!pipelineData.papers) pipelineData.papers = [];
+            const existingIds = new Set(pipelineData.papers.map(p => p.paper_id));
+            (data.data || []).forEach(p => {
+                if (!existingIds.has(p.paper_id)) { pipelineData.papers.push(p); existingIds.add(p.paper_id); }
+            });
+        }
         // Update timeline detail for this node
         const tlStep = findTimelineStep(data.node);
         if (tlStep) {

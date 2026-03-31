@@ -1425,6 +1425,15 @@ def limitation_extract_node(state: AgentState) -> AgentState:
                 f"Analyzing papers... ({processed_papers}/{len(papers)}) — {len(all_limitations)} limitations found",
                 current=processed_papers, total=len(papers),
             )
+            # Stream partial limitations to frontend
+            if result["limitations"]:
+                partial = [lim if isinstance(lim, dict) else lim.model_dump() if hasattr(lim, 'model_dump') else vars(lim)
+                           for lim in result["limitations"]]
+                report_progress(
+                    session_id, "limitation_extract",
+                    f"{len(all_limitations)} limitations found so far",
+                    type="partial_limitations", data=partial,
+                )
 
     # fulltext/LLM 실패 요약을 errors에 기록
     if fulltext_fail_count:
