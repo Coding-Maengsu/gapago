@@ -52,7 +52,7 @@ def get_llm(provider: str | None = None, model: str | None = None) -> BaseChatMo
     # ── Google Gemini ──
     if provider in ("gemini", "google"):
         return ChatGoogleGenerativeAI(
-            model=model or "gemini-2.0-flash",
+            model=model or "gemini-3.1-flash-lite-preview",
         )
 
     # ── LG EXAONE (로컬 GPU, transformers) ──
