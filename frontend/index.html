@@ -806,8 +806,16 @@
             overflow: hidden;
         }
 
+        .report-collapse-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px 0 0;
+            background: var(--surface);
+        }
+
         .report-collapse-toggle {
-            width: 100%;
+            flex: 1;
             padding: 14px 20px;
             background: var(--surface);
             border: none;
@@ -823,6 +831,21 @@
         }
 
         .report-collapse-toggle:hover { background: var(--surface2); }
+
+        .report-download-btn {
+            padding: 6px 14px;
+            font-size: 0.82em;
+            font-family: inherit;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text-dim);
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .report-download-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--accent); }
 
         .report-collapse-toggle .toggle-arrow {
             transition: transform 0.2s;
@@ -845,22 +868,7 @@
             padding: 0 20px 20px;
         }
 
-        .report-actions { display: flex; gap: 8px; margin-bottom: 18px; }
-        .report-actions button {
-            padding: 8px 18px;
-            font-size: 0.84em;
-            font-family: inherit;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            background: var(--surface);
-            color: var(--text-dim);
-            cursor: pointer;
-            font-weight: 500;
-            transition: all 0.15s;
-        }
-        .report-actions button:hover { background: var(--surface2); color: var(--text); border-color: var(--accent); }
-
-        /* ── Report Content ── */
+        /* ── Report Content (download only, not rendered) ── */
         .report-content { font-size: 1.02em; line-height: 1.55; color: var(--text); }
         .report-content h1 { font-size: 1.45em; color: var(--text); margin: 20px 0 8px; padding-bottom: 6px; border-bottom: 2px solid var(--accent); font-weight: 700; }
         .report-content h2 { font-size: 1.25em; color: var(--text); margin: 16px 0 6px; padding: 4px 10px; font-weight: 700; background: linear-gradient(transparent 40%, rgba(99,102,241,0.18) 40%); display: inline-block; border-radius: 3px; }
@@ -2452,29 +2460,10 @@ function renderResults() {
 
     selectedItem = { type: 'gap', index: 0 };
 
-    // Analysis options bar
-    let optionsHTML = '';
-    const opts = pipelineData.analysisOptions || {};
-    if (opts.provider || opts.yearRange || opts.outputLanguage) {
-        optionsHTML = `<div class="analysis-options-bar">`;
-        if (opts.provider) optionsHTML += `<span class="opt-chip"><span class="opt-label">LLM</span> ${esc(opts.provider)}</span>`;
-        if (opts.yearRange) optionsHTML += `<span class="opt-chip"><span class="opt-label">연도</span> ${esc(opts.yearRange)}</span>`;
-        if (opts.outputLanguage) optionsHTML += `<span class="opt-chip"><span class="opt-label">언어</span> ${esc(opts.outputLanguage)}</span>`;
-        optionsHTML += `</div>`;
-    }
-
-    // Summary header
+    // Summary stats (used in report toggle)
     const totalSearched = pipelineData.total_searched || '?';
     const papersCount = pipelineData.papers.length;
     const gapsCount = pipelineData.gaps.length;
-    const refinedQ = pipelineData.refined_query || '';
-
-    let summaryHTML = `<div class="result-summary-header">`;
-    if (refinedQ) summaryHTML += `<span class="summary-item">정제된 쿼리: <strong>${esc(refinedQ)}</strong></span><span class="summary-divider"></span>`;
-    summaryHTML += `<span class="summary-item">논문 <strong>${papersCount}/${totalSearched}편</strong></span>`;
-    summaryHTML += `<span class="summary-divider"></span>`;
-    summaryHTML += `<span class="summary-item">GAP <strong>${gapsCount}개</strong></span>`;
-    summaryHTML += `</div>`;
 
     // Left panel: gaps + papers
     let leftHTML = '';
@@ -2519,30 +2508,61 @@ function renderResults() {
     // Right panel: detail (default: first gap)
     let rightHTML = getGapDetailHTML(0);
 
-    // Report collapse
+    // Report collapse with result blocks inside
     let reportHTML = '';
     if (pipelineData.report) {
+        // Build result blocks for inside the toggle
+        let resultBlocksHTML = '';
+
+        // Analysis options
+        const opts2 = pipelineData.analysisOptions || {};
+        if (opts2.provider || opts2.yearRange || opts2.outputLanguage) {
+            resultBlocksHTML += `<div class="analysis-options-bar" style="margin-bottom:12px">`;
+            if (opts2.provider) resultBlocksHTML += `<span class="opt-chip"><span class="opt-label">LLM</span> ${esc(opts2.provider)}</span>`;
+            if (opts2.yearRange) resultBlocksHTML += `<span class="opt-chip"><span class="opt-label">연도</span> ${esc(opts2.yearRange)}</span>`;
+            if (opts2.outputLanguage) resultBlocksHTML += `<span class="opt-chip"><span class="opt-label">언어</span> ${esc(opts2.outputLanguage)}</span>`;
+            resultBlocksHTML += `</div>`;
+        }
+
+        // Refined query
+        if (pipelineData.refined_query) {
+            resultBlocksHTML += `<div class="result-summary-header" style="margin-bottom:12px">`;
+            resultBlocksHTML += `<span class="summary-item">정제된 쿼리: <strong>${esc(pipelineData.refined_query)}</strong></span>`;
+            resultBlocksHTML += `</div>`;
+        }
+
+        // Keywords
+        if (pipelineData.keywords && pipelineData.keywords.length) {
+            resultBlocksHTML += `<div style="margin-bottom:12px"><span style="font-size:0.84em;color:var(--text-dim);font-weight:500;">확장 키워드:</span> `;
+            resultBlocksHTML += pipelineData.keywords.map(k => `<span class="preview-keyword-tag">${esc(k)}</span>`).join(' ');
+            resultBlocksHTML += `</div>`;
+        }
+
+        // Summary stats
+        resultBlocksHTML += `<div class="result-summary-header">`;
+        resultBlocksHTML += `<span class="summary-item">논문 <strong>${papersCount}/${totalSearched}편</strong></span>`;
+        resultBlocksHTML += `<span class="summary-divider"></span>`;
+        resultBlocksHTML += `<span class="summary-item">GAP <strong>${gapsCount}개</strong></span>`;
+        resultBlocksHTML += `</div>`;
+
         reportHTML = `
         <div class="report-collapse" id="reportCollapse">
-            <button class="report-collapse-toggle" onclick="toggleReport()">
-                <span>전체 리포트 보기</span>
-                <span class="toggle-arrow">&#x25BC;</span>
-            </button>
+            <div class="report-collapse-header">
+                <button class="report-collapse-toggle" onclick="toggleReport()">
+                    <span>최종 리포트</span>
+                    <span class="toggle-arrow">&#x25BC;</span>
+                </button>
+                <button class="report-download-btn" onclick="downloadReport(); event.stopPropagation();">다운로드 .md</button>
+            </div>
             <div class="report-collapse-body">
                 <div class="report-collapse-inner">
-                    <div class="report-actions">
-                        <button onclick="copyReport()">클립보드에 복사</button>
-                        <button onclick="downloadReport()">다운로드 (.md)</button>
-                    </div>
-                    <div class="report-content">${renderMarkdown(pipelineData.report)}</div>
+                    ${resultBlocksHTML}
                 </div>
             </div>
         </div>`;
     }
 
     area.innerHTML = `
-        ${optionsHTML}
-        ${summaryHTML}
         <div class="result-panels">
             <div class="panel-left" id="panelLeft">${leftHTML}</div>
             <div class="panel-right" id="panelRight">
@@ -2834,21 +2854,53 @@ function renderMarkdown(text) {
         .replace(/\n/g, '<br>');
 }
 
-function copyReport() {
-    navigator.clipboard.writeText(pipelineData.report).then(() => {
-        const btn = document.querySelector('.report-actions button');
-        if (!btn) return;
-        const orig = btn.textContent;
-        btn.textContent = '복사 완료!';
-        setTimeout(() => btn.textContent = orig, 1500);
-    });
-}
-
 function downloadReport() {
-    const blob = new Blob([pipelineData.report], { type: 'text/markdown' });
+    const opts = pipelineData.analysisOptions || {};
+    let md = '# 분석 리포트\n\n';
+
+    // Analysis options
+    if (opts.provider || opts.yearRange || opts.outputLanguage) {
+        md += '## 분석 옵션\n';
+        if (opts.provider) md += `- LLM: ${opts.provider}\n`;
+        if (opts.yearRange) md += `- 연도 범위: ${opts.yearRange}\n`;
+        if (opts.outputLanguage) md += `- 출력 언어: ${opts.outputLanguage}\n`;
+        md += '\n';
+    }
+
+    // Refined query
+    if (pipelineData.refined_query) {
+        md += `## 정제된 쿼리\n${pipelineData.refined_query}\n\n`;
+    }
+
+    // Keywords
+    if (pipelineData.keywords && pipelineData.keywords.length) {
+        md += `## 확장 키워드\n${pipelineData.keywords.join(', ')}\n\n`;
+    }
+
+    // Summary
+    md += `## 요약\n`;
+    md += `- 검색 논문: ${pipelineData.papers.length}/${pipelineData.total_searched || '?'}편\n`;
+    md += `- 도출 GAP: ${pipelineData.gaps.length}개\n\n`;
+
+    md += '---\n\n';
+
+    // Full report
+    if (pipelineData.report) {
+        md += pipelineData.report;
+    }
+
+    const now = new Date();
+    const ts = now.getFullYear().toString()
+        + String(now.getMonth() + 1).padStart(2, '0')
+        + String(now.getDate()).padStart(2, '0')
+        + '_' + String(now.getHours()).padStart(2, '0')
+        + String(now.getMinutes()).padStart(2, '0')
+        + String(now.getSeconds()).padStart(2, '0');
+
+    const blob = new Blob([md], { type: 'text/markdown' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'gapago_report.md';
+    a.download = `finalreport_${ts}.md`;
     a.click();
     URL.revokeObjectURL(a.href);
 }
