@@ -7,10 +7,13 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.10.12"
+      # NODE_VERSION not needed — landing/dist/ is pre-built and committed
       - key: LLM_PROVIDER
         value: azure
       - key: RERANK_MODELS
         value: light
+      - key: ORT_DISABLE_GPU_DEVICE_ENUMERATION
+        value: "1"
       # Add these in Render Dashboard > Environment
       # - key: AZURE_OPENAI_API_KEY
       # - key: AZURE_OPENAI_ENDPOINT

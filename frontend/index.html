@@ -147,9 +147,18 @@
             cursor: pointer;
             margin-bottom: 1px;
             transition: background 0.12s;
+            position: relative;
         }
 
         .history-item:hover { background: var(--surface2); }
+        .history-item .delete-btn {
+            position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+            display: none; border: none; background: none; cursor: pointer;
+            color: var(--text-light); font-size: 0.82em; padding: 4px 6px; border-radius: 4px;
+            transition: color 0.15s, background 0.15s;
+        }
+        .history-item:hover .delete-btn { display: block; }
+        .history-item .delete-btn:hover { color: #e74c3c; background: rgba(231,76,60,0.1); }
         .history-item .query { font-size: 0.86em; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
         .history-item .meta { font-size: 0.75em; color: var(--text-light); margin-top: 2px; }
         .history-item .meta .running-badge { color: var(--accent); font-weight: 600; animation: pulse-text 1.5s infinite; }
@@ -823,6 +832,22 @@
             z-index: 5;
         }
         .report-master-toggle:hover { background: var(--surface2); }
+
+        .report-download-btn {
+            padding: 6px 14px;
+            font-size: 0.82em;
+            font-family: inherit;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text-dim);
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .report-download-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--accent); }
+
         .report-master-toggle .toggle-arrow {
             transition: transform 0.25s ease;
             font-size: 0.8em;
@@ -846,22 +871,7 @@
             margin-top: 24px;
         }
 
-        .report-actions { display: flex; gap: 8px; margin-bottom: 18px; }
-        .report-actions button {
-            padding: 8px 18px;
-            font-size: 0.84em;
-            font-family: inherit;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            background: var(--surface);
-            color: var(--text-dim);
-            cursor: pointer;
-            font-weight: 500;
-            transition: all 0.15s;
-        }
-        .report-actions button:hover { background: var(--surface2); color: var(--text); border-color: var(--accent); }
-
-        /* ── Report Content ── */
+        /* ── Report Content (download only, not rendered) ── */
         .report-content { font-size: 1.02em; line-height: 1.55; color: var(--text); }
         .report-content h1 { font-size: 1.45em; color: var(--text); margin: 20px 0 8px; padding-bottom: 6px; border-bottom: 2px solid var(--accent); font-weight: 700; }
         .report-content h2 { font-size: 1.25em; color: var(--text); margin: 16px 0 6px; padding: 4px 10px; font-weight: 700; background: linear-gradient(transparent 40%, rgba(99,102,241,0.18) 40%); display: inline-block; border-radius: 3px; }
@@ -1678,10 +1688,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                 currentSessionId = savedSessionId;
                 reconnectToSession(savedSessionId, statusData.query || '');
             } else {
+                // 세션 소멸 (서버 재시작 등) — 조용히 초기 화면으로
                 localStorage.removeItem('gapago_active_session');
+                newAnalysis();
             }
         } catch (e) {
             localStorage.removeItem('gapago_active_session');
+            newAnalysis();
         }
     }
 });
@@ -1726,6 +1739,15 @@ async function loadHistory() {
                 div.onclick = () => loadResult(item.filename);
                 div.innerHTML = `<div class="query">${esc(item.query)}</div><div class="meta">${ts} &middot; ${item.gaps_count} GAPs</div>`;
             }
+            // Delete button
+            if (item.filename) {
+                const delBtn = document.createElement('button');
+                delBtn.className = 'delete-btn';
+                delBtn.title = '삭제';
+                delBtn.innerHTML = '&#x2715;';
+                delBtn.onclick = (e) => { e.stopPropagation(); deleteHistoryItem(item.filename); };
+                div.appendChild(delBtn);
+            }
             return div;
         }
 
@@ -1765,6 +1787,15 @@ async function loadHistory() {
 
         if (!items.length) section.innerHTML += '<div style="padding:14px;color:var(--text-light);font-size:0.78em">아직 분석 기록이 없습니다.</div>';
     } catch (e) { console.error(e); }
+}
+
+async function deleteHistoryItem(filename) {
+    if (!confirm('이 분석 기록을 삭제하시겠습니까?')) return;
+    try {
+        const resp = await fetch(`api/history/${filename}`, { method: 'DELETE' });
+        if (!resp.ok) throw new Error('삭제 실패');
+        loadHistory();
+    } catch (e) { console.error(e); alert('삭제에 실패했습니다.'); }
 }
 
 async function loadResult(filename) {
@@ -2034,6 +2065,18 @@ function showPipelineUI() {
 }
 
 async function reconnectToSession(sessionId, query) {
+    // status 확인 먼저 — 유효하지 않은 세션 재연결 방지
+    try {
+        const statusResp = await fetch(`api/status/${sessionId}`);
+        const statusData = await statusResp.json();
+        if (['not_found', 'stopped', 'error', 'completed'].includes(statusData.status)) {
+            newAnalysis();
+            return;
+        }
+    } catch (e) {
+        showError('서버에 연결할 수 없습니다.');
+        return;
+    }
     currentSessionId = sessionId;
     localStorage.setItem('gapago_active_session', sessionId);
     document.getElementById('queryInput').value = query || '';
@@ -2058,7 +2101,7 @@ async function reconnectToSession(sessionId, query) {
     }
 }
 
-async function connectToStream(sessionId, fromIdx, retries = 3) {
+async function connectToStream(sessionId, fromIdx, retries = 1) {
     const url = fromIdx ? `api/stream/${sessionId}?from_idx=${fromIdx}` : `api/stream/${sessionId}`;
     for (let attempt = 0; attempt < retries; attempt++) {
         const resp = await fetch(url);
@@ -2196,6 +2239,8 @@ function handleEvent(data) {
         const stoppedDetail = document.getElementById('statusDetail');
         if (stoppedDetail) stoppedDetail.textContent = '';
         setInputEnabled(true);
+    } else if (data.event === 'session_ended') {
+        newAnalysis();
     } else if (data.event === 'error') {
         clearInterval(_thinkingInterval);
         clearInterval(_elapsedInterval);
@@ -2278,11 +2323,10 @@ function collectData(data) {
     if ((node === 'query_subgraph' || node === 'meaning_expand')) {
         if (data.refined_query) pipelineData.refined_query = data.refined_query;
         if (data.keywords) pipelineData.keywords = data.keywords;
-        // Build detail text
+        // Build detail text (쿼리는 우측 패널에 표시하므로 키워드만)
         let detail = '';
-        if (pipelineData.refined_query) detail += esc(pipelineData.refined_query);
         if (pipelineData.keywords && pipelineData.keywords.length) {
-            detail += '<br>' + pipelineData.keywords.slice(0, 6).map(k => `<span class="keyword-tag">${esc(k)}</span>`).join(' ');
+            detail = pipelineData.keywords.slice(0, 6).map(k => `<span class="keyword-tag">${esc(k)}</span>`).join(' ');
         }
         timelineDetails['query'] = detail;
     }
@@ -2454,29 +2498,10 @@ function renderResults() {
 
     selectedItem = { type: 'gap', index: 0 };
 
-    // Analysis options bar
-    let optionsHTML = '';
-    const opts = pipelineData.analysisOptions || {};
-    if (opts.provider || opts.yearRange || opts.outputLanguage) {
-        optionsHTML = `<div class="analysis-options-bar">`;
-        if (opts.provider) optionsHTML += `<span class="opt-chip"><span class="opt-label">LLM</span> ${esc(opts.provider)}</span>`;
-        if (opts.yearRange) optionsHTML += `<span class="opt-chip"><span class="opt-label">연도</span> ${esc(opts.yearRange)}</span>`;
-        if (opts.outputLanguage) optionsHTML += `<span class="opt-chip"><span class="opt-label">언어</span> ${esc(opts.outputLanguage)}</span>`;
-        optionsHTML += `</div>`;
-    }
-
-    // Summary header
+    // Summary stats (used in report toggle)
     const totalSearched = pipelineData.total_searched || '?';
     const papersCount = pipelineData.papers.length;
     const gapsCount = pipelineData.gaps.length;
-    const refinedQ = pipelineData.refined_query || '';
-
-    let summaryHTML = `<div class="result-summary-header">`;
-    if (refinedQ) summaryHTML += `<span class="summary-item">정제된 쿼리: <strong>${esc(refinedQ)}</strong></span><span class="summary-divider"></span>`;
-    summaryHTML += `<span class="summary-item">논문 <strong>${papersCount}/${totalSearched}편</strong></span>`;
-    summaryHTML += `<span class="summary-divider"></span>`;
-    summaryHTML += `<span class="summary-item">GAP <strong>${gapsCount}개</strong></span>`;
-    summaryHTML += `</div>`;
 
     // Left panel: gaps + papers
     let leftHTML = '';
@@ -2521,14 +2546,49 @@ function renderResults() {
     // Right panel: detail (default: first gap)
     let rightHTML = getGapDetailHTML(0);
 
-    // Report — inline (no separate toggle)
+    // Report — inline (no separate toggle), with result blocks from main
     let reportHTML = '';
     if (pipelineData.report) {
+        // Build result blocks for inside the toggle
+        let resultBlocksHTML = '';
+
+        // Analysis options
+        const opts2 = pipelineData.analysisOptions || {};
+        if (opts2.provider || opts2.yearRange || opts2.outputLanguage) {
+            resultBlocksHTML += `<div class="analysis-options-bar" style="margin-bottom:12px">`;
+            if (opts2.provider) resultBlocksHTML += `<span class="opt-chip"><span class="opt-label">LLM</span> ${esc(opts2.provider)}</span>`;
+            if (opts2.yearRange) resultBlocksHTML += `<span class="opt-chip"><span class="opt-label">연도</span> ${esc(opts2.yearRange)}</span>`;
+            if (opts2.outputLanguage) resultBlocksHTML += `<span class="opt-chip"><span class="opt-label">언어</span> ${esc(opts2.outputLanguage)}</span>`;
+            resultBlocksHTML += `</div>`;
+        }
+
+        // Refined query
+        if (pipelineData.refined_query) {
+            resultBlocksHTML += `<div class="result-summary-header" style="margin-bottom:12px">`;
+            resultBlocksHTML += `<span class="summary-item">정제된 쿼리: <strong>${esc(pipelineData.refined_query)}</strong></span>`;
+            resultBlocksHTML += `</div>`;
+        }
+
+        // Keywords
+        if (pipelineData.keywords && pipelineData.keywords.length) {
+            resultBlocksHTML += `<div style="margin-bottom:12px"><span style="font-size:0.84em;color:var(--text-dim);font-weight:500;">확장 키워드:</span> `;
+            resultBlocksHTML += pipelineData.keywords.map(k => `<span class="preview-keyword-tag">${esc(k)}</span>`).join(' ');
+            resultBlocksHTML += `</div>`;
+        }
+
+        // Summary stats
+        resultBlocksHTML += `<div class="result-summary-header">`;
+        resultBlocksHTML += `<span class="summary-item">논문 <strong>${papersCount}/${totalSearched}편</strong></span>`;
+        resultBlocksHTML += `<span class="summary-divider"></span>`;
+        resultBlocksHTML += `<span class="summary-item">GAP <strong>${gapsCount}개</strong></span>`;
+        resultBlocksHTML += `</div>`;
+
         reportHTML = `
         <div style="margin-top:16px;border-top:1px solid var(--border-light);padding-top:16px;">
-            <div class="report-actions">
+            ${resultBlocksHTML}
+            <div class="report-actions" style="margin-bottom:12px;">
                 <button onclick="copyReport()">클립보드에 복사</button>
-                <button onclick="downloadReport()">다운로드 (.md)</button>
+                <button class="report-download-btn" onclick="downloadReport()">다운로드 .md</button>
             </div>
             <div class="report-content">${renderMarkdown(pipelineData.report)}</div>
         </div>`;
@@ -2850,21 +2910,53 @@ function renderMarkdown(text) {
         .replace(/\n/g, '<br>');
 }
 
-function copyReport() {
-    navigator.clipboard.writeText(pipelineData.report).then(() => {
-        const btn = document.querySelector('.report-actions button');
-        if (!btn) return;
-        const orig = btn.textContent;
-        btn.textContent = '복사 완료!';
-        setTimeout(() => btn.textContent = orig, 1500);
-    });
-}
-
 function downloadReport() {
-    const blob = new Blob([pipelineData.report], { type: 'text/markdown' });
+    const opts = pipelineData.analysisOptions || {};
+    let md = '# 분석 리포트\n\n';
+
+    // Analysis options
+    if (opts.provider || opts.yearRange || opts.outputLanguage) {
+        md += '## 분석 옵션\n';
+        if (opts.provider) md += `- LLM: ${opts.provider}\n`;
+        if (opts.yearRange) md += `- 연도 범위: ${opts.yearRange}\n`;
+        if (opts.outputLanguage) md += `- 출력 언어: ${opts.outputLanguage}\n`;
+        md += '\n';
+    }
+
+    // Refined query
+    if (pipelineData.refined_query) {
+        md += `## 정제된 쿼리\n${pipelineData.refined_query}\n\n`;
+    }
+
+    // Keywords
+    if (pipelineData.keywords && pipelineData.keywords.length) {
+        md += `## 확장 키워드\n${pipelineData.keywords.join(', ')}\n\n`;
+    }
+
+    // Summary
+    md += `## 요약\n`;
+    md += `- 검색 논문: ${pipelineData.papers.length}/${pipelineData.total_searched || '?'}편\n`;
+    md += `- 도출 GAP: ${pipelineData.gaps.length}개\n\n`;
+
+    md += '---\n\n';
+
+    // Full report
+    if (pipelineData.report) {
+        md += pipelineData.report;
+    }
+
+    const now = new Date();
+    const ts = now.getFullYear().toString()
+        + String(now.getMonth() + 1).padStart(2, '0')
+        + String(now.getDate()).padStart(2, '0')
+        + '_' + String(now.getHours()).padStart(2, '0')
+        + String(now.getMinutes()).padStart(2, '0')
+        + String(now.getSeconds()).padStart(2, '0');
+
+    const blob = new Blob([md], { type: 'text/markdown' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'gapago_report.md';
+    a.download = `finalreport_${ts}.md`;
     a.click();
     URL.revokeObjectURL(a.href);
 }

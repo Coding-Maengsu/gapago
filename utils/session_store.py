@@ -42,11 +42,12 @@ def init_db():
         )
     """)
     conn.commit()
-    # Mark any leftover "running" sessions as "error" (from previous crash)
+    # Mark any leftover "running" sessions as "interrupted" (server restart)
     conn.execute("""
-        UPDATE sessions SET status = 'error'
+        UPDATE sessions SET status = 'interrupted',
+        completed_at = COALESCE(completed_at, ?)
         WHERE status = 'running'
-    """)
+    """, (datetime.now().isoformat(),))
     conn.commit()
 
 
