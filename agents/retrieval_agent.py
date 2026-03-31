@@ -1,6 +1,7 @@
 # 3-3) Paper Retrieval Agent (parallel search, no ReAct)
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import numpy as np
@@ -588,7 +589,29 @@ def _resolve_year_range(year_range: str) -> str:
     return ""
 
 
-def paper_retrieval_node(state: AgentState) -> AgentState:
+# ── 모델 사전 로딩 (프로세스 시작 시 1회만 실행) ─────────────────────────────
+def preload_models(model_tier: str = "light") -> None:
+    """
+    Embedding + CrossEncoder 모델을 프로세스 시작 시점에 미리 로딩.
+    workers=1 환경에서 단일 프로세스가 모델을 캐시하므로
+    첫 요청에서 모델 로딩 지연이 없고, 메모리도 1번만 사용됨.
+    """
+    print(f"[preload] Embedding 모델 로딩 시작 (tier={model_tier})")
+    _get_specter_model(model_tier)
+    print(f"[preload] CrossEncoder 모델 로딩 시작 (tier={model_tier})")
+    _get_cross_encoder(model_tier)
+    print("[preload] 모델 로딩 완료 — 이후 요청은 캐시 사용")
+
+
+# ── Executor (모듈 레벨 공유 — 프로세스당 1개) ───────────────────────────────
+# CPU-bound 작업(BM25, FAISS, CrossEncoder)을 event loop 밖 스레드에서 실행.
+# workers=1 + run_in_executor 조합으로 세션 in-memory 공유를 유지하면서
+# CPU-bound 블로킹을 해소.
+_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="retrieval")
+
+
+def _paper_retrieval_sync(state: AgentState) -> AgentState:
+    """동기 retrieval 로직 — _EXECUTOR 스레드에서 실행됨."""
     provider = state.get("llm_provider")
     session_id = state.get("session_id", "")
 
@@ -785,3 +808,19 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
         "total_candidates_count": total_candidates_count,
         "web_results": web_results,
     }
+
+# ── Public async entry point ──────────────────────────────────────────────────
+async def paper_retrieval_node(state: AgentState) -> AgentState:
+    """
+    LangGraph 노드 진입점 (async).
+
+    CPU-bound 작업(BM25, FAISS embedding, CrossEncoder)을 모듈 레벨
+    ThreadPoolExecutor(_EXECUTOR)로 offload하여 event loop를 블로킹하지 않음.
+
+    workers=1 + run_in_executor 구조:
+    - 단일 프로세스 → _sessions dict가 /api/analyze 와 /api/stream 간 공유됨
+    - 모델(_specter_model, _cross_encoder)도 프로세스당 1회 로딩, 메모리 절약
+    - CPU-bound 구간은 별도 스레드에서 처리 → SSE keepalive 등 async IO 유지
+    """
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(_EXECUTOR, _paper_retrieval_sync, state)
