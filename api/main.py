@@ -25,6 +25,7 @@ from llm import AVAILABLE_PROVIDERS, get_llm
 from agents.gap_chat_agent import gap_chat_respond
 from agents.retrieval_agent import preload_models
 from utils.progress import init_progress, drain_progress, cleanup_progress, mark_stage_start, mark_stage_done
+from utils.session_store import init_db as init_session_db, save_session, update_session_status
 
 # ── App ──────────────────────────────────────────────────────────────
 app = FastAPI(title="GAPAGO", description="Research GAP Analysis System")
@@ -45,7 +46,8 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 # ── Startup warm-up ──────────────────────────────────────────────────
 @app.on_event("startup")
 async def warmup():
-    """Pre-initialize LLM and graph in background to avoid blocking server start."""
+    """Pre-initialize LLM, graph, and session DB in background."""
+    init_session_db()
     async def _warmup():
         await asyncio.sleep(1)
         try:
@@ -225,6 +227,7 @@ async def _run_pipeline(session_id: str, graph, config_dict: dict, inputs: dict 
 
         if session["cancelled"].is_set():
             session["status"] = "stopped"
+            update_session_status(session_id, "stopped")
             _push_event(session_id, {"event": "stopped"})
             return
 
@@ -241,10 +244,12 @@ async def _run_pipeline(session_id: str, graph, config_dict: dict, inputs: dict 
             fname = _save_result(session["query"], state_values, session["user_id"], session.get("parent_session_id", ""), session_id)
             session["status"] = "completed"
             session["filename"] = fname
+            update_session_status(session_id, "completed")
             _push_event(session_id, {"event": "complete", "filename": fname})
 
     except Exception as e:
         session["status"] = "error"
+        update_session_status(session_id, "error")
         _push_event(session_id, {"event": "error", "message": str(e)})
     finally:
         drainer.cancel()
@@ -326,11 +331,12 @@ async def analyze(query: str, provider: str = "azure", domain: str = "auto", yea
     # 프론트는 /api/analyze 응답 즉시 /api/stream을 호출하므로,
     # 세션 등록이 늦으면 stream에서 404가 발생함.
     # → 세션을 먼저 "pending" 상태로 등록하고, graph는 이후에 채움.
+    started_at = datetime.now().isoformat()
     _sessions[session_id] = {
         "status": "running",
         "query": query,
         "user_id": user_id,
-        "started_at": datetime.now().isoformat(),
+        "started_at": started_at,
         "graph": None,  # graph는 아래에서 채움
         "config": None,
         "events": [],
@@ -339,6 +345,8 @@ async def analyze(query: str, provider: str = "azure", domain: str = "auto", yea
         "filename": None,
         "clarify_prompt": None,
     }
+    # Persist to SQLite
+    save_session(session_id, "running", query, user_id=user_id, started_at=started_at)
 
     graph = _get_graph()  # 캐시된 graph 반환 (최초 1회만 빌드)
     config_dict = {
