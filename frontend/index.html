@@ -2032,6 +2032,20 @@ function showPipelineUI() {
 }
 
 async function reconnectToSession(sessionId, query) {
+    // status 확인 먼저 — 유효하지 않은 세션 재연결 방지
+    try {
+        const statusResp = await fetch(`api/status/${sessionId}`);
+        const statusData = await statusResp.json();
+        if (['not_found', 'stopped', 'error', 'completed'].includes(statusData.status)) {
+            localStorage.removeItem('gapago_active_session');
+            showError('이 세션은 더 이상 사용할 수 없습니다. 새로운 분석을 시작해주세요.');
+            loadHistory();
+            return;
+        }
+    } catch (e) {
+        showError('서버에 연결할 수 없습니다.');
+        return;
+    }
     currentSessionId = sessionId;
     localStorage.setItem('gapago_active_session', sessionId);
     document.getElementById('queryInput').value = query || '';
@@ -2056,7 +2070,7 @@ async function reconnectToSession(sessionId, query) {
     }
 }
 
-async function connectToStream(sessionId, fromIdx, retries = 3) {
+async function connectToStream(sessionId, fromIdx, retries = 1) {
     const url = fromIdx ? `api/stream/${sessionId}?from_idx=${fromIdx}` : `api/stream/${sessionId}`;
     for (let attempt = 0; attempt < retries; attempt++) {
         const resp = await fetch(url);
@@ -2194,6 +2208,14 @@ function handleEvent(data) {
         const stoppedDetail = document.getElementById('statusDetail');
         if (stoppedDetail) stoppedDetail.textContent = '';
         setInputEnabled(true);
+    } else if (data.event === 'session_ended') {
+        clearInterval(_thinkingInterval);
+        clearInterval(_elapsedInterval);
+        localStorage.removeItem('gapago_active_session');
+        _activeReader = null;
+        showError(data.message || '세션이 종료되었습니다. 새로운 분석을 시작해주세요.');
+        setInputEnabled(true);
+        loadHistory();
     } else if (data.event === 'error') {
         clearInterval(_thinkingInterval);
         clearInterval(_elapsedInterval);

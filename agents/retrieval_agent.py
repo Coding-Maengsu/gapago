@@ -283,6 +283,9 @@ _REQUEST_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,application/pdf;q=0.8,*/*;q=0.7",
 }
 
+_http_session = requests.Session()
+_http_session.headers.update(_REQUEST_HEADERS)
+
 
 def _extract_arxiv_id(paper: dict) -> str:
     """paper_id에서 arXiv ID 추출."""
@@ -300,7 +303,7 @@ def _find_pdf_url_from_doi(doi: str) -> str:
     """DOI 페이지에서 PDF URL 찾기 (다운로드 없음)."""
     doi_url = doi if doi.startswith("http") else f"https://doi.org/{doi}"
     try:
-        resp = requests.get(doi_url, headers=_REQUEST_HEADERS, timeout=10, allow_redirects=True)
+        resp = _http_session.get(doi_url, timeout=10, allow_redirects=True)
         resp.raise_for_status()
 
         if resp.headers.get("content-type", "").startswith("application/pdf"):

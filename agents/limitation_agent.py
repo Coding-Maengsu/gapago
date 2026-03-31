@@ -123,6 +123,10 @@ _REQUEST_HEADERS = {
     "Referer": "https://scholar.google.com/",
 }
 
+# ── HTTP 연결 풀 (TCP 재사용) ──
+_http_session = requests.Session()
+_http_session.headers.update(_REQUEST_HEADERS)
+
 # ── Full text 캐시 ──
 _CACHE_DIR = Path(".cache/fulltext")
 _CACHE_TTL_DAYS = 7
@@ -184,7 +188,7 @@ def _load_arxiv_html(paper: Paper) -> dict:
     try:
         from bs4 import BeautifulSoup
 
-        resp = requests.get(url, headers=_REQUEST_HEADERS, timeout=8)
+        resp = _http_session.get(url, timeout=8)
         resp.raise_for_status()
 
         soup = BeautifulSoup(resp.text, "html.parser")
@@ -240,8 +244,13 @@ def _load_arxiv_full_text(paper: Paper) -> dict:
     return _load_arxiv_pdf(paper)
 
 
+_MAX_PDF_BYTES = 10 * 1024 * 1024  # 10MB
+
 def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
     """pymupdf4llm으로 PDF 바이트에서 Markdown 텍스트 추출 (섹션 헤딩 보존)."""
+    if len(pdf_bytes) > _MAX_PDF_BYTES:
+        print(f"  [fulltext] PDF too large ({len(pdf_bytes) // 1024 // 1024}MB), skipping")
+        return ""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     try:
         text = pymupdf4llm.to_markdown(doc)
@@ -286,7 +295,7 @@ def _find_pdf_url_from_doi(doi: str) -> Optional[str]:
     """DOI 페이지에 접근하여 PDF 다운로드 링크를 찾는다."""
     doi_url = doi if doi.startswith("http") else f"https://doi.org/{doi}"
     try:
-        resp = requests.get(doi_url, headers=_REQUEST_HEADERS, timeout=8, allow_redirects=True)
+        resp = _http_session.get(doi_url, timeout=8, allow_redirects=True)
         resp.raise_for_status()
 
         # 리다이렉트된 최종 URL이 PDF인 경우
@@ -394,7 +403,7 @@ def _unpaywall_find_accessible_url(doi: str) -> Optional[str]:
         return None
     clean_doi = doi.replace("https://doi.org/", "").replace("http://doi.org/", "")
     try:
-        r = requests.get(
+        r = _http_session.get(
             f"https://api.unpaywall.org/v2/{clean_doi}",
             params={"email": _UNPAYWALL_EMAIL},
             timeout=5,
@@ -482,7 +491,7 @@ def _try_doi_landing_html(doi: str, title: str) -> dict:
         return {}
     doi_url = doi if doi.startswith("http") else f"https://doi.org/{doi}"
     try:
-        resp = requests.get(doi_url, headers=_REQUEST_HEADERS, timeout=10, allow_redirects=True)
+        resp = _http_session.get(doi_url, timeout=10, allow_redirects=True)
         resp.raise_for_status()
         ct = (resp.headers.get("content-type") or "").lower()
 
@@ -520,7 +529,7 @@ def _s2_discover_alt_ids(doi: str) -> dict:
             time.sleep(1.1 - elapsed)
         _S2_LAST_CALL = time.time()
     try:
-        resp = requests.post(
+        resp = _http_session.post(
             "https://api.semanticscholar.org/graph/v1/paper/batch",
             params={"fields": "externalIds,openAccessPdf"},
             json={"ids": [f"DOI:{_clean_doi(doi)}"]},
@@ -550,7 +559,7 @@ def _doi_to_pmcid(doi: str) -> Optional[str]:
     if not doi:
         return None
     try:
-        resp = requests.get(
+        resp = _http_session.get(
             "https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/",
             params={"ids": _clean_doi(doi), "format": "json"},
             timeout=5,
@@ -571,7 +580,7 @@ def _load_pmc_bioc_full_text(pmcid: str, title: str = "") -> dict:
     if not pmcid.startswith("PMC"):
         pmcid = f"PMC{pmcid}"
     try:
-        resp = requests.get(
+        resp = _http_session.get(
             f"https://www.ncbi.nlm.nih.gov/research/bionlp/RESTful/pmcoa.cgi/BioC_json/{pmcid}/unicode",
             timeout=15,
         )
@@ -629,7 +638,7 @@ def _load_europepmc_full_text(doi: str, title: str = "") -> dict:
     clean = _clean_doi(doi)
     try:
         # Step 1: PMCID 검색
-        resp = requests.get(
+        resp = _http_session.get(
             "https://www.ebi.ac.uk/europepmc/webservices/rest/search",
             params={"query": f"DOI:{clean}", "format": "json", "resultType": "core"},
             timeout=8,
@@ -645,7 +654,7 @@ def _load_europepmc_full_text(doi: str, title: str = "") -> dict:
             return {}
 
         # Step 2: Full text XML
-        xml_resp = requests.get(
+        xml_resp = _http_session.get(
             f"https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML",
             timeout=15,
         )
@@ -725,7 +734,7 @@ def _load_doi_full_text(paper: Paper) -> dict:
     # PDF URL이 있으면 다운로드 시도
     if pdf_url:
         try:
-            resp = requests.get(pdf_url, headers=_REQUEST_HEADERS, timeout=15)
+            resp = _http_session.get(pdf_url, timeout=15)
             resp.raise_for_status()
 
             content_type = (resp.headers.get("content-type") or "").lower()
@@ -748,7 +757,7 @@ def _load_doi_full_text(paper: Paper) -> dict:
                 real_pdf = _find_pdf_link_in_html(resp.text, resp.url)
                 if real_pdf and _is_usable_pdf_url(real_pdf):
                     try:
-                        pdf_resp = requests.get(real_pdf, headers=_REQUEST_HEADERS, timeout=15)
+                        pdf_resp = _http_session.get(real_pdf, timeout=15)
                         pdf_resp.raise_for_status()
                         if pdf_resp.content[:4] == b"%PDF":
                             full_text = _extract_text_from_pdf_bytes(pdf_resp.content)
@@ -772,7 +781,7 @@ def _load_doi_full_text(paper: Paper) -> dict:
         oa_url = _unpaywall_find_accessible_url(doi)
         if oa_url:
             try:
-                resp = requests.get(oa_url, headers=_REQUEST_HEADERS, timeout=15, allow_redirects=True)
+                resp = _http_session.get(oa_url, timeout=15, allow_redirects=True)
                 resp.raise_for_status()
                 if resp.content[:4] == b"%PDF":
                     full_text = _extract_text_from_pdf_bytes(resp.content)
@@ -800,7 +809,7 @@ def _load_doi_full_text(paper: Paper) -> dict:
                 from langchain_community.document_loaders import ArxivLoader
                 ar5iv_url = f"https://ar5iv.labs.arxiv.org/html/{arxiv_id}"
                 try:
-                    r = requests.get(ar5iv_url, timeout=15)
+                    r = _http_session.get(ar5iv_url, timeout=15)
                     r.raise_for_status()
                     if "html" in (r.headers.get("content-type") or ""):
                         sections = _extract_fulltext_from_html(r.text, paper.title)
@@ -820,7 +829,7 @@ def _load_doi_full_text(paper: Paper) -> dict:
             s2_pdf = alt.get("oa_pdf_url")
             if s2_pdf and _is_usable_pdf_url(s2_pdf):
                 try:
-                    resp = requests.get(s2_pdf, headers=_REQUEST_HEADERS, timeout=15)
+                    resp = _http_session.get(s2_pdf, timeout=15)
                     resp.raise_for_status()
                     if resp.content[:4] == b"%PDF":
                         full_text = _extract_text_from_pdf_bytes(resp.content)
@@ -879,7 +888,7 @@ def _load_scienceon_pdf_from_url(paper: Paper, url: str, label: str) -> dict:
     if not url:
         return {}
     try:
-        resp = requests.get(url, headers=_REQUEST_HEADERS, timeout=15, allow_redirects=True)
+        resp = _http_session.get(url, timeout=15, allow_redirects=True)
         resp.raise_for_status()
 
         # 직접 PDF인 경우
@@ -905,7 +914,7 @@ def _load_scienceon_pdf_from_url(paper: Paper, url: str, label: str) -> dict:
                         from urllib.parse import urljoin
                         pdf_url = urljoin(resp.url, pdf_url)
                     try:
-                        pdf_resp = requests.get(pdf_url, headers=_REQUEST_HEADERS, timeout=15)
+                        pdf_resp = _http_session.get(pdf_url, timeout=15)
                         pdf_resp.raise_for_status()
                         if pdf_resp.content[:4] == b"%PDF":
                             full_text = _extract_text_from_pdf_bytes(pdf_resp.content)
@@ -1277,7 +1286,7 @@ def limitation_extract_node(state: AgentState) -> AgentState:
     # ── Step 1: Full text 로드 (병렬, LLM 호출 아님) ──
     print(f"  🔄 {len(papers)}편 논문 full text 로드 중...")
     paper_sections = {}
-    with ThreadPoolExecutor(max_workers=min(8, len(papers))) as executor:
+    with ThreadPoolExecutor(max_workers=min(3, len(papers))) as executor:
         futures = {executor.submit(_load_full_text_sections, p): p for p in papers}
         for future in as_completed(futures):
             paper = futures[future]

@@ -3,6 +3,7 @@ GAPAGO - FastAPI Server
 Research GAP Analysis Multi-Agent System
 """
 
+import gc
 import os
 import json
 import uuid
@@ -48,6 +49,7 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 async def warmup():
     """Pre-initialize LLM, graph, and session DB in background."""
     init_session_db()
+    asyncio.create_task(_session_reaper())
     async def _warmup():
         await asyncio.sleep(1)
         try:
@@ -98,6 +100,52 @@ def _get_graph():
 #   "clarify_prompt": str | None,
 # }
 _sessions: dict = {}
+
+# ── Session reaper (TTL-based cleanup) ────────────────────────────────
+_SESSION_TTL_SECONDS = 300  # 완료 후 5분 보관
+
+async def _session_reaper():
+    """Background task: clean up finished sessions after TTL."""
+    while True:
+        await asyncio.sleep(120)  # 2분마다 체크
+        now = datetime.now()
+        to_delete = []
+        for sid, session in list(_sessions.items()):
+            if session["status"] not in ("completed", "stopped", "error"):
+                continue
+            completed_at = session.get("completed_at")
+            if not completed_at:
+                session["completed_at"] = now
+                continue
+            elapsed = (now - completed_at).total_seconds()
+            if elapsed > _SESSION_TTL_SECONDS:
+                to_delete.append(sid)
+
+        for sid in to_delete:
+            session = _sessions.pop(sid, None)
+            if session:
+                _clear_checkpoints(sid)
+                session.clear()
+            _chat_histories.pop(sid, None)
+
+        if to_delete:
+            gc.collect()
+            print(f"[reaper] Cleaned {len(to_delete)} sessions: {to_delete}")
+
+
+def _clear_checkpoints(thread_id: str):
+    """MemorySaver에서 해당 thread_id의 체크포인트 삭제."""
+    graph = _graph_cache
+    if graph is None:
+        return
+    try:
+        checkpointer = graph.checkpointer
+        if hasattr(checkpointer, 'storage'):
+            checkpointer.storage.pop(thread_id, None)
+        if hasattr(checkpointer, 'writes'):
+            checkpointer.writes.pop(thread_id, None)
+    except Exception as e:
+        print(f"[reaper] checkpoint cleanup error for {thread_id}: {e}")
 
 
 # ── Request / Response Models ───────────────────────────────────────
@@ -159,16 +207,22 @@ def _save_result(query: str, state_values: dict, user_id: str = "", parent_sessi
 
     fname = f"gapago_result_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     path = OUTPUT_DIR / fname
-    path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
     return fname
 
+
+_MAX_EVENTS_PER_SESSION = 500
 
 def _push_event(session_id: str, event: dict):
     """Add event to session and signal waiting consumers."""
     session = _sessions.get(session_id)
     if not session:
         return
-    session["events"].append(event)
+    events = session["events"]
+    if len(events) >= _MAX_EVENTS_PER_SESSION:
+        del events[:_MAX_EVENTS_PER_SESSION // 10]
+    events.append(event)
     session["event_signal"].set()
 
 
@@ -196,6 +250,7 @@ async def _run_pipeline(session_id: str, graph, config_dict: dict, inputs: dict 
             # Check cancellation
             if session["cancelled"].is_set():
                 session["status"] = "stopped"
+                session["completed_at"] = datetime.now()
                 _push_event(session_id, {"event": "stopped"})
                 return
 
@@ -227,6 +282,7 @@ async def _run_pipeline(session_id: str, graph, config_dict: dict, inputs: dict 
 
         if session["cancelled"].is_set():
             session["status"] = "stopped"
+            session["completed_at"] = datetime.now()
             update_session_status(session_id, "stopped")
             _push_event(session_id, {"event": "stopped"})
             return
@@ -244,11 +300,13 @@ async def _run_pipeline(session_id: str, graph, config_dict: dict, inputs: dict 
             fname = _save_result(session["query"], state_values, session["user_id"], session.get("parent_session_id", ""), session_id)
             session["status"] = "completed"
             session["filename"] = fname
+            session["completed_at"] = datetime.now()
             update_session_status(session_id, "completed")
             _push_event(session_id, {"event": "complete", "filename": fname})
 
     except Exception as e:
         session["status"] = "error"
+        session["completed_at"] = datetime.now()
         update_session_status(session_id, "error")
         _push_event(session_id, {"event": "error", "message": str(e)})
     finally:
@@ -421,6 +479,7 @@ async def explore(topic: str, session_id: str = "", provider: str = "azure", dom
 
 # ── Chat history (in-memory, per session) ────────────────────────────
 _chat_histories: dict[str, list[dict]] = {}
+_MAX_CHAT_MESSAGES = 100
 
 
 class ChatRequest(BaseModel):
@@ -456,6 +515,8 @@ async def chat(req: ChatRequest):
     chat_key = req.session_id or req.filename
     if chat_key not in _chat_histories:
         _chat_histories[chat_key] = []
+    if len(_chat_histories[chat_key]) > _MAX_CHAT_MESSAGES:
+        _chat_histories[chat_key] = _chat_histories[chat_key][-_MAX_CHAT_MESSAGES:]
 
     # Add previous chat messages to state
     for msg in _chat_histories[chat_key]:
@@ -504,6 +565,16 @@ async def stream(session_id: str, from_idx: int = 0):
             if session:
                 break
     if not session:
+        # SQLite fallback — 세션이 존재했는지 확인
+        from utils.session_store import get_session
+        db_session = get_session(session_id)
+        if db_session:
+            db_status = db_session["status"]
+            async def ended_stream():
+                msg = {"event": "session_ended", "reason": db_status,
+                       "message": f"세션이 {db_status} 상태입니다. 새로운 분석을 시작해주세요."}
+                yield f"data: {json.dumps(msg, ensure_ascii=False)}\n\n"
+            return StreamingResponse(ended_stream(), media_type="text/event-stream")
         raise HTTPException(404, "Session not found")
 
     async def event_stream():
@@ -544,8 +615,10 @@ async def stop(session_id: str):
         # Wait briefly for the task to notice cancellation
         await asyncio.sleep(0.5)
 
-    # Clean up
-    _sessions.pop(session_id, None)
+    # 즉시 삭제하지 않고 상태만 변경 — reaper가 TTL 후 정리
+    session["status"] = "stopped"
+    session["completed_at"] = datetime.now()
+    update_session_status(session_id, "stopped")
     return {"status": "stopped", "session_id": session_id}
 
 
