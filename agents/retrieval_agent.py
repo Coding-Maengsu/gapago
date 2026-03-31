@@ -74,7 +74,7 @@ def _get_specter_model(model_tier: str = "light"):
                 _specter_model = SentenceTransformer(
                     model_name,
                     backend="onnx",
-                    model_kwargs={"provider": "CPUExecutionProvider"},
+                    model_kwargs={"provider": "CPUExecutionProvider", "file_name": "onnx/model.onnx"},
                 )
                 print(f"  [Embedding] {model_name} ONNX Runtime 로딩 완료 (CPU 최적화)")
             except Exception as onnx_err:
@@ -109,7 +109,7 @@ def _get_cross_encoder(model_tier: str = "light"):
                 _cross_encoder = CrossEncoder(
                     model_name,
                     backend="onnx",
-                    model_kwargs={"provider": "CPUExecutionProvider"},
+                    model_kwargs={"provider": "CPUExecutionProvider", "file_name": "onnx/model.onnx"},
                 )
                 print(f"  [CrossEncoder] {model_name} ONNX Runtime 로딩 완료 (CPU 최적화)")
             except Exception as onnx_err:

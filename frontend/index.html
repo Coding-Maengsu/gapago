@@ -1191,6 +1191,15 @@
             margin-top: 3px;
             transition: opacity 0.3s;
         }
+        .analysis-status-bar .status-detail .keyword-tag {
+            display: inline-block;
+            background: var(--accent-light);
+            color: var(--accent);
+            font-size: 0.85em;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin: 2px 2px 0 0;
+        }
         .analysis-status-bar .status-elapsed {
             font-size: 0.78em;
             color: var(--text-light);
@@ -2031,15 +2040,23 @@ async function reconnectToSession(sessionId, query) {
     }
 }
 
-async function connectToStream(sessionId, fromIdx) {
+async function connectToStream(sessionId, fromIdx, retries = 3) {
     const url = fromIdx ? `api/stream/${sessionId}?from_idx=${fromIdx}` : `api/stream/${sessionId}`;
-    const resp = await fetch(url);
-    if (!resp.ok) {
+    for (let attempt = 0; attempt < retries; attempt++) {
+        const resp = await fetch(url);
+        if (resp.ok) {
+            await processStream(resp);
+            return;
+        }
+        if (resp.status === 404 && attempt < retries - 1) {
+            console.warn(`Stream 404, retrying (${attempt + 1}/${retries})...`);
+            await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+            continue;
+        }
         showError(`스트림 오류 (${resp.status}): ${await resp.text()}`);
         setInputEnabled(true);
         return;
     }
-    await processStream(resp);
 }
 
 function showError(message) {
@@ -2173,7 +2190,7 @@ function updateTimeline(activeStepId, nodeName) {
         statusText.textContent = activeNode.label + '...';
     }
     if (statusDetailEl) {
-        statusDetailEl.textContent = timelineDetails[activeStepId] || '';
+        statusDetailEl.innerHTML = timelineDetails[activeStepId] || '';
     }
 
     // Thinking messages rotation
