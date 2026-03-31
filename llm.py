@@ -4,11 +4,6 @@ from dotenv import load_dotenv
 import tempfile
 
 from langchain_core.language_models import BaseChatModel
-from langchain_openai import AzureChatOpenAI
-from langchain_google_vertexai import ChatVertexAI 
-# from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_aws import ChatBedrockConverse
-from langchain_groq import ChatGroq
 
 load_dotenv()
 
@@ -36,6 +31,7 @@ def get_llm(provider: str | None = None, model: str | None = None) -> BaseChatMo
 
     # ── Azure OpenAI ──
     if provider == "azure":
+        from langchain_openai import AzureChatOpenAI
         deployment = model or os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-5.1-chat")
         return AzureChatOpenAI(
             openai_api_version=os.getenv(
@@ -46,6 +42,7 @@ def get_llm(provider: str | None = None, model: str | None = None) -> BaseChatMo
 
     # ── Claude via AWS Bedrock ──
     if provider in ("claude", "anthropic"):
+        from langchain_aws import ChatBedrockConverse
         from botocore.config import Config as BotoConfig
         bedrock_model = model or os.getenv(
             "BEDROCK_CLAUDE_MODEL",
@@ -59,6 +56,7 @@ def get_llm(provider: str | None = None, model: str | None = None) -> BaseChatMo
 
     # ── Google Gemini ──
     if provider in ("gemini", "google"):
+        from langchain_google_vertexai import ChatVertexAI
         return ChatVertexAI(
             model_name=model or "gemini-3.1-flash-lite-preview",
             project=os.getenv("GOOGLE_CLOUD_PROJECT", "coding-beast"),
@@ -93,6 +91,7 @@ def _build_groq_llm(model: str | None = None) -> BaseChatModel:
     model_name = model or os.getenv("GROQ_MODEL", "qwen/qwen3-32b")
     reasoning_effort = os.getenv("GROQ_REASONING_EFFORT", "default")  # "default" | "none"
 
+    from langchain_groq import ChatGroq
     print(f"  [groq] model={model_name}, reasoning_effort={reasoning_effort}")
     return ChatGroq(
         model=model_name,
