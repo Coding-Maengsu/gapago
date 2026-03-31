@@ -2320,11 +2320,10 @@ function collectData(data) {
     if ((node === 'query_subgraph' || node === 'meaning_expand')) {
         if (data.refined_query) pipelineData.refined_query = data.refined_query;
         if (data.keywords) pipelineData.keywords = data.keywords;
-        // Build detail text
+        // Build detail text (쿼리는 우측 패널에 표시하므로 키워드만)
         let detail = '';
-        if (pipelineData.refined_query) detail += esc(pipelineData.refined_query);
         if (pipelineData.keywords && pipelineData.keywords.length) {
-            detail += '<br>' + pipelineData.keywords.slice(0, 6).map(k => `<span class="keyword-tag">${esc(k)}</span>`).join(' ');
+            detail = pipelineData.keywords.slice(0, 6).map(k => `<span class="keyword-tag">${esc(k)}</span>`).join(' ');
         }
         timelineDetails['query'] = detail;
     }
