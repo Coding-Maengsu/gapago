@@ -7,6 +7,7 @@ import re
 import numpy as np
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from utils.cancel import is_cancelled
 
 from states import AgentState, Paper
 from langchain_core.messages import AIMessage, HumanMessage
@@ -136,7 +137,7 @@ def _extract_meaning_expand_data(state: AgentState) -> dict:
     return {}
 
 
-def _parallel_search(state: AgentState, resolved_year: str, cfg: Configuration) -> tuple[list, list]:
+def _parallel_search(state: AgentState, resolved_year: str, cfg: Configuration, session_id: str = "") -> tuple[list, list]:
     """8개 검색 도구를 ThreadPoolExecutor로 병렬 호출."""
 
     me_data = _extract_meaning_expand_data(state)
@@ -209,6 +210,10 @@ def _parallel_search(state: AgentState, resolved_year: str, cfg: Configuration) 
             futures[executor.submit(fn, **kw)] = name
 
         for future in as_completed(futures):
+            if is_cancelled(session_id):
+                executor.shutdown(wait=False, cancel_futures=True)
+                print(f"  [retrieval] 취소됨 — 병렬 검색 중단")
+                return all_papers, web_results
             name = futures[future]
             try:
                 result = future.result(timeout=60)
@@ -632,7 +637,7 @@ def _paper_retrieval_sync(state: AgentState) -> AgentState:
     print(f"  [retrieval] rerank_models tier={model_tier}")
 
     # ✅ 병렬 검색 (ReAct 에이전트 대신 ThreadPoolExecutor)
-    raw_papers, web_results = _parallel_search(state, resolved_year, cfg)
+    raw_papers, web_results = _parallel_search(state, resolved_year, cfg, session_id=session_id)
 
     raw_papers = _dedupe_papers(raw_papers)
     total_candidates_count = len(raw_papers)  # BM25 전 전체 후보 수

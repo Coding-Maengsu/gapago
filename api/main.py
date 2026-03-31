@@ -27,6 +27,7 @@ from agents.gap_chat_agent import gap_chat_respond
 from agents.retrieval_agent import preload_models
 from utils.progress import init_progress, drain_progress, cleanup_progress, mark_stage_start, mark_stage_done
 from utils.session_store import init_db as init_session_db, save_session, update_session_status
+from utils import cancel as cancel_registry
 
 # ── App ──────────────────────────────────────────────────────────────
 app = FastAPI(title="GAPAGO", description="Research GAP Analysis System")
@@ -234,6 +235,7 @@ async def _run_pipeline(session_id: str, graph, config_dict: dict, inputs: dict 
         return
 
     init_progress(session_id)
+    cancel_registry.register(session_id)
 
     async def _drain_loop():
         """Drain progress events from agents running in threads."""
@@ -312,6 +314,7 @@ async def _run_pipeline(session_id: str, graph, config_dict: dict, inputs: dict 
     finally:
         drainer.cancel()
         cleanup_progress(session_id)
+        cancel_registry.cleanup(session_id)
 
 
 # ── Endpoints ───────────────────────────────────────────────────────
@@ -374,6 +377,29 @@ async def get_history_detail(filename: str):
     if not path.exists():
         raise HTTPException(404, "Result not found")
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+@app.delete("/api/history/{filename}")
+async def delete_history(filename: str):
+    """Delete a saved analysis result and its session record."""
+    # 파일명 검증 (path traversal 방지)
+    if "/" in filename or "\\" in filename or ".." in filename:
+        raise HTTPException(400, "Invalid filename")
+    path = OUTPUT_DIR / filename
+    if not path.exists():
+        raise HTTPException(404, "Result not found")
+    # 파일에서 session_id 읽어서 SQLite도 정리
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        sid = data.get("session_id", "")
+        if sid:
+            from utils.session_store import delete_session
+            delete_session(sid)
+            _chat_histories.pop(sid, None)
+    except Exception:
+        pass
+    path.unlink()
+    return {"status": "deleted", "filename": filename}
 
 
 @app.get("/api/analyze")
@@ -616,6 +642,7 @@ async def stop(session_id: str):
 
     if session["status"] == "running":
         session["cancelled"].set()
+        cancel_registry.cancel(session_id)
         # Wait briefly for the task to notice cancellation
         await asyncio.sleep(0.5)
 
