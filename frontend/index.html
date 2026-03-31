@@ -1645,7 +1645,7 @@ function getEmptyStateHTML() {
     return `
     <div class="empty-state">
         <h2 style="font-size:1.5em;font-weight:700;color:var(--text);margin-bottom:8px;letter-spacing:-0.3px;">키워드 또는 논문 제목으로 시작해보세요</h2>
-        <p class="subtitle">연구 방향을 입력하면 논문 검색부터 Research GAP 도출까지 자동으로 진행됩니다.</p>
+        <p class="subtitle">연구 방향을 입력하면 논문 검색부터 Research GAP 도출까지 진행됩니다.</p>
 
         <div class="example-queries">
             ${cardsHTML}
@@ -2347,10 +2347,9 @@ function updateLivePreview() {
 
     let html = '';
 
-    // Progress bar (limitation extraction etc.)
+    // Progress bar (overall only)
     if (hasProgress && !hasGaps) {
         html += `<div class="preview-progress">
-            <div class="preview-progress-label">${esc(_progressData.detail)}</div>
             <div class="preview-progress-bar"><div class="preview-progress-fill" style="width:${_progressData.progress}%"></div></div>
             <div class="preview-progress-detail">${_progressData.current} / ${_progressData.total} (${_progressData.progress}%)</div>
         </div>`;
