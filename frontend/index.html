@@ -922,8 +922,8 @@
             transition: max-height 0.4s ease;
         }
         .report-master-collapse.open .report-master-body {
-            max-height: none;
-            overflow: visible;
+            max-height: calc(100vh - 180px);
+            overflow-y: auto;
         }
         .report-master-body-inner {
             padding: 0 20px 20px;
@@ -3247,7 +3247,7 @@ function toggleMasterReport() {
         mc.classList.add('open');
         body.style.maxHeight = body.scrollHeight + 'px';
         body.addEventListener('transitionend', () => {
-            if (mc.classList.contains('open')) body.style.maxHeight = 'none';
+            if (mc.classList.contains('open')) body.style.maxHeight = 'calc(100vh - 180px)';
         }, { once: true });
     }
 }
