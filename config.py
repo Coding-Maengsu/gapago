@@ -33,7 +33,7 @@ class Configuration:
         },
     )
     arxiv_max_docs: int = field(
-        default=_int_env("ARXIV_MAX_RESULTS", 10),
+        default=_int_env("ARXIV_MAX_RESULTS", 20),
         metadata={"description": "Maximum number of ArXiv documents", "range": [1, 50]},
     )
     scienceon_client_id: Optional[str] = field(
@@ -53,16 +53,24 @@ class Configuration:
         metadata={"description": "ScienceON default target"},
     )
     scienceon_default_row_count: int = field(
-        default=_int_env("SCIENCEON_DEFAULT_ROW_COUNT", 10),
+        default=_int_env("SCIENCEON_DEFAULT_ROW_COUNT", 20),
         metadata={"description": "ScienceON default row count", "range": [1, 100]},
     )
+    fulltext_target_count: int = field(
+        default=_int_env("FULLTEXT_TARGET_COUNT", 30),
+        metadata={"description": "Max papers after fulltext filter", "range": [15, 60]},
+    )
     bm25_top_k: int = field(
-        default=_int_env("BM25_TOP_K", 30),
+        default=_int_env("BM25_TOP_K", 50),
         metadata={"description": "BM25 1st stage filter count", "range": [10, 100]},
     )
     reranker_top_k: int = field(
         default=_int_env("RERANKER_TOP_K", 15),
         metadata={"description": "LLM Reranker 2nd stage selection count", "range": [5, 50]},
+    )
+    rerank_models: str = field(
+        default=_str_env("RERANK_MODELS", "auto") or "auto",
+        metadata={"description": "Model tier: 'light' (MiniLM, CPU최적), 'full' (SPECTER2+BGE), 'auto' (GPU→full, CPU→light)"},
     )
 
     @classmethod
@@ -98,10 +106,16 @@ class Configuration:
                     "scienceon_default_row_count", defaults.scienceon_default_row_count
                 )
             ),
+            fulltext_target_count=int(
+                configurable.get("fulltext_target_count", defaults.fulltext_target_count)
+            ),
             bm25_top_k=int(
                 configurable.get("bm25_top_k", defaults.bm25_top_k)
             ),
             reranker_top_k=int(
                 configurable.get("reranker_top_k", defaults.reranker_top_k)
+            ),
+            rerank_models=str(
+                configurable.get("rerank_models", defaults.rerank_models)
             ),
         )

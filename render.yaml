@@ -9,6 +9,8 @@ services:
         value: "3.10.12"
       - key: LLM_PROVIDER
         value: azure
+      - key: RERANK_MODELS
+        value: light
       # Add these in Render Dashboard > Environment
       # - key: AZURE_OPENAI_API_KEY
       # - key: AZURE_OPENAI_ENDPOINT

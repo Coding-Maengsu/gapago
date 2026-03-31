@@ -169,6 +169,19 @@ def run():
     from llm import get_llm
     get_llm.cache_clear()
 
+    # --- LLM 사전 초기화 (warmup) ---
+    # 기본 LLM 미리 캐시에 올림
+    print(f"  [warmup] 기본 LLM ({selected_provider}) 초기화 중...")
+    get_llm(provider=selected_provider)
+    print(f"  [warmup] 기본 LLM 초기화 완료")
+
+    # GAP 추론 LLM도 미리 캐시 (API 클라이언트 객체 생성, 수십 ms)
+    reasoning_provider = os.getenv("GAP_REASONING_PROVIDER", "")
+    if reasoning_provider:
+        print(f"  [warmup] GAP 추론 LLM ({reasoning_provider}) 초기화 중...")
+        get_llm(provider=reasoning_provider)
+        print(f"  [warmup] GAP 추론 LLM 초기화 완료")
+
     # --- 연구 도메인 선택 (recency check용) ---
     print("\n=== 연구 도메인 선택 (최신성 검증 소스 결정) ===")
     print("  0) auto - LLM이 자동 판단 (기본값)")
