@@ -1077,12 +1077,13 @@ Sections: introduction, method, experiment, discussion
 ## Rules
 1. Extract 1-3 limitations per paper. Prioritize Track 2 structural findings.
 2. Each limitation MUST include:
-   - claim: concise limitation statement (1-2 sentences)
+   - claim: concise limitation statement (1-2 sentences). MUST be a complete, self-contained sentence. Never leave a claim unfinished or truncated.
    - evidence_quote: exact short quote from the provided text
    - track: "author_stated" or "structural"
    - source_section: section name (e.g., "conclusion", "method", "experiment")
 3. Do NOT infer gaps. Only extract limitations from the provided text.
 4. If only abstract is provided (FALLBACK), extract 1 limitation maximum.
+5. If input text appears truncated, summarize and complete the limitation based on available context. Never output incomplete sentences.
 
 ## Output Format (strictly JSON list)
 [
@@ -1308,17 +1309,16 @@ def limitation_extract_node(state: AgentState) -> AgentState:
         backup_raw = state.get("backup_papers") or []
         if backup_raw:
             failed_ids = {pid for pid, sec in paper_sections.items() if not sec}
-            # backup 중 arXiv(guaranteed) 우선으로 대체
+            # backup 중 full text 로드 가능한 논문으로 대체 (arXiv 우선, 그 외도 시도)
             replacements = []
             used_backup_ids = set()
-            for bp in backup_raw:
+            # arXiv 우선 정렬: arXiv가 앞으로
+            sorted_backup = sorted(backup_raw, key=lambda bp: (0 if bp.get("paper_id", "").lower().startswith("arxiv:") else 1))
+            for bp in sorted_backup:
                 if len(replacements) >= fulltext_fail_count:
                     break
                 bp_id = bp.get("paper_id", "")
-                if bp_id in used_backup_ids:
-                    continue
-                # arXiv 논문만 대체 후보 (guaranteed full text)
-                if not bp_id.lower().startswith("arxiv:"):
+                if bp_id in used_backup_ids or bp_id in failed_ids:
                     continue
                 try:
                     replacement = Paper(**bp) if isinstance(bp, dict) else bp
@@ -1364,9 +1364,9 @@ def limitation_extract_node(state: AgentState) -> AgentState:
         for paper in batch:
             sections = paper_sections.get(paper.paper_id, {})
             paper_prompt = _build_prompt(paper, sections)
-            # 배치 시 각 논문 텍스트를 2000자로 제한
-            if len(paper_prompt) > 2000:
-                paper_prompt = paper_prompt[:2000] + "\n... (truncated)"
+            # 배치 시 각 논문 텍스트를 4000자로 제한
+            if len(paper_prompt) > 4000:
+                paper_prompt = paper_prompt[:4000] + "\n... (truncated)"
             batch_prompt_parts.append(f"=== PAPER: {paper.paper_id} ===\n{paper_prompt}")
 
         combined_prompt = "\n\n".join(batch_prompt_parts)
