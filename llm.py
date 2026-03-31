@@ -9,9 +9,10 @@ load_dotenv()
 
 creds_json = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON")
 if creds_json:
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+    creds_path = "/tmp/google_credentials.json"
+    with open(creds_path, 'w') as f:
         f.write(creds_json)
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = f.name
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = creds_path
 
 # ── Provider 목록 (사용자 선택용) ──────────────────────────────────
 # groq, qwq는 gap_agent 추론 단계 전용 → GAP_REASONING_PROVIDER 환경변수로 설정
