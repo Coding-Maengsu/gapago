@@ -487,32 +487,79 @@
         .status-msg .elapsed { font-size: 0.78em; color: var(--text-light); margin-top: 4px; opacity: 0.5; }
 
         /* ── 2-Panel Results ── */
-        .result-summary-header {
+        .result-summary-bar {
             display: flex;
             align-items: center;
-            gap: 16px;
-            padding: 14px 20px;
-            background: var(--accent-bg);
+            gap: 10px;
+            padding: 12px 16px;
+            background: var(--surface2);
             border-radius: var(--radius);
-            margin-bottom: 16px;
+            margin-bottom: 14px;
             flex-wrap: wrap;
         }
-
-        .result-summary-header .summary-item {
-            font-size: 0.86em;
-            color: var(--text-dim);
-            font-weight: 500;
+        .result-summary-bar .summary-query {
+            font-size: 0.88em;
+            font-weight: 600;
+            color: var(--text);
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
-
-        .result-summary-header .summary-item strong {
+        .result-summary-bar .summary-stat {
+            font-size: 0.78em;
+            color: var(--text-light);
+            white-space: nowrap;
+        }
+        .result-summary-bar .summary-stat strong {
             color: var(--accent);
             font-weight: 700;
         }
-
-        .result-summary-header .summary-divider {
+        .result-summary-bar .summary-sep {
             width: 1px;
-            height: 16px;
+            height: 14px;
             background: var(--border);
+        }
+        .result-meta-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .result-meta-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 8px;
+            background: var(--surface2);
+            border: 1px solid var(--border-light);
+            border-radius: 5px;
+            font-size: 0.72em;
+            color: var(--text-light);
+        }
+        .result-report-actions {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .result-report-actions button {
+            padding: 7px 14px;
+            font-size: 0.8em;
+            font-family: inherit;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text-dim);
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.15s;
+        }
+        .result-report-actions button:hover {
+            background: var(--surface2);
+            color: var(--text);
+            border-color: var(--accent);
         }
 
         .result-panels {
@@ -811,13 +858,13 @@
             border: 1px solid var(--border-light);
             border-radius: var(--radius-lg);
             background: var(--surface);
-            overflow: hidden;
         }
         .report-master-toggle {
             width: 100%;
             padding: 14px 20px;
             background: var(--surface);
             border: none;
+            border-bottom: 1px solid var(--border-light);
             cursor: pointer;
             font-family: inherit;
             font-size: 0.95em;
@@ -829,7 +876,8 @@
             transition: background 0.15s;
             position: sticky;
             top: 0;
-            z-index: 5;
+            z-index: 10;
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
         }
         .report-master-toggle:hover { background: var(--surface2); }
 
@@ -2951,53 +2999,54 @@ function renderResults() {
     // Right panel: detail (default: first gap)
     let rightHTML = getGapDetailHTML(0);
 
-    // Result blocks (options, query, keywords, summary)
-    let resultBlocksHTML = '';
+    // Summary bar: query + stats + meta chips in one compact row
+    let summaryBarHTML = '';
     const opts2 = pipelineData.analysisOptions || {};
-    if (opts2.provider || opts2.yearRange || opts2.outputLanguage) {
-        resultBlocksHTML += `<div class="analysis-options-bar" style="margin-bottom:12px">`;
-        if (opts2.provider) resultBlocksHTML += `<span class="opt-chip"><span class="opt-label">LLM</span> ${esc(opts2.provider)}</span>`;
-        if (opts2.yearRange) resultBlocksHTML += `<span class="opt-chip"><span class="opt-label">연도</span> ${esc(opts2.yearRange)}</span>`;
-        if (opts2.outputLanguage) resultBlocksHTML += `<span class="opt-chip"><span class="opt-label">언어</span> ${esc(opts2.outputLanguage)}</span>`;
-        resultBlocksHTML += `</div>`;
-    }
-    if (pipelineData.refined_query) {
-        resultBlocksHTML += `<div class="result-summary-header" style="margin-bottom:12px">`;
-        resultBlocksHTML += `<span class="summary-item">정제된 쿼리: <strong>${esc(pipelineData.refined_query)}</strong></span>`;
-        resultBlocksHTML += `</div>`;
-    }
-    if (pipelineData.keywords && pipelineData.keywords.length) {
-        resultBlocksHTML += `<div style="margin-bottom:12px"><span style="font-size:0.84em;color:var(--text-dim);font-weight:500;">확장 키워드:</span> `;
-        resultBlocksHTML += pipelineData.keywords.map(k => `<span class="preview-keyword-tag">${esc(k)}</span>`).join(' ');
-        resultBlocksHTML += `</div>`;
-    }
-    resultBlocksHTML += `<div class="result-summary-header">`;
-    resultBlocksHTML += `<span class="summary-item">논문 <strong>${papersCount}/${totalSearched}편</strong></span>`;
-    resultBlocksHTML += `<span class="summary-divider"></span>`;
-    resultBlocksHTML += `<span class="summary-item">GAP <strong>${gapsCount}개</strong></span>`;
-    resultBlocksHTML += `</div>`;
+    const metaChips = [];
+    if (opts2.provider) metaChips.push(esc(opts2.provider));
+    if (opts2.yearRange) metaChips.push(esc(opts2.yearRange));
+    if (opts2.outputLanguage) metaChips.push(esc(opts2.outputLanguage));
 
-    // Report — inline (no separate toggle)
-    let reportHTML = '';
+    summaryBarHTML += `<div class="result-summary-bar">`;
+    summaryBarHTML += `<span class="summary-query" title="${esc(pipelineData.refined_query || '')}">${esc(pipelineData.refined_query || '')}</span>`;
+    summaryBarHTML += `<span class="summary-sep"></span>`;
+    summaryBarHTML += `<span class="summary-stat">논문 <strong>${papersCount}/${totalSearched}</strong></span>`;
+    summaryBarHTML += `<span class="summary-sep"></span>`;
+    summaryBarHTML += `<span class="summary-stat">GAP <strong>${gapsCount}</strong></span>`;
+    if (metaChips.length) {
+        summaryBarHTML += `<span class="summary-sep"></span>`;
+        summaryBarHTML += metaChips.map(c => `<span class="result-meta-chip">${c}</span>`).join('');
+    }
+    summaryBarHTML += `</div>`;
+
+    // Keywords row (compact)
+    let keywordsHTML = '';
+    if (pipelineData.keywords && pipelineData.keywords.length) {
+        keywordsHTML = `<div class="result-meta-row">`;
+        keywordsHTML += pipelineData.keywords.map(k => `<span class="preview-keyword-tag">${esc(k)}</span>`).join(' ');
+        keywordsHTML += `</div>`;
+    }
+
+    // Report actions (copy/download)
+    let reportActionsHTML = '';
     if (pipelineData.report) {
-        reportHTML = `
-        <div style="margin-top:16px;border-top:1px solid var(--border-light);padding-top:16px;">
-            <div class="report-actions" style="margin-bottom:0;">
-                <button onclick="copyReport()">클립보드에 복사</button>
-                <button class="report-download-btn" onclick="downloadReport()">다운로드 .md</button>
-            </div>
+        reportActionsHTML = `<div class="result-report-actions">
+            <button onclick="copyReport()">클립보드에 복사</button>
+            <button onclick="downloadReport()">다운로드 .md</button>
         </div>`;
     }
 
     area.innerHTML = `
         <div class="report-master-collapse open" id="reportMasterCollapse">
             <button class="report-master-toggle" onclick="toggleMasterReport()">
-                <span>전체 리포트 보기</span>
+                <span>분석 결과</span>
                 <span class="toggle-arrow">&#x25BC;</span>
             </button>
             <div class="report-master-body">
                 <div class="report-master-body-inner">
-                    ${resultBlocksHTML}
+                    ${summaryBarHTML}
+                    ${keywordsHTML}
+                    ${reportActionsHTML}
                     <div class="result-panels">
                         <div class="panel-left" id="panelLeft">${leftHTML}</div>
                         <div class="panel-right" id="panelRight">
@@ -3033,7 +3082,6 @@ function renderResults() {
                             </div>
                         </div>
                     </div>
-                    ${reportHTML}
                 </div>
             </div>
         </div>
