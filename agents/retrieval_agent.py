@@ -465,13 +465,18 @@ def _faiss_filter(papers: list[dict], query: str, top_k: int, model_tier: str = 
         return papers
 
 
+_CE_DYNAMIC_SCORE_RATIO = 0.65   # top score 대비 이 비율 이상만 유지
+_CE_DYNAMIC_MIN_K      = 15      # 최소 선별 수
+_CE_DYNAMIC_MAX_K      = 25      # 최대 선별 수
+
+
 def _cross_encoder_rerank(papers: list[dict], query: str, top_k: int, model_tier: str = "light") -> list[dict]:
     """
-    CrossEncoder 기반 3차 reranking.
+    CrossEncoder 기반 3차 reranking (동적 k).
+    top score × 0.65 이상인 논문을 유지하되, 최소 15 ~ 최대 25편 범위.
     로딩 실패 시 LLM Reranker로 fallback (None 반환).
-    Returns top_k papers sorted by cross-encoder score (desc).
     """
-    if len(papers) <= top_k:
+    if len(papers) <= _CE_DYNAMIC_MIN_K:
         return papers
 
     reranker = _get_cross_encoder(model_tier)
@@ -482,10 +487,31 @@ def _cross_encoder_rerank(papers: list[dict], query: str, top_k: int, model_tier
         pairs  = [(query, f"{p.get('title', '')} {p.get('abstract', '')}") for p in papers]
         scores = reranker.predict(pairs, show_progress_bar=False)
 
-        # 점수 내림차순 정렬 후 top_k 선택
+        # 점수 내림차순 정렬
         ranked = sorted(zip(scores, papers), key=lambda x: x[0], reverse=True)
-        selected = [p for _, p in ranked[:top_k]]
-        print(f"  [CrossEncoder] {len(papers)}편 → {len(selected)}편 reranking 완료")
+        sorted_scores = [s for s, _ in ranked]
+
+        # 동적 k: top score 대비 비율 기반
+        max_score = sorted_scores[0]
+        threshold = max_score * _CE_DYNAMIC_SCORE_RATIO
+        dynamic_k = sum(1 for s in sorted_scores if s >= threshold)
+
+        # score gap 감지: 점수 급락 지점에서 추가 컷
+        for i in range(1, len(sorted_scores)):
+            gap = sorted_scores[i - 1] - sorted_scores[i]
+            # 상위 점수 범위의 30% 이상 급락 시 컷
+            score_range = sorted_scores[0] - sorted_scores[-1]
+            if score_range > 0 and gap / score_range > 0.3 and i >= _CE_DYNAMIC_MIN_K:
+                dynamic_k = min(dynamic_k, i)
+                print(f"  [CrossEncoder] score gap 감지: {i}번째에서 급락 ({sorted_scores[i-1]:.3f} → {sorted_scores[i]:.3f})")
+                break
+
+        # 범위 제한
+        dynamic_k = max(_CE_DYNAMIC_MIN_K, min(dynamic_k, _CE_DYNAMIC_MAX_K))
+
+        selected = [p for _, p in ranked[:dynamic_k]]
+        print(f"  [CrossEncoder] {len(papers)}편 → {len(selected)}편 reranking 완료 "
+              f"(dynamic_k={dynamic_k}, threshold={threshold:.3f}, max_score={max_score:.3f})")
         return selected
 
     except Exception as e:
@@ -701,8 +727,8 @@ def _paper_retrieval_sync(state: AgentState) -> AgentState:
     backup_raw = []
     if fast_mode:
         print("  [fast_mode] CrossEncoder 스킵 — BM25+FAISS 결과만 사용")
-        raw_papers = stage1_papers[:cfg.reranker_top_k]
-    elif stage1_papers and query and len(stage1_papers) > cfg.reranker_top_k:
+        raw_papers = stage1_papers[:_CE_DYNAMIC_MIN_K]
+    elif stage1_papers and query and len(stage1_papers) > _CE_DYNAMIC_MIN_K:
         ce_result = _cross_encoder_rerank(stage1_papers, query, top_k=cfg.reranker_top_k, model_tier=model_tier)
         if ce_result is not None:
             raw_papers = ce_result
