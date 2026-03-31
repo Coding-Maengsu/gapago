@@ -28,6 +28,7 @@ LLM 라우팅:
 import os
 import re
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from states import AgentState, GapCandidate, LimitationItem
 from llm import get_llm
 from utils.parse_json import parse_json
@@ -933,24 +934,22 @@ def gap_infer_node(state: AgentState) -> AgentState:
     total_axes = len(scored_axes)
     print(f"\n  🔄 Step 4b+4c: 장벽 분석 → 창의적 방향 제안...")
 
-    for ax_idx, (ax_key, urgency_score, cascade_impact, urgency_rationale) in enumerate(scored_axes):
+    # ── 축별 처리를 병렬로 실행 (ThreadPoolExecutor) ──────────────────────
+    completed_count = [0]  # mutable counter for thread-safe progress
+
+    def _process_single_axis(ax_idx, ax_key, urgency_score, cascade_impact, urgency_rationale):
+        """단일 축의 4b(장벽 분석) + 4c(창의적 방향 제안)를 처리."""
         grp     = active_groups[ax_key]
         ax_info = final_axes.get(ax_key, {"label": ax_key, "description": "", "type": "dynamic"})
         unresolved_lims = grp["unresolved_lims"]
 
         if not unresolved_lims:
-            continue
+            return None
 
-        # 진행 상황 리포트 (UI 프로그레스바용)
-        report_progress(
-            session_id, "gap_infer",
-            f"Analyzing research axis {ax_idx + 1}/{total_axes}: {ax_info.get('label', ax_key)}",
-            current=ax_idx + 1, total=total_axes,
-        )
         print(f"\n  ── [{ax_key}] urgency={urgency_score:.2f} ──")
 
         # Step 4b
-        print("  🔍 4b 장벽 분석...")
+        print(f"  🔍 4b 장벽 분석 ({ax_key})...")
         barrier = _analyze_barriers(
             ax_key, ax_info, unresolved_lims, grp["lims"],
             research_question, lang_instruction,
@@ -961,7 +960,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
             print(f"     - {b[:80]}")
 
         # Step 4c
-        print(f"  💡 4c 창의적 방향 제안 (web_results={len(web_results)}개 활용)...")
+        print(f"  💡 4c 창의적 방향 제안 ({ax_key}, web_results={len(web_results)}개 활용)...")
         direction = _generate_creative_directions(
             ax_key=ax_key,
             ax_info=ax_info,
@@ -977,7 +976,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
         )
 
         if direction is None:
-            continue
+            return None
 
         gap_dict = GapCandidate(
             axis=ax_key,
@@ -993,7 +992,6 @@ def gap_infer_node(state: AgentState) -> AgentState:
             ][:5],
         ).model_dump()
 
-        # GapCandidate 스키마 외 상세 필드 병합 (리포트 상세 섹션용)
         gap_dict.update({
             "detail":            direction.get("detail", ""),
             "barriers":          direction.get("barriers", []),
@@ -1004,7 +1002,34 @@ def gap_infer_node(state: AgentState) -> AgentState:
             "urgency_score":     urgency_score,
             "urgency_rationale": urgency_rationale,
         })
-        gaps.append(gap_dict)
+
+        # 완료 시 진행률 리포트
+        completed_count[0] += 1
+        report_progress(
+            session_id, "gap_infer",
+            f"Analyzed research axis {completed_count[0]}/{total_axes}: {ax_info.get('label', ax_key)}",
+            current=completed_count[0], total=total_axes,
+        )
+
+        return gap_dict
+
+    max_workers = min(5, total_axes)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(
+                _process_single_axis,
+                ax_idx, ax_key, urgency_score, cascade_impact, urgency_rationale,
+            ): ax_key
+            for ax_idx, (ax_key, urgency_score, cascade_impact, urgency_rationale) in enumerate(scored_axes)
+        }
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+                if result is not None:
+                    gaps.append(result)
+            except Exception as e:
+                ax_key = futures[future]
+                print(f"  ⚠️ 축 [{ax_key}] 처리 중 오류: {e}")
 
     # urgency 점수 기준 정렬
     urgency_map = {ax: score for ax, score, _, _ in scored_axes}
