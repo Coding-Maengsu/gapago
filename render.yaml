@@ -3,7 +3,7 @@ services:
     name: gapago
     runtime: python
     buildCommand: pip install -r requirements_deploy.txt
-    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT --workers 3
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT --workers 1
     envVars:
       - key: PYTHON_VERSION
         value: "3.10.12"

@@ -62,7 +62,7 @@ datasets/
 checkpoints/
 models/
 cache/
-
+input_dir/
 # =========================
 # ML / LLM 캐시
 # =========================

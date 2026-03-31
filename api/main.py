@@ -23,6 +23,7 @@ from graphs.graph import build_graph
 from langchain_core.messages import HumanMessage, AIMessage
 from llm import AVAILABLE_PROVIDERS, get_llm
 from agents.gap_chat_agent import gap_chat_respond
+from agents.retrieval_agent import preload_models
 from utils.progress import init_progress, drain_progress, cleanup_progress
 
 # ── App ──────────────────────────────────────────────────────────────
@@ -52,6 +53,12 @@ async def warmup():
             get_llm()
             print("[startup] Warming up graph...")
             build_graph()
+            # ── 모델 사전 로딩 ──────────────────────────────────────────
+            # workers=1 단일 프로세스이므로 여기서 한 번만 로딩하면
+            # 이후 모든 요청이 캐시된 모델을 재사용 (메모리 절약 + 첫 요청 지연 제거)
+            print("[startup] Preloading Embedding + CrossEncoder models...")
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, preload_models, "light")
             print("[startup] Warm-up complete.")
         except Exception as e:
             print(f"[startup] Warm-up failed (non-fatal): {e}")
