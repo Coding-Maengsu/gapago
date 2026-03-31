@@ -3335,6 +3335,34 @@ function renderMarkdown(text) {
         .replace(/\n/g, '<br>');
 }
 
+function copyReport() {
+    const report = pipelineData.report || '';
+    if (!report) return;
+    navigator.clipboard.writeText(report).then(() => {
+        const btn = document.querySelector('.report-actions button');
+        if (btn) {
+            const orig = btn.textContent;
+            btn.textContent = '복사됨!';
+            setTimeout(() => { btn.textContent = orig; }, 1500);
+        }
+    }).catch(() => {
+        // fallback for non-HTTPS or older browsers
+        const ta = document.createElement('textarea');
+        ta.value = report;
+        ta.style.cssText = 'position:fixed;left:-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        const btn = document.querySelector('.report-actions button');
+        if (btn) {
+            const orig = btn.textContent;
+            btn.textContent = '복사됨!';
+            setTimeout(() => { btn.textContent = orig; }, 1500);
+        }
+    });
+}
+
 function downloadReport() {
     const opts = pipelineData.analysisOptions || {};
     let md = '# 분석 리포트\n\n';
