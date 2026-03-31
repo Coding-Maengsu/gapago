@@ -6,6 +6,7 @@
 # Post-processing: 필터링 + PASS/RETRY 결정
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
 
 from states import AgentState
@@ -154,16 +155,19 @@ def _run_call1(
     """Per-limitation 평가: atomic fact verification + rubric scoring."""
     llm = get_llm(provider=provider)
 
-    # 배치로 나눠서 처리
-    all_results = []
+    # 배치를 병렬로 처리 (ThreadPoolExecutor)
     total = len(limitations)
-
+    batches = []
     for batch_start in range(0, total, CALL1_BATCH_SIZE):
         batch_end = min(batch_start + CALL1_BATCH_SIZE, total)
-        batch = limitations[batch_start:batch_end]
+        batches.append((batch_start, limitations[batch_start:batch_end]))
 
+    def _eval_batch(batch_start: int, batch: list[dict]) -> tuple[int, list[dict]]:
+        """Evaluate a single batch of limitations. Returns (batch_start, results)."""
+        batch_num = batch_start // CALL1_BATCH_SIZE + 1
+        batch_end = batch_start + len(batch)
         print(
-            f"  [eval:call1] Batch {batch_start//CALL1_BATCH_SIZE + 1}: evaluating limitations {batch_start}-{batch_end-1}"
+            f"  [eval:call1] Batch {batch_num}: evaluating limitations {batch_start}-{batch_end-1}"
         )
 
         lim_text = "\n\n".join(
@@ -187,25 +191,49 @@ def _run_call1(
         ]
 
         try:
-            response = llm.invoke(messages)
+            batch_llm = get_llm(provider=provider)
+            response = batch_llm.invoke(messages)
             content = (
                 response.content if hasattr(response, "content") else str(response)
             )
             parsed = parse_json(content)
             if isinstance(parsed, list):
-                all_results.extend(parsed)
                 print(
-                    f"  [eval:call1] Batch {batch_start//CALL1_BATCH_SIZE + 1}: {len(parsed)} results"
+                    f"  [eval:call1] Batch {batch_num}: {len(parsed)} results"
                 )
+                return (batch_start, parsed)
             else:
                 print(
-                    f"  ⚠️ [eval:call1] Batch {batch_start//CALL1_BATCH_SIZE + 1}: 파싱 결과가 list가 아님"
+                    f"  ⚠️ [eval:call1] Batch {batch_num}: 파싱 결과가 list가 아님"
                 )
+                return (batch_start, [])
         except Exception as e:
             print(
-                f"  ⚠️ [eval:call1] Batch {batch_start//CALL1_BATCH_SIZE + 1} LLM 호출 실패: {e}"
+                f"  ⚠️ [eval:call1] Batch {batch_num} LLM 호출 실패: {e}"
             )
-            continue
+            return (batch_start, [])
+
+    # Run batches in parallel (max 3 workers to avoid rate limits)
+    all_results = []
+    max_workers = min(3, len(batches))
+    if max_workers <= 1:
+        for batch_start, batch in batches:
+            _, results = _eval_batch(batch_start, batch)
+            all_results.extend(results)
+    else:
+        batch_results: dict[int, list[dict]] = {}
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(_eval_batch, bs, b): bs
+                for bs, b in batches
+            }
+            for future in as_completed(futures):
+                bs, results = future.result()
+                batch_results[bs] = results
+
+        # Merge in original batch order (preserve limitation_id ordering)
+        for batch_start, _ in batches:
+            all_results.extend(batch_results.get(batch_start, []))
 
     return all_results
 
