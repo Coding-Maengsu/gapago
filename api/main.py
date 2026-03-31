@@ -124,10 +124,13 @@ async def _session_reaper():
 
         for sid in to_delete:
             session = _sessions.pop(sid, None)
+            fname = session.get("filename", "") if session else ""
             if session:
                 _clear_checkpoints(sid)
                 session.clear()
             _chat_histories.pop(sid, None)
+            if fname:
+                _chat_histories.pop(fname, None)
 
         if to_delete:
             gc.collect()
@@ -398,6 +401,8 @@ async def delete_history(filename: str):
             _chat_histories.pop(sid, None)
     except Exception:
         pass
+    # filename 키로 저장된 채팅 기록도 정리
+    _chat_histories.pop(filename, None)
     path.unlink()
     return {"status": "deleted", "filename": filename}
 
