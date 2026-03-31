@@ -14,13 +14,16 @@ from pydantic import BaseModel, Field
 from Crypto.Cipher import AES
 from langchain_core.tools import tool
 from langchain_core.runnables import RunnableConfig
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.documents import Document
+from langchain_community.retrievers import ArxivRetriever
 from rank_bm25 import BM25Okapi
 
 from config import Configuration
 from utils.tavily import TavilySearch
 
 
-_ARXIV_API = "https://export.arxiv.org/api/query"
+_ARXIV_API = "http://export.arxiv.org/api/query"
 _ATOM_NS = {"atom": "http://www.w3.org/2005/Atom"}
 _SCIENCEON_OPENAPI = "https://apigateway.kisti.re.kr/openapicall.do"
 _SCIENCEON_TOKEN_API = "https://apigateway.kisti.re.kr/tokenrequest.do"
@@ -29,6 +32,23 @@ _SCIENCEON_TOKEN_CACHE: dict[str, Optional[str]] = {
     "access_token": None,
     "refresh_token": None,
 }
+
+
+# =====================================================================
+# YearFilteredArxivRetriever: 특정 연도 논문만 필터링
+# =====================================================================
+class YearFilteredArxivRetriever(BaseRetriever):
+    """arXiv 검색 결과를 특정 연도로 필터링하는 Retriever"""
+    year: int
+    load_max_docs: int = 20
+
+    def _get_relevant_documents(self, query: str) -> List[Document]:
+        retriever = ArxivRetriever(load_max_docs=self.load_max_docs)
+        docs = retriever.invoke(query)
+        return [
+            doc for doc in docs
+            if datetime.datetime.strptime(doc.metadata["Published"], "%Y-%m-%d").year == self.year
+        ]
 
 
 def _norm(text: str) -> str:
@@ -54,13 +74,8 @@ def _safe_json_loads(text: str) -> dict | list | None:
 
 
 # ============================== arXiv ==============================
-def _arxiv_url(
-    search_query: str,
-    start: int,
-    max_results: int,
-    sort_by: str = "relevance",
-    sort_order: str = "descending",
-) -> str:
+def _arxiv_url(search_query: str, start: int, max_results: int,
+               sort_by: str = "relevance", sort_order: str = "descending") -> str:
     params = {
         "search_query": search_query,
         "start": int(start),
@@ -77,14 +92,8 @@ def _parse_atom(xml_text: str) -> list[dict]:
 
     out: list[dict] = []
     for e in entries:
-        arxiv_id_url = (
-            e.findtext("atom:id", default="", namespaces=_ATOM_NS) or ""
-        ).strip()
-        arxiv_id = (
-            arxiv_id_url.replace("http://arxiv.org/abs/", "")
-            .replace("https://arxiv.org/abs/", "")
-            .strip()
-        )
+        arxiv_id_url = (e.findtext("atom:id", default="", namespaces=_ATOM_NS) or "").strip()
+        arxiv_id = arxiv_id_url.replace("http://arxiv.org/abs/", "").replace("https://arxiv.org/abs/", "").strip()
         if not arxiv_id:
             continue
 
@@ -95,18 +104,12 @@ def _parse_atom(xml_text: str) -> list[dict]:
 
         authors = []
         for a in e.findall("atom:author", _ATOM_NS):
-            name = (
-                a.findtext("atom:name", default="", namespaces=_ATOM_NS) or ""
-            ).strip()
+            name = (a.findtext("atom:name", default="", namespaces=_ATOM_NS) or "").strip()
             if name:
                 authors.append(name)
 
-        published = (
-            e.findtext("atom:published", default="", namespaces=_ATOM_NS) or ""
-        ).strip()
-        year = (
-            int(published[:4]) if len(published) >= 4 and published[:4].isdigit() else 0
-        )
+        published = (e.findtext("atom:published", default="", namespaces=_ATOM_NS) or "").strip()
+        year = int(published[:4]) if len(published) >= 4 and published[:4].isdigit() else 0
 
         url = arxiv_id_url
         for link in e.findall("atom:link", _ATOM_NS):
@@ -114,32 +117,67 @@ def _parse_atom(xml_text: str) -> list[dict]:
                 url = link.attrib["href"]
                 break
 
-        out.append(
-            {
-                "paper_id": f"arxiv:{arxiv_id}",
-                "title": title,
-                "abstract": abstract,
-                "url": url,
-                "year": year,
-                "authors": authors,
-                "score_bm25": 0.0,
-                "venue": "arXiv preprint",
-                "source": "arxiv",
-                "full_text_sections": {},
-            }
-        )
+        out.append({
+            "paper_id": f"arxiv:{arxiv_id}",
+            "title": title,
+            "abstract": abstract,
+            "url": url,
+            "year": year,
+            "authors": authors,
+            "score_bm25": 0.0,
+            "venue": "arXiv preprint",
+            "source": "arxiv",
+            "full_text_sections": {},
+        })
 
     return out
 
 
-def arxiv_api_call(
-    search_query: str, max_total: int, page_size: int, max_pages: int
-) -> list[dict]:
+def arxiv_api_call(search_query: str, max_total: int, page_size: int, max_pages: int, year_filter: str = "") -> list[dict]:
+    """
+    arXiv API 호출 (연도 필터 지원).
+    year_filter가 단일 연도(e.g. "2024")인 경우 YearFilteredArxivRetriever 사용.
+    """
+    # year_filter가 단일 연도인 경우 YearFilteredArxivRetriever 사용
+    if year_filter and year_filter.isdigit():
+        try:
+            year = int(year_filter)
+            print(f"  [arxiv] Using YearFilteredArxivRetriever for year={year}")
+            retriever = YearFilteredArxivRetriever(year=year, load_max_docs=max_total)
+            docs = retriever.invoke(search_query)
+
+            results = []
+            for doc in docs:
+                metadata = doc.metadata
+                arxiv_id = metadata.get("entry_id", "").split("/")[-1] if metadata.get("entry_id") else ""
+
+                results.append({
+                    "paper_id": f"arxiv:{arxiv_id}",
+                    "title": _norm(metadata.get("Title", "")),
+                    "abstract": _norm(doc.page_content or metadata.get("Summary", "")),
+                    "url": metadata.get("entry_id", ""),
+                    "year": datetime.datetime.strptime(metadata["Published"], "%Y-%m-%d").year,
+                    "authors": metadata.get("Authors", "").split(", ") if metadata.get("Authors") else [],
+                    "score_bm25": 0.0,
+                    "venue": "arXiv preprint",
+                    "source": "arxiv",
+                    "full_text_sections": {},
+                })
+
+            print(f"  [arxiv] YearFilteredArxivRetriever returned {len(results)} papers")
+            return results
+        except Exception as e:
+            print(f"  [arxiv] YearFilteredArxivRetriever failed: {e}, falling back to standard API")
+
+    # 기존 방식 (API 직접 호출)
     raw: list[dict] = []
     for page in range(max_pages):
         start = page * page_size
         if start >= max_total:
             break
+
+        # 모든 요청 전 5초 대기 (arXiv rate limit 준수 - 첫 페이지 포함)
+        time.sleep(5)
 
         url = _arxiv_url(
             search_query=search_query,
@@ -152,11 +190,8 @@ def arxiv_api_call(
             try:
                 r = requests.get(url, timeout=30)
                 if r.status_code == 429:
-                    wait = 3 * (attempt + 1)
-                    print(
-                        f"  [arxiv] 429 rate limit → {wait}s 대기 후 재시도 ({attempt + 1}/3)"
-                    )
-                    print(f"  [arxiv] 응답 body: {r.text[:200]}")  # ← 이거 추가
+                    wait = 5 * (attempt + 1)  # 5s, 10s, 15s
+                    print(f"  [arxiv] 429 rate limit → {wait}s 대기 후 재시도 ({attempt + 1}/3)")
                     time.sleep(wait)
                     continue
                 r.raise_for_status()
@@ -164,135 +199,25 @@ def arxiv_api_call(
                 raw.extend(batch)
                 if not batch:
                     return list({p["paper_id"]: p for p in raw}.values())
-                time.sleep(3)  # arXiv 권장 간격
                 last_error = None
                 break
             except Exception as e:
                 last_error = e
                 time.sleep(3)
         if last_error:
-            raise last_error
+            # 페이지 실패 시: 이전 페이지 결과라도 반환 (전체 실패보다 나음)
+            print(f"  [arxiv] 페이지 {page+1} 실패, 이전까지 {len(raw)}개 논문 반환")
+            break  # raise 대신 break로 변경
 
     uniq = {p["paper_id"]: p for p in raw}
     return list(uniq.values())
-
-
-# ============================== Crossref ==============================
-_CROSSREF_API = "https://api.crossref.org/works"
-_CROSSREF_HEADERS = {
-    "User-Agent": "GAPAGO-Research-Agent/1.0 (mailto:gapago@research.org)"
-}
-
-
-def crossref_search(query: str, rows: int = 40, year: str = "") -> list[dict]:
-    """Crossref API로 학술 논문 검색. 1.5억+ 메타데이터, 넉넉한 rate limit."""
-    params = {
-        "query": query,
-        "rows": min(rows, 1000),
-        "sort": "relevance",
-        "order": "desc",
-        "mailto": "gapago@research.org",
-    }
-
-    # 연도 필터
-    if year and "-" in year:
-        parts = year.split("-")
-        from_year = parts[0].strip()
-        to_year = parts[1].strip() if parts[1].strip() else "2026"
-        params["filter"] = f"from-pub-date:{from_year},until-pub-date:{to_year}"
-
-    try:
-        r = requests.get(
-            _CROSSREF_API, params=params, headers=_CROSSREF_HEADERS, timeout=30
-        )
-        r.raise_for_status()
-        data = r.json()
-    except Exception as e:
-        print(f"  [crossref] API 오류: {e}")
-        return []
-
-    items = data.get("message", {}).get("items", [])
-    results: list[dict] = []
-    for item in items:
-        title_list = item.get("title", [])
-        title = _norm(title_list[0]) if title_list else ""
-        if not title:
-            continue
-
-        abstract = _norm(item.get("abstract", ""))
-
-        # 저자
-        authors = []
-        for a in item.get("author", []):
-            name_parts = [a.get("given", ""), a.get("family", "")]
-            name = " ".join(p for p in name_parts if p).strip()
-            if name:
-                authors.append(name)
-
-        # 연도
-        date_parts = item.get(
-            "published-print", item.get("published-online", item.get("created", {}))
-        )
-        year_val = 0
-        if date_parts and date_parts.get("date-parts"):
-            try:
-                year_val = int(date_parts["date-parts"][0][0])
-            except (IndexError, TypeError, ValueError):
-                pass
-
-        doi = item.get("DOI", "")
-        url = f"https://doi.org/{doi}" if doi else ""
-
-        # PDF URL 추출: link 필드에서 application/pdf 타입 우선
-        # Elsevier TDM API URL (api.elsevier.com, httpAccept=text/xml) 등은 제외
-        pdf_url = ""
-        for link in item.get("link") or []:
-            ct = (link.get("content-type") or "").lower()
-            link_url = link.get("URL", "")
-            if "api.elsevier.com" in link_url or "httpAccept=text/xml" in link_url:
-                continue
-            if "pdf" in ct and link_url:
-                pdf_url = link_url
-                break
-        if not pdf_url:
-            for link in item.get("link") or []:
-                link_url = link.get("URL", "")
-                if "api.elsevier.com" in link_url or "httpAccept=text/xml" in link_url:
-                    continue
-                if link_url:
-                    pdf_url = link_url
-                    break
-
-        results.append(
-            {
-                "paper_id": f"crossref:{doi}" if doi else f"crossref:{title[:50]}",
-                "title": title,
-                "abstract": abstract,
-                "url": url,
-                "year": year_val,
-                "authors": authors,
-                "doi": doi,
-                "score_bm25": 0.0,
-                "venue": (
-                    _norm((item.get("container-title") or [""])[0])
-                    if item.get("container-title")
-                    else ""
-                ),
-                "source": "crossref",
-                "full_text_sections": {"doi": doi, "pdf_url": pdf_url} if doi else {},
-            }
-        )
-
-    return results
 
 
 def bm25_rank(papers: list[dict], query_text: str, top_k: int) -> dict:
     if not papers:
         return {"selected": [], "avg_bm25": 0.0}
 
-    corpus = [
-        _tokenize(f"{p.get('title', '')} {p.get('abstract', '')}") for p in papers
-    ]
+    corpus = [_tokenize(f"{p.get('title', '')} {p.get('abstract', '')}") for p in papers]
     bm25 = BM25Okapi(corpus)
     scores = bm25.get_scores(_tokenize(query_text))
     pairs = list(zip(papers, scores))
@@ -316,24 +241,14 @@ def _scienceon_pad_pkcs7(text: str, block_size: int = 16) -> bytes:
 
 
 def _scienceon_encrypt_accounts(mac_address: str, key: str) -> str:
-    timestamp = "".join(
-        re.findall(r"\d", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    )
-    plain_txt = json.dumps(
-        {"datetime": timestamp, "mac_address": mac_address},
-        separators=(",", ":"),
-        ensure_ascii=False,
-    )
-    cipher = AES.new(
-        key.encode("utf-8"), AES.MODE_CBC, _SCIENCEON_AES_IV.encode("utf-8")
-    )
+    timestamp = "".join(re.findall(r"\d", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    plain_txt = json.dumps({"datetime": timestamp, "mac_address": mac_address}, separators=(",", ":"), ensure_ascii=False)
+    cipher = AES.new(key.encode("utf-8"), AES.MODE_CBC, _SCIENCEON_AES_IV.encode("utf-8"))
     encrypted_bytes = cipher.encrypt(_scienceon_pad_pkcs7(plain_txt))
     return base64.urlsafe_b64encode(encrypted_bytes).decode("utf-8")
 
 
-def _scienceon_request_create_token(
-    client_id: str, mac_address: str, key: str, timeout: int = 30
-) -> dict:
+def _scienceon_request_create_token(client_id: str, mac_address: str, key: str, timeout: int = 30) -> dict:
     encrypted_txt = _scienceon_encrypt_accounts(mac_address=mac_address, key=key)
     response = requests.get(
         _SCIENCEON_TOKEN_API,
@@ -347,9 +262,7 @@ def _scienceon_request_create_token(
         return {"raw": response.text}
 
 
-def _scienceon_request_access_token(
-    client_id: str, refresh_token: str, timeout: int = 30
-) -> dict:
+def _scienceon_request_access_token(client_id: str, refresh_token: str, timeout: int = 30) -> dict:
     response = requests.get(
         _SCIENCEON_TOKEN_API,
         params={"refreshToken": refresh_token, "client_id": client_id},
@@ -362,55 +275,33 @@ def _scienceon_request_access_token(
         return {"raw": response.text}
 
 
-def _scienceon_resolve_tokens(
-    *,
-    client_id: Optional[str],
-    mac_address: Optional[str],
-    key: Optional[str],
-    timeout: int = 30,
-) -> dict:
+def _scienceon_resolve_tokens(*, client_id: Optional[str], mac_address: Optional[str], key: Optional[str], timeout: int = 30) -> dict:
     access_token = _SCIENCEON_TOKEN_CACHE.get("access_token")
     refresh_token = _SCIENCEON_TOKEN_CACHE.get("refresh_token")
     events: list[str] = []
 
     if access_token:
-        return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "events": events,
-        }
+        return {"access_token": access_token, "refresh_token": refresh_token, "events": events}
 
     if client_id and refresh_token:
-        refreshed = _scienceon_request_access_token(
-            client_id=client_id, refresh_token=refresh_token, timeout=timeout
-        )
+        refreshed = _scienceon_request_access_token(client_id=client_id, refresh_token=refresh_token, timeout=timeout)
         new_access = refreshed.get("access_token")
         new_refresh = refreshed.get("refresh_token") or refresh_token
         if new_access:
             _SCIENCEON_TOKEN_CACHE["access_token"] = new_access
             _SCIENCEON_TOKEN_CACHE["refresh_token"] = new_refresh
             events.append("access_token_reissued_from_refresh_token")
-            return {
-                "access_token": new_access,
-                "refresh_token": new_refresh,
-                "events": events,
-            }
+            return {"access_token": new_access, "refresh_token": new_refresh, "events": events}
 
     if client_id and mac_address and key:
-        created = _scienceon_request_create_token(
-            client_id=client_id, mac_address=mac_address, key=key, timeout=timeout
-        )
+        created = _scienceon_request_create_token(client_id=client_id, mac_address=mac_address, key=key, timeout=timeout)
         new_access = created.get("access_token")
         new_refresh = created.get("refresh_token")
         if new_access:
             _SCIENCEON_TOKEN_CACHE["access_token"] = new_access
             _SCIENCEON_TOKEN_CACHE["refresh_token"] = new_refresh
             events.append("refresh_and_access_token_issued")
-            return {
-                "access_token": new_access,
-                "refresh_token": new_refresh,
-                "events": events,
-            }
+            return {"access_token": new_access, "refresh_token": new_refresh, "events": events}
 
     return {"access_token": None, "refresh_token": refresh_token, "events": events}
 
@@ -428,9 +319,7 @@ def _scienceon_parse_search_xml(xml_text: str, target: str) -> dict:
     root = ET.fromstring(xml_text)
 
     total_count_text = _norm(root.findtext("./resultSummary/TotalCount", default="0"))
-    service_datatype = _norm(
-        root.findtext("./resultSummary/serviceDatatype", default="")
-    )
+    service_datatype = _norm(root.findtext("./resultSummary/serviceDatatype", default=""))
     status_code = _norm(root.findtext("./resultSummary/statusCode", default=""))
 
     results = []
@@ -442,38 +331,28 @@ def _scienceon_parse_search_xml(xml_text: str, target: str) -> dict:
         authors_raw = values.get("Author") or values.get("Author2") or ""
         authors = [a.strip() for a in re.split(r"[;|]", authors_raw) if a.strip()]
         year_text = values.get("Pubyear") or values.get("Pubdate") or ""
-        year = (
-            int(year_text[:4]) if len(year_text) >= 4 and year_text[:4].isdigit() else 0
-        )
-        url = (
-            values.get("FulltextURL")
-            or values.get("ContentURL")
-            or values.get("MobileURL")
-            or values.get("DOI")
-            or ""
-        )
+        year = int(year_text[:4]) if len(year_text) >= 4 and year_text[:4].isdigit() else 0
+        url = values.get("FulltextURL") or values.get("ContentURL") or values.get("MobileURL") or values.get("DOI") or ""
 
-        results.append(
-            {
-                "paper_id": f"scienceon:{cn}",
-                "title": title,
-                "abstract": abstract,
-                "url": url,
-                "year": year,
-                "authors": authors,
-                "score_bm25": 0.0,
-                "venue": values.get("JournalName", ""),
-                "source": "scienceon",
-                "full_text_sections": {},
-                "journal": values.get("JournalName", ""),
-                "publisher": values.get("Publisher", ""),
-                "doi": values.get("DOI", ""),
-                "keywords_text": values.get("Keyword") or values.get("Keyword2") or "",
-                "content_url": values.get("ContentURL", ""),
-                "fulltext_url": values.get("FulltextURL", ""),
-                "raw": values,
-            }
-        )
+        results.append({
+            "paper_id": f"scienceon:{cn}",
+            "title": title,
+            "abstract": abstract,
+            "url": url,
+            "year": year,
+            "authors": authors,
+            "score_bm25": 0.0,
+            "venue": values.get("JournalName", ""),
+            "source": "scienceon",
+            "full_text_sections": {},
+            "journal": values.get("JournalName", ""),
+            "publisher": values.get("Publisher", ""),
+            "doi": values.get("DOI", ""),
+            "keywords_text": values.get("Keyword") or values.get("Keyword2") or "",
+            "content_url": values.get("ContentURL", ""),
+            "fulltext_url": values.get("FulltextURL", ""),
+            "raw": values,
+        })
 
     return {
         "source": "scienceon",
@@ -496,18 +375,7 @@ def _scienceon_search_query(query: str, year: str = "") -> str:
     return json.dumps(sq, ensure_ascii=False, separators=(",", ":"))
 
 
-def scienceon_search(
-    *,
-    client_id: str,
-    query: str,
-    target: str = "ARTI",
-    cur_page: int = 1,
-    row_count: int = 10,
-    mac_address: Optional[str] = None,
-    key: Optional[str] = None,
-    timeout: int = 30,
-    year: str = "",
-) -> dict:
+def scienceon_search(*, client_id: str, query: str, target: str = "ARTI", cur_page: int = 1, row_count: int = 10, mac_address: Optional[str] = None, key: Optional[str] = None, timeout: int = 30, year: str = "") -> dict:
     token_state = _scienceon_resolve_tokens(
         client_id=client_id,
         mac_address=mac_address,
@@ -539,9 +407,7 @@ def scienceon_search(
     parsed = _scienceon_parse_search_xml(response.text, target=target)
 
     if parsed.get("status_code") != "200" and refresh_token:
-        refreshed = _scienceon_request_access_token(
-            client_id=client_id, refresh_token=refresh_token, timeout=timeout
-        )
+        refreshed = _scienceon_request_access_token(client_id=client_id, refresh_token=refresh_token, timeout=timeout)
         new_access = refreshed.get("access_token")
         new_refresh = refreshed.get("refresh_token") or refresh_token
         if new_access:
@@ -581,27 +447,23 @@ def _scienceon_parse_patent_xml(xml_text: str) -> dict:
         url = values.get("ContentURL") or ""
 
         year_text = publ_date or appl_date or ""
-        year = (
-            int(year_text[:4]) if len(year_text) >= 4 and year_text[:4].isdigit() else 0
-        )
+        year = int(year_text[:4]) if len(year_text) >= 4 and year_text[:4].isdigit() else 0
 
-        results.append(
-            {
-                "patent_id": f"scienceon_patent:{cn}",
-                "title": title,
-                "abstract": abstract,
-                "url": url,
-                "year": year,
-                "applicants": applicants,
-                "ipc": ipc,
-                "nation": nation,
-                "appl_date": appl_date,
-                "publ_date": publ_date,
-                "grant_date": grant_date,
-                "source": "scienceon_patent",
-                "raw": values,
-            }
-        )
+        results.append({
+            "patent_id": f"scienceon_patent:{cn}",
+            "title": title,
+            "abstract": abstract,
+            "url": url,
+            "year": year,
+            "applicants": applicants,
+            "ipc": ipc,
+            "nation": nation,
+            "appl_date": appl_date,
+            "publ_date": publ_date,
+            "grant_date": grant_date,
+            "source": "scienceon_patent",
+            "raw": values,
+        })
 
     return {
         "source": "scienceon_patent",
@@ -629,25 +491,21 @@ def _scienceon_parse_report_xml(xml_text: str) -> dict:
         publisher = values.get("Publisher") or ""
         keywords = values.get("Keyword") or ""
         year_text = values.get("Pubyear") or values.get("Pubdate") or ""
-        year = (
-            int(year_text[:4]) if len(year_text) >= 4 and year_text[:4].isdigit() else 0
-        )
+        year = int(year_text[:4]) if len(year_text) >= 4 and year_text[:4].isdigit() else 0
         url = values.get("FulltextURL") or values.get("ContentURL") or ""
 
-        results.append(
-            {
-                "report_id": f"scienceon_report:{cn}",
-                "title": title,
-                "abstract": abstract,
-                "url": url,
-                "year": year,
-                "authors": authors,
-                "publisher": publisher,
-                "keywords": keywords,
-                "source": "scienceon_report",
-                "raw": values,
-            }
-        )
+        results.append({
+            "report_id": f"scienceon_report:{cn}",
+            "title": title,
+            "abstract": abstract,
+            "url": url,
+            "year": year,
+            "authors": authors,
+            "publisher": publisher,
+            "keywords": keywords,
+            "source": "scienceon_report",
+            "raw": values,
+        })
 
     return {
         "source": "scienceon_report",
@@ -658,39 +516,22 @@ def _scienceon_parse_report_xml(xml_text: str) -> dict:
     }
 
 
-def scienceon_patent_search(
-    *,
-    client_id: str,
-    query: str,
-    cur_page: int = 1,
-    row_count: int = 10,
-    mac_address: Optional[str] = None,
-    key: Optional[str] = None,
-    timeout: int = 30,
-    year: str = "",
-) -> dict:
+def scienceon_patent_search(*, client_id: str, query: str, cur_page: int = 1, row_count: int = 10,
+                            mac_address: Optional[str] = None, key: Optional[str] = None, timeout: int = 30, year: str = "") -> dict:
     """Search ScienceON for patents (target=PATENT)."""
-    token_state = _scienceon_resolve_tokens(
-        client_id=client_id, mac_address=mac_address, key=key, timeout=timeout
-    )
+    token_state = _scienceon_resolve_tokens(client_id=client_id, mac_address=mac_address, key=key, timeout=timeout)
     access_token = token_state.get("access_token")
     refresh_token = token_state.get("refresh_token")
     events = list(token_state.get("events", []))
 
     if not access_token:
-        raise RuntimeError(
-            "ScienceON token is not available. Set SCIENCEON_CLIENT_ID and provide SCIENCEON_MAC_ADDRESS + SCIENCEON_KEY."
-        )
+        raise RuntimeError("ScienceON token is not available. Set SCIENCEON_CLIENT_ID and provide SCIENCEON_MAC_ADDRESS + SCIENCEON_KEY.")
 
     params = {
-        "client_id": client_id,
-        "token": access_token,
-        "version": "1.0",
-        "action": "search",
-        "target": "PATENT",
+        "client_id": client_id, "token": access_token, "version": "1.0",
+        "action": "search", "target": "PATENT",
         "searchQuery": _scienceon_search_query(query, year),
-        "curPage": int(cur_page),
-        "rowCount": int(row_count),
+        "curPage": int(cur_page), "rowCount": int(row_count),
     }
 
     response = requests.get(_SCIENCEON_OPENAPI, params=params, timeout=timeout)
@@ -698,15 +539,11 @@ def scienceon_patent_search(
     parsed = _scienceon_parse_patent_xml(response.text)
 
     if parsed.get("status_code") != "200" and refresh_token:
-        refreshed = _scienceon_request_access_token(
-            client_id=client_id, refresh_token=refresh_token, timeout=timeout
-        )
+        refreshed = _scienceon_request_access_token(client_id=client_id, refresh_token=refresh_token, timeout=timeout)
         new_access = refreshed.get("access_token")
         if new_access:
             _SCIENCEON_TOKEN_CACHE["access_token"] = new_access
-            _SCIENCEON_TOKEN_CACHE["refresh_token"] = (
-                refreshed.get("refresh_token") or refresh_token
-            )
+            _SCIENCEON_TOKEN_CACHE["refresh_token"] = refreshed.get("refresh_token") or refresh_token
             params["token"] = new_access
             response = requests.get(_SCIENCEON_OPENAPI, params=params, timeout=timeout)
             response.raise_for_status()
@@ -720,39 +557,22 @@ def scienceon_patent_search(
     return parsed
 
 
-def scienceon_report_search(
-    *,
-    client_id: str,
-    query: str,
-    cur_page: int = 1,
-    row_count: int = 10,
-    mac_address: Optional[str] = None,
-    key: Optional[str] = None,
-    timeout: int = 30,
-    year: str = "",
-) -> dict:
+def scienceon_report_search(*, client_id: str, query: str, cur_page: int = 1, row_count: int = 10,
+                            mac_address: Optional[str] = None, key: Optional[str] = None, timeout: int = 30, year: str = "") -> dict:
     """Search ScienceON for national R&D reports (target=REPORT)."""
-    token_state = _scienceon_resolve_tokens(
-        client_id=client_id, mac_address=mac_address, key=key, timeout=timeout
-    )
+    token_state = _scienceon_resolve_tokens(client_id=client_id, mac_address=mac_address, key=key, timeout=timeout)
     access_token = token_state.get("access_token")
     refresh_token = token_state.get("refresh_token")
     events = list(token_state.get("events", []))
 
     if not access_token:
-        raise RuntimeError(
-            "ScienceON token is not available. Set SCIENCEON_CLIENT_ID and provide SCIENCEON_MAC_ADDRESS + SCIENCEON_KEY."
-        )
+        raise RuntimeError("ScienceON token is not available. Set SCIENCEON_CLIENT_ID and provide SCIENCEON_MAC_ADDRESS + SCIENCEON_KEY.")
 
     params = {
-        "client_id": client_id,
-        "token": access_token,
-        "version": "1.0",
-        "action": "search",
-        "target": "REPORT",
+        "client_id": client_id, "token": access_token, "version": "1.0",
+        "action": "search", "target": "REPORT",
         "searchQuery": _scienceon_search_query(query, year),
-        "curPage": int(cur_page),
-        "rowCount": int(row_count),
+        "curPage": int(cur_page), "rowCount": int(row_count),
     }
 
     response = requests.get(_SCIENCEON_OPENAPI, params=params, timeout=timeout)
@@ -760,15 +580,11 @@ def scienceon_report_search(
     parsed = _scienceon_parse_report_xml(response.text)
 
     if parsed.get("status_code") != "200" and refresh_token:
-        refreshed = _scienceon_request_access_token(
-            client_id=client_id, refresh_token=refresh_token, timeout=timeout
-        )
+        refreshed = _scienceon_request_access_token(client_id=client_id, refresh_token=refresh_token, timeout=timeout)
         new_access = refreshed.get("access_token")
         if new_access:
             _SCIENCEON_TOKEN_CACHE["access_token"] = new_access
-            _SCIENCEON_TOKEN_CACHE["refresh_token"] = (
-                refreshed.get("refresh_token") or refresh_token
-            )
+            _SCIENCEON_TOKEN_CACHE["refresh_token"] = refreshed.get("refresh_token") or refresh_token
             params["token"] = new_access
             response = requests.get(_SCIENCEON_OPENAPI, params=params, timeout=timeout)
             response.raise_for_status()
@@ -784,7 +600,7 @@ def scienceon_report_search(
 
 # =========================== Semantic Scholar ===========================
 _S2_API = "https://api.semanticscholar.org/graph/v1/paper/search/bulk"
-_S2_FIELDS = "paperId,title,abstract,year,authors,url,externalIds,venue,publicationVenue,openAccessPdf,isOpenAccess"
+_S2_FIELDS = "paperId,title,abstract,year,authors,url,externalIds,venue,publicationVenue"
 
 
 def semantic_scholar_search(query: str, limit: int = 20, year: str = "") -> list[dict]:
@@ -813,12 +629,8 @@ def semantic_scholar_search(query: str, limit: int = 20, year: str = "") -> list
                 ext_ids = p.get("externalIds") or {}
                 arxiv_id = ext_ids.get("ArXiv", "")
                 doi = ext_ids.get("DOI", "")
-                paper_id = (
-                    f"arxiv:{arxiv_id}" if arxiv_id else f"s2:{p.get('paperId', '')}"
-                )
-                authors = [
-                    a.get("name", "") for a in (p.get("authors") or []) if a.get("name")
-                ]
+                paper_id = f"arxiv:{arxiv_id}" if arxiv_id else f"s2:{p.get('paperId', '')}"
+                authors = [a.get("name", "") for a in (p.get("authors") or []) if a.get("name")]
                 # venue 추출: publicationVenue.name 우선, fallback으로 venue 필드
                 pub_venue = p.get("publicationVenue") or {}
                 venue = pub_venue.get("name", "") if isinstance(pub_venue, dict) else ""
@@ -826,21 +638,19 @@ def semantic_scholar_search(query: str, limit: int = 20, year: str = "") -> list
                     venue = p.get("venue") or ""
                 if not venue and arxiv_id:
                     venue = "arXiv preprint"
-                oa_pdf = (p.get("openAccessPdf") or {}).get("url", "")
-                papers.append(
-                    {
-                        "paper_id": paper_id,
-                        "title": _norm(p.get("title", "")),
-                        "abstract": _norm(p.get("abstract") or ""),
-                        "url": p.get("url") or "",
-                        "year": p.get("year") or 0,
-                        "authors": authors,
-                        "score_bm25": 0.0,
-                        "venue": venue,
-                        "source": "semantic_scholar",
-                        "full_text_sections": {"doi": doi, "pdf_url": oa_pdf},
-                    }
-                )
+                papers.append({
+                    "paper_id": paper_id,
+                    "title": _norm(p.get("title", "")),
+                    "abstract": _norm(p.get("abstract") or ""),
+                    "url": p.get("url") or "",
+                    "year": p.get("year") or 0,
+                    "authors": authors,
+                    "score_bm25": 0.0,
+                    "venue": venue,
+                    "source": "semantic_scholar",
+                    "full_text_sections": {},
+                    "doi": doi,
+                })
             last_error = None
             break
         except Exception as e:
@@ -860,7 +670,7 @@ def openalex_search(query: str, per_page: int = 20, year: str = "") -> list[dict
     params = {
         "search": query,
         "per_page": min(per_page, 200),
-        "select": "id,title,publication_year,doi,authorships,abstract_inverted_index,primary_location,open_access,best_oa_location",
+        "select": "id,title,publication_year,doi,authorships,abstract_inverted_index,primary_location",
     }
     # 연도 필터: OpenAlex filter 파라미터 사용
     if year and "-" in year:
@@ -872,9 +682,7 @@ def openalex_search(query: str, per_page: int = 20, year: str = "") -> list[dict
     r = requests.get(
         _OPENALEX_API,
         params=params,
-        headers={
-            "User-Agent": "GAPAGO-Research-Agent/1.0 (mailto:gapago@research.dev)"
-        },
+        headers={"User-Agent": "GAPAGO-Research-Agent/1.0 (mailto:gapago@research.dev)"},
         timeout=30,
     )
     r.raise_for_status()
@@ -896,15 +704,11 @@ def openalex_search(query: str, per_page: int = 20, year: str = "") -> list[dict
             abstract = " ".join(w for _, w in word_positions)
 
         doi_url = p.get("doi") or ""
-        doi = (
-            doi_url.replace("https://doi.org/", "").replace("http://doi.org/", "")
-            if doi_url
-            else ""
-        )
+        doi = doi_url.replace("https://doi.org/", "").replace("http://doi.org/", "") if doi_url else ""
         openalex_id = (p.get("id") or "").replace("https://openalex.org/", "")
 
         authors = []
-        for a in p.get("authorships") or []:
+        for a in (p.get("authorships") or []):
             name = (a.get("author") or {}).get("display_name", "")
             if name:
                 authors.append(name)
@@ -917,49 +721,29 @@ def openalex_search(query: str, per_page: int = 20, year: str = "") -> list[dict
             if isinstance(source_info, dict):
                 venue = source_info.get("display_name", "")
 
-        # OA PDF URL 추출
-        oa_pdf = ""
-        best_oa = p.get("best_oa_location") or {}
-        if isinstance(best_oa, dict):
-            oa_pdf = best_oa.get("pdf_url") or ""
-        if not oa_pdf:
-            oa_info = p.get("open_access") or {}
-            if isinstance(oa_info, dict):
-                oa_pdf = oa_info.get("oa_url") or ""
-
-        papers.append(
-            {
-                "paper_id": f"openalex:{openalex_id}",
-                "title": title,
-                "abstract": _norm(abstract),
-                "url": doi_url or f"https://openalex.org/{openalex_id}",
-                "year": p.get("publication_year") or 0,
-                "authors": authors,
-                "score_bm25": 0.0,
-                "venue": venue,
-                "source": "openalex",
-                "full_text_sections": {"doi": doi, "pdf_url": oa_pdf},
-            }
-        )
+        papers.append({
+            "paper_id": f"openalex:{openalex_id}",
+            "title": title,
+            "abstract": _norm(abstract),
+            "url": doi_url or f"https://openalex.org/{openalex_id}",
+            "year": p.get("publication_year") or 0,
+            "authors": authors,
+            "score_bm25": 0.0,
+            "venue": venue,
+            "source": "openalex",
+            "full_text_sections": {},
+            "doi": doi,
+        })
     return papers
 
 
 # =========================== Tool APIs ==========================
 class ArxivApiCallInput(BaseModel):
     search_query: str = Field(description="arXiv API search_query")
-    max_total: int = Field(default=100, description="총 최대 결과 수")
-    page_size: int = Field(default=100, description="페이지당 결과 수")
-    max_pages: int = Field(default=1, description="최대 페이지 수")
-    year: str = Field(
-        default="",
-        description="연도 필터 (e.g. '2022-2026'). submittedDate 범위로 변환",
-    )
-
-
-class CrossrefSearchInput(BaseModel):
-    query: str = Field(description="Crossref 검색 쿼리")
-    rows: int = Field(default=60, description="최대 결과 수 (max 1000)")
-    year: str = Field(default="", description="연도 필터 (e.g. '2022-2026')")
+    max_total: int = Field(default=80, description="총 최대 결과 수")
+    page_size: int = Field(default=40, description="페이지당 결과 수")
+    max_pages: int = Field(default=3, description="최대 페이지 수")
+    year: str = Field(default="", description="연도 필터 (e.g. '2022-2026'). submittedDate 범위로 변환")
 
 
 class WebSearchInput(BaseModel):
@@ -968,13 +752,13 @@ class WebSearchInput(BaseModel):
 
 class SemanticScholarSearchInput(BaseModel):
     query: str = Field(description="Semantic Scholar 검색 쿼리")
-    limit: int = Field(default=50, description="최대 결과 수 (max 100)")
+    limit: int = Field(default=20, description="최대 결과 수 (max 100)")
     year: str = Field(default="", description="연도 필터 (e.g. '2020-2025', '2023-')")
 
 
 class OpenAlexSearchInput(BaseModel):
     query: str = Field(description="OpenAlex 검색 쿼리")
-    per_page: int = Field(default=40, description="최대 결과 수 (max 200)")
+    per_page: int = Field(default=20, description="최대 결과 수 (max 200)")
     year: str = Field(default="", description="연도 필터 (e.g. '2022-2026')")
 
 
@@ -982,7 +766,7 @@ class ScienceOnSearchInput(BaseModel):
     query: str = Field(description="ScienceON 검색 쿼리")
     target: str = Field(default="ARTI", description="ScienceON target")
     cur_page: int = Field(default=1, description="현재 페이지 번호")
-    row_count: int = Field(default=15, description="가져올 결과 수")
+    row_count: int = Field(default=10, description="가져올 결과 수")
     year: str = Field(default="", description="연도 필터 (e.g. '2022-2026')")
 
 
@@ -1013,113 +797,83 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
     @tool(args_schema=ArxivApiCallInput)
     def arxiv_api_call_tool(
         search_query: str,
-        max_total: int = 100,
-        page_size: int = 100,
-        max_pages: int = 1,
+        max_total: int = 80,
+        page_size: int = 40,
+        max_pages: int = 3,
         year: str = "",
     ) -> str:
-        """Call arXiv API directly and return a paper list as JSON string. Use year param for date filtering (e.g. '2022-2026')."""
+        """Call arXiv API directly and return a paper list as JSON string. Use year param for date filtering (e.g. '2024' for single year or '2022-2026' for range)."""
         try:
-            # Embed year filter into arXiv query via submittedDate
-            if year and "-" in year:
+            year_filter = ""
+            # 단일 연도인 경우: YearFilteredArxivRetriever 사용
+            if year and year.isdigit():
+                year_filter = year
+                print(f"  [arxiv_tool] Single year filter detected: {year}")
+            # 연도 범위인 경우: submittedDate 필터 사용
+            elif year and "-" in year:
                 parts = year.split("-")
                 from_year = parts[0].strip()
                 to_year = parts[1].strip() if parts[1].strip() else "2026"
-                date_filter = (
-                    f" AND submittedDate:[{from_year}01010000 TO {to_year}12312359]"
-                )
+                date_filter = f" AND submittedDate:[{from_year}01010000 TO {to_year}12312359]"
                 search_query = search_query + date_filter
+                print(f"  [arxiv_tool] Year range filter: {from_year}-{to_year}")
+
             results = arxiv_api_call(
                 search_query=search_query,
                 max_total=max_total,
                 page_size=page_size,
                 max_pages=max_pages,
+                year_filter=year_filter,
             )
-            return json.dumps(
-                {
-                    "source": "arxiv",
-                    "query": search_query,
-                    "results": results,
-                },
-                ensure_ascii=False,
-            )
+            return json.dumps({
+                "source": "arxiv",
+                "query": search_query,
+                "results": results,
+            }, ensure_ascii=False)
         except Exception as e:
             return f"<Error>Arxiv API call failed: {str(e)}</Error>"
-
-    @tool(args_schema=CrossrefSearchInput)
-    def crossref_search_tool(query: str, rows: int = 60, year: str = "") -> str:
-        """Search Crossref for academic papers. Covers 150M+ scholarly works with DOI, abstracts, and citation metadata. Very reliable with no rate limit issues. Use year param for filtering (e.g. '2022-2026')."""
-        try:
-            results = crossref_search(query=query, rows=rows, year=year)
-            return json.dumps(
-                {
-                    "source": "crossref",
-                    "query": query,
-                    "results": results,
-                },
-                ensure_ascii=False,
-            )
-        except Exception as e:
-            return f"<Error>Crossref search failed: {str(e)}</Error>"
 
     @tool(args_schema=WebSearchInput)
     def web_search_tool(query: str) -> str:
         """Search the web API and return results as JSON string."""
         try:
             results = tavily_tool.search(query)
-            return json.dumps(
-                {
-                    "source": "web",
-                    "query": query,
-                    "results": results,
-                },
-                ensure_ascii=False,
-            )
+            return json.dumps({
+                "source": "web",
+                "query": query,
+                "results": results,
+            }, ensure_ascii=False)
         except Exception as e:
             return f"<Error>Web search failed: {str(e)}</Error>"
 
     @tool(args_schema=SemanticScholarSearchInput)
-    def semantic_scholar_search_tool(
-        query: str, limit: int = 50, year: str = ""
-    ) -> str:
+    def semantic_scholar_search_tool(query: str, limit: int = 20, year: str = "") -> str:
         """Search Semantic Scholar for academic papers. Returns papers with metadata. Good for finding highly-cited and cross-domain papers."""
         try:
             results = semantic_scholar_search(query=query, limit=limit, year=year)
-            return json.dumps(
-                {
-                    "source": "semantic_scholar",
-                    "query": query,
-                    "results": results,
-                },
-                ensure_ascii=False,
-            )
+            return json.dumps({
+                "source": "semantic_scholar",
+                "query": query,
+                "results": results,
+            }, ensure_ascii=False)
         except Exception as e:
             return f"<Error>Semantic Scholar search failed: {str(e)}</Error>"
 
     @tool(args_schema=OpenAlexSearchInput)
-    def openalex_search_tool(query: str, per_page: int = 40, year: str = "") -> str:
+    def openalex_search_tool(query: str, per_page: int = 20, year: str = "") -> str:
         """Search OpenAlex for academic papers. Covers 200M+ works across all disciplines. No API key needed. Use year param for filtering (e.g. '2022-2026')."""
         try:
             results = openalex_search(query=query, per_page=per_page, year=year)
-            return json.dumps(
-                {
-                    "source": "openalex",
-                    "query": query,
-                    "results": results,
-                },
-                ensure_ascii=False,
-            )
+            return json.dumps({
+                "source": "openalex",
+                "query": query,
+                "results": results,
+            }, ensure_ascii=False)
         except Exception as e:
             return f"<Error>OpenAlex search failed: {str(e)}</Error>"
 
     @tool(args_schema=ScienceOnSearchInput)
-    def scienceon_search_tool(
-        query: str,
-        target: str = "ARTI",
-        cur_page: int = 1,
-        row_count: int = 15,
-        year: str = "",
-    ) -> str:
+    def scienceon_search_tool(query: str, target: str = "ARTI", cur_page: int = 1, row_count: int = 10, year: str = "") -> str:
         """Search ScienceON paper records. Use year param for filtering (e.g. '2022-2026')."""
         if not cfg.scienceon_client_id:
             return "<Error>ScienceON client_id is not configured. Set SCIENCEON_CLIENT_ID.</Error>"
@@ -1139,9 +893,7 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
             return f"<Error>ScienceON search failed: {str(e)}</Error>"
 
     @tool(args_schema=ScienceOnPatentSearchInput)
-    def scienceon_patent_search_tool(
-        query: str, cur_page: int = 1, row_count: int = 10, year: str = ""
-    ) -> str:
+    def scienceon_patent_search_tool(query: str, cur_page: int = 1, row_count: int = 10, year: str = "") -> str:
         """Search ScienceON for Korean patents. Use year param for filtering (e.g. '2022-2026')."""
         if not cfg.scienceon_client_id:
             return "<Error>ScienceON client_id is not configured. Set SCIENCEON_CLIENT_ID.</Error>"
@@ -1160,9 +912,7 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
             return f"<Error>ScienceON patent search failed: {str(e)}</Error>"
 
     @tool(args_schema=ScienceOnReportSearchInput)
-    def scienceon_report_search_tool(
-        query: str, cur_page: int = 1, row_count: int = 10, year: str = ""
-    ) -> str:
+    def scienceon_report_search_tool(query: str, cur_page: int = 1, row_count: int = 10, year: str = "") -> str:
         """Search ScienceON for Korean national R&D reports. Use year param for filtering (e.g. '2022-2026')."""
         if not cfg.scienceon_client_id:
             return "<Error>ScienceON client_id is not configured. Set SCIENCEON_CLIENT_ID.</Error>"
@@ -1182,7 +932,6 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
 
     return [
         web_search_tool,
-        crossref_search_tool,
         arxiv_api_call_tool,
         semantic_scholar_search_tool,
         openalex_search_tool,
