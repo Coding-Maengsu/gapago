@@ -468,15 +468,29 @@ _sessions[session_id] = {
 | `AWS_SECRET_ACCESS_KEY` | AWS 시크릿 키 | - |
 | `BEDROCK_CLAUDE_MODEL` | 모델 ID | `us.anthropic.claude-sonnet-4-20250514-v1:0` |
 
-#### Google Gemini
-| 변수 | 설명 |
-|------|------|
-| `GOOGLE_API_KEY` | Google API 키 |
+#### Google Gemini (Vertex AI)
+| 변수 | 설명 | 기본값 |
+|------|------|--------|
+| `GOOGLE_APPLICATION_CREDENTIALS_JSON` | GCP 서비스 계정 JSON (임시 파일로 저장됨) | - |
+| `GOOGLE_CLOUD_PROJECT` | GCP 프로젝트 ID | `coding-beast` |
+| `GOOGLE_CLOUD_LOCATION` | GCP 리전 | `us-central1` |
 
 #### LG EXAONE (로컬 GPU)
 | 변수 | 설명 | 기본값 |
 |------|------|--------|
 | `EXAONE_MODEL_PATH` | 모델 경로 | `LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct` |
+
+#### Groq (GAP 추론 단계 전용)
+| 변수 | 설명 | 기본값 |
+|------|------|--------|
+| `GROQ_API_KEY` | Groq API 키 | - |
+| `GROQ_MODEL` | 모델 ID | `qwen/qwen3-32b` |
+| `GROQ_REASONING_EFFORT` | 추론 노력 수준 | `default` (`default`/`none`) |
+
+#### QwQ (GAP 추론 단계 전용, 로컬 GPU)
+| 변수 | 설명 | 기본값 |
+|------|------|--------|
+| `QWQ_MODEL_PATH` | 모델 경로 | `Qwen/QwQ-32B` |
 
 ### 6.2 필수 (공통)
 | 변수 | 설명 |
@@ -490,15 +504,18 @@ _sessions[session_id] = {
 |------|------|--------|------|
 | `LLM_PROVIDER` | string | `azure` | 기본 LLM 프로바이더 |
 | `LLM_MODEL` | string | - | 모델/배포 이름 |
+| `GAP_REASONING_PROVIDER` | string | - | GAP 추론 단계 전용 프로바이더 (`groq`, `qwq`) |
 | `TAVILY_MAX_RESULTS` | int | `5` | 최대 웹 검색 결과 수 |
-| `ARXIV_MAX_RESULTS` | int | `10` | 최대 arXiv 논문 수 |
-| `BM25_TOP_K` | int | `30` | BM25 1차 필터 수 |
-| `RERANKER_TOP_K` | int | `15` | LLM 리랭커 2차 선택 수 |
+| `ARXIV_MAX_RESULTS` | int | `20` | 최대 arXiv 논문 수 |
+| `BM25_TOP_K` | int | `50` | BM25 1차 필터 수 |
+| `RERANKER_TOP_K` | int | `15` | CrossEncoder/LLM 리랭커 2차 선택 수 |
+| `RERANK_MODELS` | string | `auto` | 랭킹 모델 tier (`auto`/`light`/`full`) |
+| `FULLTEXT_TARGET_COUNT` | int | `30` | Full text 필터 후 최대 논문 수 |
 | `SCIENCEON_CLIENT_ID` | string | - | ScienceON API 클라이언트 ID |
 | `SCIENCEON_MAC_ADDRESS` | string | - | ScienceON 토큰 생성용 MAC |
 | `SCIENCEON_KEY` | string | - | ScienceON AES 암호화 키 |
 | `SCIENCEON_DEFAULT_TARGET` | string | `ARTI` | ScienceON 검색 대상 |
-| `SCIENCEON_DEFAULT_ROW_COUNT` | int | `10` | ScienceON 기본 결과 수 |
+| `SCIENCEON_DEFAULT_ROW_COUNT` | int | `20` | ScienceON 기본 결과 수 |
 
 ---
 
@@ -512,14 +529,16 @@ _sessions[session_id] = {
 @dataclass
 class Configuration:
     tavily_max_results: int    # 1-50, 기본 5
-    arxiv_max_docs: int        # 1-50, 기본 10
-    bm25_top_k: int            # 10-100, 기본 30
-    reranker_top_k: int        # 5-50, 기본 15
+    arxiv_max_docs: int        # 1-50, 기본 20
     scienceon_client_id: str
     scienceon_mac_address: str
     scienceon_key: str
     scienceon_default_target: str  # 기본 "ARTI"
-    scienceon_default_row_count: int  # 기본 10
+    scienceon_default_row_count: int  # 기본 20
+    fulltext_target_count: int # 15-60, 기본 30
+    bm25_top_k: int            # 10-100, 기본 50
+    reranker_top_k: int        # 5-50, 기본 15
+    rerank_models: str         # "auto"/"light"/"full", 기본 "auto"
 ```
 
 **접근 방식:** `Configuration.from_runnable_config(config)` 메서드로 요청별 설정 조회
@@ -532,14 +551,23 @@ class Configuration:
 
 `get_llm(provider, model)` 팩토리 함수, `@lru_cache(maxsize=8)` 캐싱.
 
+**기본 파이프라인 프로바이더** (사용자 선택 가능):
+
 | 프로바이더 | 라이브러리 | 기본 모델 | 반환 타입 |
 |-----------|-----------|----------|----------|
 | `azure` | `langchain-openai` | `gpt-5.1-chat` | `AzureChatOpenAI` |
-| `claude` / `anthropic` | `langchain-aws` | `claude-sonnet-4-20250514-v1:0` | `ChatBedrockConverse` |
-| `gemini` / `google` | `langchain-google-genai` | `gemini-2.0-flash` | `ChatGoogleGenerativeAI` |
+| `claude` / `anthropic` | `langchain-aws` | `claude-sonnet-4-20250514-v1:0` | `ChatBedrockConverse` (read_timeout=300s) |
+| `gemini` / `google` | `langchain-google-vertexai` | `gemini-3.1-flash-lite-preview` | `ChatVertexAI` |
 | `exaone` | `transformers` + `langchain` | `EXAONE-3.5-7.8B-Instruct` | `ChatHuggingFace` |
 
-**대화형 선택:** `select_provider_interactive()` 함수로 CLI에서 프로바이더 선택
+**GAP 추론 전용 프로바이더** (`GAP_REASONING_PROVIDER` 환경변수로 선택, 내부 라우팅 전용):
+
+| 프로바이더 | 라이브러리 | 기본 모델 | 특징 |
+|-----------|-----------|----------|------|
+| `groq` | `langchain-groq` | `qwen/qwen3-32b` | ~535 tok/s, Thinking Mode 지원, `reasoning_effort` 파라미터 |
+| `qwq` | `transformers` + `langchain` | `Qwen/QwQ-32B` | 로컬 GPU (A100 권장), CoT 추론 특화 |
+
+**대화형 선택:** `select_provider_interactive()` 함수로 CLI에서 기본 프로바이더 선택. GAP 추론 프로바이더는 환경변수로만 설정.
 
 ---
 
@@ -547,17 +575,20 @@ class Configuration:
 
 **파일:** `tools.py`
 
-### 9.1 도구 목록
+### 9.1 검색 함수 목록
 
-| 도구 | 데이터 소스 | API 키 필요 | 설명 |
+> **참고:** LLM tool 호출이 아닌, `retrieval_agent.py`의 `_parallel_search()`가 직접 호출하는 Python 함수.
+
+| 함수 | 데이터 소스 | API 키 필요 | 설명 |
 |------|-----------|------------|------|
-| `arxiv_api_call_tool` | arXiv | X | 직접 API (XML/Atom 파싱) |
-| `semantic_scholar_search_tool` | Semantic Scholar | X | 학술 그래프 API (2억+ 논문) |
-| `openalex_search_tool` | OpenAlex | X | 학술 데이터 (2억+ 저작물) |
-| `web_search_tool` | Tavily | O | 웹 검색 |
-| `scienceon_search_tool` | ScienceON (KISTI) | O | 한국 학술 DB |
-| `scienceon_patent_search_tool` | ScienceON | O | 특허 검색 |
-| `scienceon_report_search_tool` | ScienceON | O | 국가 R&D 보고서 |
+| `arxiv_api_call` | arXiv | X | 직접 API (XML/Atom), `threading.Lock` 직렬화 + 5초 간격 |
+| `crossref_search` | Crossref | X | 1.5억+ 메타데이터, PDF URL 추출, venue 포함 |
+| `semantic_scholar_search` | Semantic Scholar | X | 학술 그래프 API (2억+ 논문) |
+| `openalex_search` | OpenAlex | X | 학술 데이터 (2억+ 저작물), inverted index abstract |
+| `TavilySearch.search` | Tavily | O | 웹 검색 (트렌드용) |
+| `scienceon_search` | ScienceON (KISTI) | O | 한국 학술 DB |
+| `scienceon_patent_search` | ScienceON | O | 특허 검색 |
+| `scienceon_report_search` | ScienceON | O | 국가 R&D 보고서 |
 
 ### 9.2 논문 정규화 스키마
 
@@ -571,12 +602,14 @@ class Configuration:
   "url": "https://...",
   "year": 2024,
   "authors": ["Author A", "Author B"],
+  "doi": "10.xxxx/yyyy",
   "venue": "arXiv preprint",
-  "source": "arxiv|semantic_scholar|openalex|scienceon|web"
+  "source": "arxiv|crossref|semantic_scholar|openalex|scienceon|web",
+  "full_text_sections": {"doi": "...", "pdf_url": "..."}
 }
 ```
 
-`paper_id` 접두사: `arxiv:`, `s2:`, `openalex:`, `scienceon:`, `web:`
+`paper_id` 접두사: `arxiv:`, `crossref:`, `s2:`, `openalex:`, `scienceon:`, `web:`
 
 ### 9.3 BM25 랭킹
 
@@ -587,17 +620,11 @@ bm25_rank(papers, query_text, top_k=30) -> List[dict]
 - title + abstract를 토큰화하여 점수 계산
 - 내림차순 정렬 후 상위 `top_k` 반환
 
-### 9.4 도구 그룹핑
+### 9.4 검색 호출 방식
 
-```python
-build_role_tools(config) -> dict:
-    "QUERY_TOOLS": []                    # 도구 없음
-    "RETRIEVAL_TOOLS": [7개 검색 도구]    # 모든 검색 도구
-    "LIMITATION_TOOLS": []               # 도구 없음
-    "GAP_INFER_TOOLS": []               # 도구 없음
-    "CRITIC_TOOLS": []                   # 도구 없음
-    "RESPONSE_TOOLS": []                # 도구 없음
-```
+> LLM ReAct 에이전트 기반 tool 호출에서 **직접 병렬 함수 호출**로 전환됨.
+
+`retrieval_agent.py`의 `_parallel_search()`가 `ThreadPoolExecutor(max_workers=len(tasks))`로 8개 검색 함수를 동시 실행. LangChain `@tool` 데코레이터나 `build_role_tools()`는 더 이상 사용하지 않음.
 
 ### 9.5 ScienceON 인증 흐름
 
@@ -668,10 +695,12 @@ services:
 | `langgraph` | 1.0.8 | 상태 그래프 오케스트레이션 |
 | `langchain-openai` | 1.1.9 | Azure OpenAI |
 | `langchain-aws` | 1.4.0 | AWS Bedrock (Claude) |
-| `langchain-google-genai` | 4.2.1 | Gemini |
+| `langchain-google-vertexai` | - | Gemini (Vertex AI) |
+| `langchain-groq` | - | Groq (Qwen3-32B) |
 | `anthropic` | 0.86.0 | Claude SDK |
+| `sentence-transformers` | - | SPECTER2/MiniLM 임베딩 + CrossEncoder |
+| `faiss-cpu` / `faiss-gpu` | - | FAISS 벡터 검색 |
 | `rank-bm25` | 0.2.2 | BM25 랭킹 |
-| `arxiv` | 2.4.1 | arXiv API 클라이언트 |
 | `tavily` | 1.1.0 | Tavily 웹 검색 |
 | `pydantic` | 2.12.5 | 데이터 검증 |
 | `python-dotenv` | 1.2.1 | .env 로딩 |

@@ -156,52 +156,63 @@ query_analysis
 
 **파일:** `agents/retrieval_agent.py`
 
-**역할:** 멀티소스 논문 검색 오케스트레이터
+**역할:** 멀티소스 병렬 논문 검색 + 다단계 랭킹
 
-**도구 통합:**
+**아키텍처:** LLM ReAct 에이전트가 아닌 **직접 병렬 검색** (`_parallel_search` + `ThreadPoolExecutor`). `async def paper_retrieval_node`이 `run_in_executor`로 CPU-bound 작업을 offload.
 
-| 도구 | 소스 | 특징 |
-|------|------|------|
-| `arxiv_api_call_tool` | arXiv | XML/Atom 파싱, 재시도 3회, 3초 예의 대기 |
-| `semantic_scholar_search_tool` | Semantic Scholar | 2억+ 논문, ArXiv ID 교차 참조 |
-| `openalex_search_tool` | OpenAlex | 2억+ 저작물, API 키 불필요 |
-| `scienceon_search_tool` | ScienceON | 한국 학술 DB, AES 암호화 인증 |
-| `scienceon_patent_search_tool` | ScienceON | 특허 (IPC 분류) |
-| `scienceon_report_search_tool` | ScienceON | 국가 R&D 보고서 |
-| `web_search_tool` | Tavily | 웹 검색 (트렌드용) |
+**검색 소스 (8개, `_parallel_search`에서 동시 호출):**
 
-**필터링 파이프라인 (5단계):**
-1. **중복 제거**: DOI + title + year 기반 → `total_candidates_count` 기록
-2. **연도 필터**: `year_range` → YYYY-YYYY 형식 변환 (`_resolve_year_range`)
-3. **BM25 랭킹 (1차, 동적 k)**: 점수 분포 기반 적응적 컷오프
-   ```python
-   scores = bm25.get_scores(query_tokens)
-   threshold = mean(scores) + 0.5 * std(scores)
-   dynamic_k = max(10, min(sum(scores > threshold), bm25_top_k))
-   ```
-   - 범위: 10 ~ `bm25_top_k` (기본 30)
-   - 주제별 논문 밀도에 따라 자동 적응
-4. **Full text 접근 가능 필터** (`_filter_fulltext_available`): 병렬 HTTP HEAD 요청으로 원문 접근 가능한 논문만 필터
-   - arXiv: ar5iv HTML HEAD 체크
-   - DOI 기반 소스: PDF 링크 존재 확인
-   - ScienceON 특허/보고서: fulltext_url 존재 확인
-   - `ThreadPoolExecutor` (5 워커) 병렬 처리
-5. **LLM 리랭커 (2차)** (`_llm_rerank`): `reranker_top_k` (기본 15) 정밀 재정렬
-   - GAP 분석 적합성 기준: 주제 관련도, 한계점 논의 가능성, 관점 다양성, 최신성
+| 함수 | 소스 | 기본 결과 수 | 특징 |
+|------|------|------------|------|
+| `arxiv_api_call` | arXiv | 100 | XML/Atom 파싱, `threading.Lock` 직렬화, 5초 간격, 지수 백오프 |
+| `crossref_search` | Crossref | 60 | 1.5억+ 메타데이터, PDF URL 추출, venue 포함 |
+| `semantic_scholar_search` | Semantic Scholar | 50 | 2억+ 논문, citation 데이터 |
+| `openalex_search` | OpenAlex | 40 | 2억+ 저작물, inverted index abstract 재구성 |
+| `scienceon_search` | ScienceON | 15 | 한국 학술 DB, AES 암호화 인증 |
+| `scienceon_patent_search` | ScienceON | 10 | 특허 (IPC 분류) |
+| `scienceon_report_search` | ScienceON | 10 | 국가 R&D 보고서 |
+| `TavilySearch.search` | Tavily | 5 | 웹 검색 (트렌드용, `web_results`로 분리) |
+
+**랭킹 파이프라인 (6단계):**
+
+1. **병렬 검색** (`_parallel_search`): 8개 소스 동시 호출 (`ThreadPoolExecutor(max_workers=len(tasks))`)
+2. **중복 제거** (`_dedupe_papers`): DOI + title + year 기반 → `total_candidates_count` 기록
+3. **연도 필터**: `year_range` → YYYY-YYYY 형식 변환 (`_resolve_year_range`)
+4. **1단계: BM25 + FAISS 병렬** → union → 중복 제거
+   - BM25 동적 k: `max(10, min(sum(scores > threshold), bm25_top_k))` (기본 50)
+   - FAISS (`_faiss_filter`): SPECTER2/MiniLM 임베딩 + 코사인 유사도 (ONNX 지원)
+   - 두 결과의 합집합으로 후보 풀 확대
+5. **Full text 접근 가능 필터** (`_filter_fulltext_available`): 메타데이터 기반 신뢰도 등급
+   - `guaranteed` (3): arXiv (ar5iv HTML 거의 100%)
+   - `likely` (2): OA PDF URL 확보됨
+   - `maybe` (1): DOI만 있음 (출판사 차단 가능성)
+   - 신뢰도 내림차순 정렬, 동일 등급 내 BM25 순서 유지
+6. **2단계: CrossEncoder reranking** (`_cross_encoder_rerank`) → 실패 시 LLM Reranker fallback (`_llm_rerank`)
+   - 모델 tier: `auto` (GPU→full `BGE-reranker-v2-m3`, CPU→light `ms-marco-MiniLM`)
+   - `reranker_top_k` (기본 15) 최종 선별
+
+**Embedding/CrossEncoder 모델 (lazy load, ONNX 지원):**
+
+| 용도 | Light (CPU) | Full (GPU) |
+|------|-------------|------------|
+| Embedding (FAISS) | `all-MiniLM-L6-v2` | `allenai/specter2_base` |
+| CrossEncoder | `ms-marco-MiniLM-L-6-v2` | `BAAI/bge-reranker-v2-m3` |
+
+- `RERANK_MODELS` 환경변수 또는 `config.rerank_models`로 tier 선택 (`auto`/`light`/`full`)
+- `preload_models()`: 서버 시작 시 사전 로딩
 
 **venue 정규화:**
 - 결정 우선순위: 명시적 venue > journal > source 라벨
-- source 라벨 매핑: `arxiv→"arXiv preprint"`, `semantic_scholar→"Semantic Scholar"`, `openalex→"OpenAlex"`, `scienceon→"ScienceON"`, `scienceon_patent→"Patent"`, `scienceon_report→"R&D Report"`
+- source 라벨 매핑: `arxiv→"arXiv preprint"`, `crossref→저널명`, `semantic_scholar→"Semantic Scholar"`, `openalex→"OpenAlex"`, `scienceon→"ScienceON"`, `scienceon_patent→"Patent"`, `scienceon_report→"R&D Report"`
 
 **진행률 보고:**
 - `report_progress(session_id, "paper_retrieval", ...)` 호출
-- 중복 제거 후, 리랭킹 완료 후 SSE progress 이벤트 발행
 
 **출력:**
 ```python
 {
     "papers": [정규화된 논문 목록],
-    "total_candidates_count": 130,   # BM25 전 전체 후보 수
+    "total_candidates_count": 130,   # 중복 제거 후 전체 후보 수
     "web_results": [웹 검색 결과 (별도)]
 }
 ```
@@ -226,7 +237,7 @@ query_analysis
 
 | 소스 | 로딩 방식 |
 |------|----------|
-| arXiv | ar5iv HTML 우선 → ArxivLoader PDF 폴백 |
+| arXiv | ar5iv HTML 우선 → ArxivLoader PDF 폴백 (`_wait_arxiv_rate_limit`: 스레드 안전 3초 간격) |
 | ScienceON | DOI 기반 PDF 또는 ContentURL 직접 접근 |
 | 특허/보고서 | ContentURL/FulltextURL (HTML → PDF 캐스케이드) |
 | Semantic Scholar / OpenAlex | DOI 기반 PDF |
@@ -245,7 +256,7 @@ query_analysis
 - Full text 로드 완료 후, 배치 처리 진행 시 SSE progress 이벤트 발행
 
 **배치 처리:**
-1. 병렬 전체 텍스트 로딩 (`ThreadPoolExecutor`, 5 워커)
+1. 병렬 전체 텍스트 로딩 (`ThreadPoolExecutor`, `min(8, len(papers))` 워커)
 2. 배치 LLM 호출 (3 논문/배치, 2 워커)
 3. 배치 실패 시 개별 논문 재시도
 
