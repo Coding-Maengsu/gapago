@@ -2364,7 +2364,7 @@ function handleEvent(data) {
             results.classList.remove('fade-out');
             results.classList.add('fade-in');
             setInputEnabled(true);
-            switchToChatMode(currentSessionId);
+            switchToChatMode(currentSessionId, data.filename || '');
             loadHistory();
         }, 300);
     } else if (data.event === 'stopped') {
