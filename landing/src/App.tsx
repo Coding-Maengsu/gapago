@@ -1,7 +1,27 @@
+import Header from '@/components/sections/Header'
+import Hero from '@/components/sections/Hero'
+import Service from '@/components/sections/Service'
+import Workflow from '@/components/sections/Workflow'
+import Features from '@/components/sections/Features'
+import Difference from '@/components/sections/Difference'
+import Example from '@/components/sections/Example'
+import CTA from '@/components/sections/CTA'
+import Footer from '@/components/sections/Footer'
+
 export default function App() {
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <h1 className="text-4xl font-bold text-[#5469d4]">GAPAGO Landing</h1>
-    </div>
+    <>
+      <Header />
+      <main>
+        <Hero />
+        <Service />
+        <Workflow />
+        <Features />
+        <Difference />
+        <Example />
+        <CTA />
+      </main>
+      <Footer />
+    </>
   )
 }
