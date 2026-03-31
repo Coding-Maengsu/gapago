@@ -2545,46 +2545,37 @@ function renderResults() {
     // Right panel: detail (default: first gap)
     let rightHTML = getGapDetailHTML(0);
 
-    // Report — inline (no separate toggle), with result blocks from main
+    // Result blocks (options, query, keywords, summary)
+    let resultBlocksHTML = '';
+    const opts2 = pipelineData.analysisOptions || {};
+    if (opts2.provider || opts2.yearRange || opts2.outputLanguage) {
+        resultBlocksHTML += `<div class="analysis-options-bar" style="margin-bottom:12px">`;
+        if (opts2.provider) resultBlocksHTML += `<span class="opt-chip"><span class="opt-label">LLM</span> ${esc(opts2.provider)}</span>`;
+        if (opts2.yearRange) resultBlocksHTML += `<span class="opt-chip"><span class="opt-label">연도</span> ${esc(opts2.yearRange)}</span>`;
+        if (opts2.outputLanguage) resultBlocksHTML += `<span class="opt-chip"><span class="opt-label">언어</span> ${esc(opts2.outputLanguage)}</span>`;
+        resultBlocksHTML += `</div>`;
+    }
+    if (pipelineData.refined_query) {
+        resultBlocksHTML += `<div class="result-summary-header" style="margin-bottom:12px">`;
+        resultBlocksHTML += `<span class="summary-item">정제된 쿼리: <strong>${esc(pipelineData.refined_query)}</strong></span>`;
+        resultBlocksHTML += `</div>`;
+    }
+    if (pipelineData.keywords && pipelineData.keywords.length) {
+        resultBlocksHTML += `<div style="margin-bottom:12px"><span style="font-size:0.84em;color:var(--text-dim);font-weight:500;">확장 키워드:</span> `;
+        resultBlocksHTML += pipelineData.keywords.map(k => `<span class="preview-keyword-tag">${esc(k)}</span>`).join(' ');
+        resultBlocksHTML += `</div>`;
+    }
+    resultBlocksHTML += `<div class="result-summary-header">`;
+    resultBlocksHTML += `<span class="summary-item">논문 <strong>${papersCount}/${totalSearched}편</strong></span>`;
+    resultBlocksHTML += `<span class="summary-divider"></span>`;
+    resultBlocksHTML += `<span class="summary-item">GAP <strong>${gapsCount}개</strong></span>`;
+    resultBlocksHTML += `</div>`;
+
+    // Report — inline (no separate toggle)
     let reportHTML = '';
     if (pipelineData.report) {
-        // Build result blocks for inside the toggle
-        let resultBlocksHTML = '';
-
-        // Analysis options
-        const opts2 = pipelineData.analysisOptions || {};
-        if (opts2.provider || opts2.yearRange || opts2.outputLanguage) {
-            resultBlocksHTML += `<div class="analysis-options-bar" style="margin-bottom:12px">`;
-            if (opts2.provider) resultBlocksHTML += `<span class="opt-chip"><span class="opt-label">LLM</span> ${esc(opts2.provider)}</span>`;
-            if (opts2.yearRange) resultBlocksHTML += `<span class="opt-chip"><span class="opt-label">연도</span> ${esc(opts2.yearRange)}</span>`;
-            if (opts2.outputLanguage) resultBlocksHTML += `<span class="opt-chip"><span class="opt-label">언어</span> ${esc(opts2.outputLanguage)}</span>`;
-            resultBlocksHTML += `</div>`;
-        }
-
-        // Refined query
-        if (pipelineData.refined_query) {
-            resultBlocksHTML += `<div class="result-summary-header" style="margin-bottom:12px">`;
-            resultBlocksHTML += `<span class="summary-item">정제된 쿼리: <strong>${esc(pipelineData.refined_query)}</strong></span>`;
-            resultBlocksHTML += `</div>`;
-        }
-
-        // Keywords
-        if (pipelineData.keywords && pipelineData.keywords.length) {
-            resultBlocksHTML += `<div style="margin-bottom:12px"><span style="font-size:0.84em;color:var(--text-dim);font-weight:500;">확장 키워드:</span> `;
-            resultBlocksHTML += pipelineData.keywords.map(k => `<span class="preview-keyword-tag">${esc(k)}</span>`).join(' ');
-            resultBlocksHTML += `</div>`;
-        }
-
-        // Summary stats
-        resultBlocksHTML += `<div class="result-summary-header">`;
-        resultBlocksHTML += `<span class="summary-item">논문 <strong>${papersCount}/${totalSearched}편</strong></span>`;
-        resultBlocksHTML += `<span class="summary-divider"></span>`;
-        resultBlocksHTML += `<span class="summary-item">GAP <strong>${gapsCount}개</strong></span>`;
-        resultBlocksHTML += `</div>`;
-
         reportHTML = `
         <div style="margin-top:16px;border-top:1px solid var(--border-light);padding-top:16px;">
-            ${resultBlocksHTML}
             <div class="report-actions" style="margin-bottom:12px;">
                 <button onclick="copyReport()">클립보드에 복사</button>
                 <button class="report-download-btn" onclick="downloadReport()">다운로드 .md</button>
@@ -2601,8 +2592,7 @@ function renderResults() {
             </button>
             <div class="report-master-body">
                 <div class="report-master-body-inner">
-                    ${optionsHTML}
-                    ${summaryHTML}
+                    ${resultBlocksHTML}
                     <div class="result-panels">
                         <div class="panel-left" id="panelLeft">${leftHTML}</div>
                         <div class="panel-right" id="panelRight">
