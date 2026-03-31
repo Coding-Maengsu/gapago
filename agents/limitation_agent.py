@@ -1309,17 +1309,16 @@ def limitation_extract_node(state: AgentState) -> AgentState:
         backup_raw = state.get("backup_papers") or []
         if backup_raw:
             failed_ids = {pid for pid, sec in paper_sections.items() if not sec}
-            # backup 중 arXiv(guaranteed) 우선으로 대체
+            # backup 중 full text 로드 가능한 논문으로 대체 (arXiv 우선, 그 외도 시도)
             replacements = []
             used_backup_ids = set()
-            for bp in backup_raw:
+            # arXiv 우선 정렬: arXiv가 앞으로
+            sorted_backup = sorted(backup_raw, key=lambda bp: (0 if bp.get("paper_id", "").lower().startswith("arxiv:") else 1))
+            for bp in sorted_backup:
                 if len(replacements) >= fulltext_fail_count:
                     break
                 bp_id = bp.get("paper_id", "")
-                if bp_id in used_backup_ids:
-                    continue
-                # arXiv 논문만 대체 후보 (guaranteed full text)
-                if not bp_id.lower().startswith("arxiv:"):
+                if bp_id in used_backup_ids or bp_id in failed_ids:
                     continue
                 try:
                     replacement = Paper(**bp) if isinstance(bp, dict) else bp
