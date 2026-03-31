@@ -28,8 +28,8 @@
             --yellow-light: #fef8ec;
             --red: #e54e4e;
             --red-light: #fef0f0;
-            --done: #3d8fd4;
-            --done-light: #eaf3fb;
+            --done: #5469d4;
+            --done-light: #eef0fb;
             --shadow-sm: 0 1px 2px rgba(26,31,54,0.04);
             --shadow: 0 2px 8px rgba(26,31,54,0.06);
             --shadow-md: 0 4px 16px rgba(26,31,54,0.08);
@@ -459,6 +459,17 @@
             text-overflow: ellipsis;
             max-width: 340px;
         }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+        .fade-in { animation: fadeIn 0.4s ease-out; }
+        .fade-out { animation: fadeOut 0.3s ease-in forwards; }
 
         /* ── Status ── */
         .status-msg {
@@ -2129,16 +2140,21 @@ function handleEvent(data) {
             timelineState[n.id] = 'done';
         });
         renderTimelineState();
-        const totalSecs = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
-        const tm = Math.floor(totalSecs / 60), ts = totalSecs % 60;
-        // Remove analysis layout, show results only
+        // Fade out pipeline UI, then show results with fade in
         const results = document.getElementById('results');
-        const completionInfo = `<div style="text-align:center;padding:12px 0 8px;"><span style="color:var(--done);font-weight:600;font-size:1em;">분석 완료</span><span style="color:var(--text-light);font-size:0.82em;margin-left:10px;">${tm > 0 ? tm + '분 ' : ''}${ts}초 소요</span></div>`;
-        results.innerHTML = completionInfo + '<div id="resultArea" style="display:none"></div>';
-        renderResults();
-        setInputEnabled(true);
-        switchToChatMode(currentSessionId);
-        loadHistory();
+        results.classList.add('fade-out');
+        setTimeout(() => {
+            const totalSecs = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
+            const tm = Math.floor(totalSecs / 60), ts = totalSecs % 60;
+            const completionInfo = `<div style="text-align:center;padding:12px 0 8px;"><span style="color:var(--accent);font-weight:600;font-size:1em;">분석 완료</span><span style="color:var(--text-light);font-size:0.82em;margin-left:10px;">${tm > 0 ? tm + '분 ' : ''}${ts}초 소요</span></div>`;
+            results.innerHTML = completionInfo + '<div id="resultArea" style="display:none"></div>';
+            renderResults();
+            results.classList.remove('fade-out');
+            results.classList.add('fade-in');
+            setInputEnabled(true);
+            switchToChatMode(currentSessionId);
+            loadHistory();
+        }, 300);
     } else if (data.event === 'stopped') {
         clearInterval(_thinkingInterval);
         clearInterval(_elapsedInterval);
@@ -2190,7 +2206,7 @@ function updateTimeline(activeStepId, nodeName) {
         statusText.textContent = activeNode.label + '...';
     }
     if (statusDetailEl) {
-        statusDetailEl.innerHTML = timelineDetails[activeStepId] || '';
+        statusDetailEl.textContent = THINKING_MESSAGES[Math.floor(Math.random() * THINKING_MESSAGES.length)];
     }
 
     // Thinking messages rotation
