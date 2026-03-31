@@ -1191,6 +1191,15 @@
             margin-top: 3px;
             transition: opacity 0.3s;
         }
+        .analysis-status-bar .status-detail .keyword-tag {
+            display: inline-block;
+            background: var(--accent-light);
+            color: var(--accent);
+            font-size: 0.85em;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin: 2px 2px 0 0;
+        }
         .analysis-status-bar .status-elapsed {
             font-size: 0.78em;
             color: var(--text-light);
@@ -2173,7 +2182,7 @@ function updateTimeline(activeStepId, nodeName) {
         statusText.textContent = activeNode.label + '...';
     }
     if (statusDetailEl) {
-        statusDetailEl.textContent = timelineDetails[activeStepId] || '';
+        statusDetailEl.innerHTML = timelineDetails[activeStepId] || '';
     }
 
     // Thinking messages rotation
