@@ -24,7 +24,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 from llm import AVAILABLE_PROVIDERS, get_llm
 from agents.gap_chat_agent import gap_chat_respond
 from agents.retrieval_agent import preload_models
-from utils.progress import init_progress, drain_progress, cleanup_progress
+from utils.progress import init_progress, drain_progress, cleanup_progress, mark_stage_start, mark_stage_done
 
 # ── App ──────────────────────────────────────────────────────────────
 app = FastAPI(title="GAPAGO", description="Research GAP Analysis System")
@@ -218,6 +218,8 @@ async def _run_pipeline(session_id: str, graph, config_dict: dict, inputs: dict 
                 if node.startswith("__"):
                     continue
 
+                # Track pipeline stage completion for ETA
+                mark_stage_done(session_id, node)
                 payload = _build_node_payload(node, values)
                 _push_event(session_id, payload)
 

@@ -1560,7 +1560,7 @@ function getAxisColor(axisName) {
 }
 
 // Progress state for live preview
-let _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0 };
+let _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
 
 // Track timeline detail text per node
 let timelineDetails = {};
@@ -1937,7 +1937,7 @@ async function startAnalysis() {
     const yearLabels = { auto: '자동 추천', '1y': '최근 1년', '3y': '최근 3년', '5y': '최근 5년' };
     const langLabels = { auto: '자동 감지', ko: '한국어', en: 'English' };
     pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: { provider: providerLabels[provider] || provider, yearRange: yearLabels[yearRange] || yearRange, outputLanguage: langLabels[outputLanguage] || outputLanguage } };
-    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0 };
+    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
     timelineDetails = {};
     timelineState = {};
     TIMELINE_NODES.forEach(n => { timelineState[n.id] = 'pending'; });
@@ -2031,7 +2031,7 @@ async function reconnectToSession(sessionId, query) {
     document.getElementById('queryInput').value = query || '';
     setInputEnabled(false);
     pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: {} };
-    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0 };
+    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
     timelineDetails = {};
     timelineState = {};
     TIMELINE_NODES.forEach(n => { timelineState[n.id] = 'pending'; });
@@ -2110,7 +2110,13 @@ function handleEvent(data) {
     if (data.event === 'keepalive') return;
 
     if (data.event === 'progress') {
-        _progressData = { node: data.node || '', detail: data.detail || '', current: data.current || 0, total: data.total || 0, progress: data.progress || 0 };
+        _progressData = {
+            node: data.node || '', detail: data.detail || '',
+            current: data.current || 0, total: data.total || 0, progress: data.progress || 0,
+            pipeline_progress_pct: data.pipeline_progress_pct || _progressData.pipeline_progress_pct || 0,
+            elapsed_s: data.elapsed_s || _progressData.elapsed_s || 0,
+            estimated_remaining_s: data.estimated_remaining_s || _progressData.estimated_remaining_s || 0,
+        };
         // Update timeline detail for this node
         const tlStep = findTimelineStep(data.node);
         if (tlStep) {
@@ -2347,12 +2353,24 @@ function updateLivePreview() {
 
     let html = '';
 
-    // Progress bar (overall only)
-    if (hasProgress && !hasGaps) {
-        html += `<div class="preview-progress">
-            <div class="preview-progress-bar"><div class="preview-progress-fill" style="width:${_progressData.progress}%"></div></div>
-            <div class="preview-progress-detail">${_progressData.current} / ${_progressData.total} (${_progressData.progress}%)</div>
-        </div>`;
+    // Pipeline-level progress bar with ETA
+    const hasPipelinePct = _progressData.pipeline_progress_pct > 0;
+    if ((hasPipelinePct || hasProgress) && !hasGaps) {
+        const pipelinePct = _progressData.pipeline_progress_pct || 0;
+        const remainSec = Math.round(_progressData.estimated_remaining_s || 0);
+        const etaText = remainSec > 60
+            ? `~${Math.ceil(remainSec / 60)}분 남음`
+            : remainSec > 0 ? `~${remainSec}초 남음` : '';
+        html += `<div class="preview-progress">`;
+        if (hasPipelinePct) {
+            html += `<div class="preview-progress-bar" style="margin-bottom:6px"><div class="preview-progress-fill" style="width:${pipelinePct}%"></div></div>`;
+            html += `<div class="preview-progress-detail" style="display:flex;justify-content:space-between"><span>전체 진행률 ${pipelinePct}%</span>${etaText ? `<span>${etaText}</span>` : ''}</div>`;
+        }
+        if (hasProgress) {
+            html += `<div class="preview-progress-bar"><div class="preview-progress-fill" style="width:${_progressData.progress}%"></div></div>`;
+            html += `<div class="preview-progress-detail">${_progressData.current} / ${_progressData.total} (${_progressData.progress}%)</div>`;
+        }
+        html += `</div>`;
     }
 
     // GAPs
@@ -2647,7 +2665,7 @@ async function exploreDirection(topic) {
 
     setInputEnabled(false);
     pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: {} };
-    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0 };
+    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
     timelineDetails = {};
     timelineState = {};
     TIMELINE_NODES.forEach(n => { timelineState[n.id] = 'pending'; });
