@@ -68,6 +68,10 @@ class Configuration:
         default=_int_env("RERANKER_TOP_K", 15),
         metadata={"description": "LLM Reranker 2nd stage selection count", "range": [5, 50]},
     )
+    rerank_models: str = field(
+        default=_str_env("RERANK_MODELS", "auto") or "auto",
+        metadata={"description": "Model tier: 'light' (MiniLM, CPU최적), 'full' (SPECTER2+BGE), 'auto' (GPU→full, CPU→light)"},
+    )
 
     @classmethod
     def from_runnable_config(
@@ -110,5 +114,8 @@ class Configuration:
             ),
             reranker_top_k=int(
                 configurable.get("reranker_top_k", defaults.reranker_top_k)
+            ),
+            rerank_models=str(
+                configurable.get("rerank_models", defaults.rerank_models)
             ),
         )

@@ -1,25 +1,37 @@
-# 3-3) Paper Retrieval Agent (tool-using selector)
+# 3-3) Paper Retrieval Agent (parallel search, no ReAct)
 from __future__ import annotations
 
+import json
 import re
 import numpy as np
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from states import AgentState, Paper
-from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, HumanMessage
-from tools import build_role_tools, bm25_rank, _safe_json_loads, _tokenize, _norm
+from tools import (
+    arxiv_api_call, crossref_search, semantic_scholar_search,
+    openalex_search, scienceon_search, scienceon_patent_search,
+    scienceon_report_search, bm25_rank, _safe_json_loads, _tokenize, _norm,
+)
 from rank_bm25 import BM25Okapi
-from prompts.system import make_system_prompt
 from llm import get_llm
 from config import Configuration
 from utils.parse_json import parse_json
+from utils.tavily import TavilySearch
 from utils.progress import report_progress
 
-# ── SPECTER2 + FAISS / CrossEncoder (lazy load) ─────────────────────────────
+# ── Embedding + CrossEncoder models (lazy load) ─────────────────────────────
+# 환경별 모델 선택: RERANK_MODELS 환경변수 또는 auto-detect
+_EMBEDDING_MODEL_FULL  = "allenai/specter2_base"            # GPU/고사양 CPU
+_EMBEDDING_MODEL_LIGHT = "all-MiniLM-L6-v2"                 # Render CPU
+_CE_MODEL_FULL  = "BAAI/bge-reranker-v2-m3"                 # GPU/고사양 CPU
+_CE_MODEL_LIGHT = "cross-encoder/ms-marco-MiniLM-L-6-v2"    # Render CPU
+
 _specter_model = None
 _cross_encoder  = None
+_loaded_embedding_tier = None  # 현재 로드된 모델 tier 추적
+_loaded_ce_tier = None
 
 
 def _get_device() -> str:
@@ -43,246 +55,206 @@ def _get_device() -> str:
         return "cpu"
 
 
-def _get_specter_model():
-    """SPECTER2 모델 lazy load — ONNX Runtime 우선, fallback으로 PyTorch"""
-    global _specter_model
-    if _specter_model is None:
-        try:
-            from sentence_transformers import SentenceTransformer
-            device = _get_device()
+def _get_specter_model(model_tier: str = "light"):
+    """임베딩 모델 lazy load — tier에 따라 모델 선택, ONNX Runtime 우선"""
+    global _specter_model, _loaded_embedding_tier
+    if _specter_model is not None and _loaded_embedding_tier == model_tier:
+        return _specter_model
+    # tier가 바뀌었으면 재로딩
+    _specter_model = None
+    try:
+        from sentence_transformers import SentenceTransformer
+        device = _get_device()
+        model_name = _EMBEDDING_MODEL_LIGHT if model_tier == "light" else _EMBEDDING_MODEL_FULL
 
-            # ONNX 백엔드 시도 (CPU에서 2~3배 빠름)
-            if device == "cpu":
-                try:
-                    _specter_model = SentenceTransformer(
-                        "allenai/specter2_base",
-                        backend="onnx",
-                        model_kwargs={"provider": "CPUExecutionProvider"},
-                    )
-                    print("  [SPECTER2] ONNX Runtime 백엔드로 로딩 완료 (CPU 최적화)")
-                except Exception as onnx_err:
-                    print(f"  [SPECTER2] ONNX 실패({onnx_err}), PyTorch fallback")
-                    _specter_model = SentenceTransformer("allenai/specter2_base", device=device)
-                    print("  [SPECTER2] PyTorch 백엔드로 로딩 완료")
-            else:
-                _specter_model = SentenceTransformer("allenai/specter2_base", device=device)
-                print(f"  [SPECTER2] PyTorch 백엔드로 로딩 완료 (device={device})")
-        except Exception as e:
-            print(f"  [WARN] SPECTER2 로딩 실패: {e} → FAISS 단계 스킵")
-            _specter_model = None
+        # ONNX 백엔드 시도 (CPU에서 2~3배 빠름)
+        if device == "cpu":
+            try:
+                _specter_model = SentenceTransformer(
+                    model_name,
+                    backend="onnx",
+                    model_kwargs={"provider": "CPUExecutionProvider"},
+                )
+                print(f"  [Embedding] {model_name} ONNX Runtime 로딩 완료 (CPU 최적화)")
+            except Exception as onnx_err:
+                print(f"  [Embedding] ONNX 실패({onnx_err}), PyTorch fallback")
+                _specter_model = SentenceTransformer(model_name, device=device)
+                print(f"  [Embedding] {model_name} PyTorch 로딩 완료")
+        else:
+            _specter_model = SentenceTransformer(model_name, device=device)
+            print(f"  [Embedding] {model_name} PyTorch 로딩 완료 (device={device})")
+        _loaded_embedding_tier = model_tier
+    except Exception as e:
+        print(f"  [WARN] Embedding 모델 로딩 실패: {e} → FAISS 단계 스킵")
+        _specter_model = None
     return _specter_model
 
 
-def _get_cross_encoder():
-    """CrossEncoder 모델 lazy load — ONNX Runtime 우선, fallback으로 PyTorch"""
-    global _cross_encoder
-    if _cross_encoder is None:
-        try:
-            from sentence_transformers import CrossEncoder
-            device = _get_device()
+def _get_cross_encoder(model_tier: str = "light"):
+    """CrossEncoder 모델 lazy load — tier에 따라 모델 선택, ONNX Runtime 우선"""
+    global _cross_encoder, _loaded_ce_tier
+    if _cross_encoder is not None and _loaded_ce_tier == model_tier:
+        return _cross_encoder
+    # tier가 바뀌었으면 재로딩
+    _cross_encoder = None
+    try:
+        from sentence_transformers import CrossEncoder
+        device = _get_device()
+        model_name = _CE_MODEL_LIGHT if model_tier == "light" else _CE_MODEL_FULL
 
-            # ONNX 백엔드 시도 (CPU에서 2~3배 빠름)
-            if device == "cpu":
-                try:
-                    _cross_encoder = CrossEncoder(
-                        "BAAI/bge-reranker-v2-m3",
-                        backend="onnx",
-                        model_kwargs={"provider": "CPUExecutionProvider"},
-                    )
-                    print("  [CrossEncoder] ONNX Runtime 백엔드로 로딩 완료 (CPU 최적화)")
-                except Exception as onnx_err:
-                    print(f"  [CrossEncoder] ONNX 실패({onnx_err}), PyTorch fallback")
-                    _cross_encoder = CrossEncoder("BAAI/bge-reranker-v2-m3", device=device)
-                    print("  [CrossEncoder] PyTorch 백엔드로 로딩 완료")
-            else:
-                _cross_encoder = CrossEncoder("BAAI/bge-reranker-v2-m3", device=device)
-                print(f"  [CrossEncoder] PyTorch 백엔드로 로딩 완료 (device={device})")
-        except Exception as e:
-            print(f"  [WARN] CrossEncoder 로딩 실패: {e} → LLM Reranker fallback")
-            _cross_encoder = None
+        # ONNX 백엔드 시도 (CPU에서 2~3배 빠름)
+        if device == "cpu":
+            try:
+                _cross_encoder = CrossEncoder(
+                    model_name,
+                    backend="onnx",
+                    model_kwargs={"provider": "CPUExecutionProvider"},
+                )
+                print(f"  [CrossEncoder] {model_name} ONNX Runtime 로딩 완료 (CPU 최적화)")
+            except Exception as onnx_err:
+                print(f"  [CrossEncoder] ONNX 실패({onnx_err}), PyTorch fallback")
+                _cross_encoder = CrossEncoder(model_name, device=device)
+                print(f"  [CrossEncoder] {model_name} PyTorch 로딩 완료")
+        else:
+            _cross_encoder = CrossEncoder(model_name, device=device)
+            print(f"  [CrossEncoder] {model_name} PyTorch 로딩 완료 (device={device})")
+        _loaded_ce_tier = model_tier
+    except Exception as e:
+        print(f"  [WARN] CrossEncoder 로딩 실패: {e} → LLM Reranker fallback")
+        _cross_encoder = None
     return _cross_encoder
 
 
-ROLE_TOOLS = build_role_tools()
-RETRIEVAL_TOOLS = ROLE_TOOLS["RETRIEVAL_TOOLS"]
-
-_RETRIEVAL_PROMPT_TEMPLATE = """ROLE: Paper Retrieval Agent
-You are a retrieval orchestrator. Your job is to SELECT and CALL the most appropriate search tools.
-
-Available tools (ALL academic tools MUST be used every time):
-- arxiv_api_call_tool: arXiv API direct search. Best for CS, ML, physics, math preprints. Returns papers with arxiv: ID for guaranteed full text access (ar5iv HTML). Use arxiv_query_candidates from Meaning Expansion.
-- crossref_search_tool: PRIMARY search tool, 60 results default, most reliable. Covers 150M+ scholarly works with DOI and citation metadata. Very reliable, no rate limit issues.
-- semantic_scholar_search_tool: Semantic Scholar search, 50 results, excellent for AI/ML. Covers 200M+ papers across all disciplines with citation data. Returns arXiv papers via arxiv: ID for full text access.
-- openalex_search_tool: OpenAlex search, 40 results, broad interdisciplinary coverage. Covers 200M+ works across all disciplines including humanities, social sciences, and engineering. No API key needed.
-- scienceon_search_tool: ScienceON/KISTI academic paper search. Covers both domestic and international journal articles, conference papers, and theses indexed by KISTI.
-- scienceon_patent_search_tool: ScienceON/KISTI patent search. Returns patent title, abstract, applicants, IPC classification, and application/publication dates. Useful for finding related prior art and technology trends.
-- scienceon_report_search_tool: ScienceON/KISTI national R&D report search. Returns government-funded research reports with full-text links. Useful for finding national research projects, policy-driven studies, and R&D trends.
-- web_search_tool: General web search for latest trends, news, and community discussions. Do NOT use for academic paper retrieval.
-
-{year_instruction}
-
-Inputs may include a previous Meaning Expansion Agent message containing:
-- keywords
-- expanded_terms
-- arxiv_query_candidates
-- web_query_candidates
-- scienceon_query_candidates
-
-Rules:
-1) Do not perform meaning expansion yourself.
-2) Use only the available tools above.
-3) You MUST call ALL of these academic search tools for every retrieval: arxiv_api_call_tool, crossref_search_tool, semantic_scholar_search_tool, openalex_search_tool, and scienceon_search_tool. Do NOT skip any. Use different query variations per source to maximize diversity and coverage. arXiv papers have guaranteed full text access, so prioritize them when available.
-4) Use scienceon_patent_search_tool and scienceon_report_search_tool when the topic involves applied technology, engineering, or industry applications. Patent data reveals prior art and technology gaps. R&D reports reveal government-funded research directions and policy-driven gaps.
-5) Use web_search_tool ONLY for discovering latest trends, emerging issues, recent developments, and community discussions related to the research topic. Do NOT use it to search for academic papers.
-6) Normalize academic results into one combined papers list. Keep web trend results separate in web_results. Keep patent and report results separate in patent_results and report_results.
-
-Output JSON with fields:
-- selected_tools: [..]
-- tool_rationale: <string>
-- papers: list of {{paper_id,title,year,url,abstract,authors,source}}
-- web_results: list of latest trend/issue items from web search (NOT papers)
-- patent_results: list of patent items from scienceon_patent_search_tool
-- report_results: list of R&D report items from scienceon_report_search_tool
-- scienceon_results: list
-- notes: list[str]
-Do NOT infer limitations or gaps.
-"""
+def _extract_meaning_expand_data(state: AgentState) -> dict:
+    """meaning_expand 메시지에서 쿼리 후보 데이터 추출."""
+    for m in reversed(state.get("messages", [])):
+        if getattr(m, "name", None) == "meaning_expand":
+            data = _safe_json_loads(getattr(m, "content", ""))
+            if isinstance(data, dict):
+                return data
+    return {}
 
 
-def _build_year_instruction(year_range: str, resolved_year: str) -> str:
-    """Build year filter instruction for system prompt."""
-    if resolved_year:
-        return (
-            f"[YEAR FILTER: {resolved_year}]\n"
-            f"All search tools support a 'year' parameter. You MUST pass year='{resolved_year}' "
-            f"to every academic search tool call (arxiv, semantic_scholar, openalex, scienceon, etc.)."
-        )
-    # auto: let agent decide
-    return (
-        "[YEAR FILTER: AUTO]\n"
-        "All search tools support a 'year' parameter (format: 'YYYY-YYYY', e.g. '2023-2026').\n"
-        "Decide an appropriate year range based on the research field:\n"
-        "- AI/LLM/deep learning: '2023-2026' (fast-moving field)\n"
-        "- Applied engineering: '2021-2026'\n"
-        "- Basic science/medicine: '2018-2026'\n"
-        "You MUST pass the year parameter to every academic search tool call."
-    )
+def _parallel_search(state: AgentState, resolved_year: str, cfg: Configuration) -> tuple[list, list]:
+    """8개 검색 도구를 ThreadPoolExecutor로 병렬 호출."""
 
+    me_data = _extract_meaning_expand_data(state)
+    refined_query = state.get("refined_query") or state.get("user_question", "")
+    arxiv_qs = me_data.get("arxiv_query_candidates", [refined_query])
+    web_qs = me_data.get("web_query_candidates", [refined_query])
+    scienceon_qs = me_data.get("scienceon_query_candidates", [refined_query])
+    general_q = arxiv_qs[0] if arxiv_qs else refined_query
 
-def _build_retrieval_agent(provider: str = None, year_range: str = "auto", resolved_year: str = ""):
-    """Build the paper retrieval agent with year filter baked into system prompt."""
-    llm = get_llm(provider=provider)
-    year_instruction = _build_year_instruction(year_range, resolved_year)
-    system_prompt = make_system_prompt(
-        _RETRIEVAL_PROMPT_TEMPLATE.format(year_instruction=year_instruction)
-    )
-    return create_agent(
-        llm,
-        tools=RETRIEVAL_TOOLS,
-        system_prompt=system_prompt,
-    )
+    # arXiv 쿼리에 연도 필터 삽입
+    arxiv_query = arxiv_qs[0] if arxiv_qs else refined_query
+    if resolved_year and "-" in resolved_year:
+        parts = resolved_year.split("-")
+        from_year = parts[0].strip()
+        to_year = parts[1].strip() if parts[1].strip() else "2026"
+        arxiv_query = arxiv_query + f" AND submittedDate:[{from_year}01010000 TO {to_year}12312359]"
 
+    # ScienceON 인증 정보
+    scienceon_kwargs = {
+        "client_id": cfg.scienceon_client_id or "",
+        "mac_address": cfg.scienceon_mac_address,
+        "key": cfg.scienceon_key,
+        "year": resolved_year,
+    }
 
-def _parse_papers_from_ai_message(content: str) -> list[dict]:
-    """
-    AIMessage content (JSON)에서 papers 리스트 파싱.
-    LLM이 output JSON 안에 papers 필드로 반환하는 경우 처리.
-    """
-    data = _safe_json_loads(content)
-    if not data or not isinstance(data, dict):
-        return []
+    # (name, callable, kwargs) 리스트
+    tasks: list[tuple[str, callable, dict]] = [
+        ("arxiv", arxiv_api_call, {
+            "search_query": arxiv_query,
+            "max_total": 100, "page_size": 100, "max_pages": 1,
+        }),
+        ("crossref", crossref_search, {
+            "query": general_q, "rows": 60, "year": resolved_year,
+        }),
+        ("semantic_scholar", semantic_scholar_search, {
+            "query": general_q, "limit": 50, "year": resolved_year,
+        }),
+        ("openalex", openalex_search, {
+            "query": general_q, "per_page": 40, "year": resolved_year,
+        }),
+    ]
 
-    papers = []
-    # ✅ LLM output JSON의 papers 필드
-    for p in data.get("papers", []):
-        if not isinstance(p, dict):
-            continue
-        papers.append({
-            "paper_id": p.get("paper_id", ""),
-            "title": p.get("title", ""),
-            "abstract": p.get("abstract", ""),
-            "url": p.get("url", ""),
-            "year": p.get("year", 0) or 0,
-            "authors": p.get("authors") or [],
-            "score_bm25": p.get("score_bm25", 0.0),
-            "source": p.get("source", "arxiv"),
-            "full_text_sections": {},
-        })
+    # ScienceON (client_id 필요)
+    if cfg.scienceon_client_id:
+        scienceon_q = scienceon_qs[0] if scienceon_qs else refined_query
+        tasks.append(("scienceon", scienceon_search, {
+            "query": scienceon_q, "target": "ARTI", "row_count": 15,
+            **scienceon_kwargs,
+        }))
+        tasks.append(("scienceon_patent", scienceon_patent_search, {
+            "query": scienceon_q, "row_count": 10,
+            **scienceon_kwargs,
+        }))
+        tasks.append(("scienceon_report", scienceon_report_search, {
+            "query": scienceon_q, "row_count": 10,
+            **scienceon_kwargs,
+        }))
 
-    # web_results는 별도로 반환하지 않음 (papers에 합치지 않음)
-    return papers
+    # Tavily 웹 검색
+    tavily_tool = TavilySearch(max_results=cfg.tavily_max_results)
+    web_query = web_qs[0] if web_qs else refined_query
+    tasks.append(("web", tavily_tool.search, {"query": web_query}))
 
+    all_papers: list[dict] = []
+    web_results: list[dict] = []
 
-def _parse_papers_from_tool_messages(messages: list) -> list[dict]:
-    papers = []
-    for msg in messages:
-        content = getattr(msg, "content", "")
-        if not content or getattr(msg, "type", "") != "tool":
-            continue
+    with ThreadPoolExecutor(max_workers=len(tasks)) as executor:
+        futures = {}
+        for name, fn, kw in tasks:
+            futures[executor.submit(fn, **kw)] = name
 
-        data = _safe_json_loads(content)
-        if not data or not isinstance(data, dict):
-            continue
+        for future in as_completed(futures):
+            name = futures[future]
+            try:
+                result = future.result(timeout=60)
+            except Exception as e:
+                print(f"  [parallel_search] {name} 실패: {e}")
+                continue
 
-        source = data.get("source", "")
-        if source in ("arxiv", "crossref", "scienceon", "semantic_scholar", "openalex"):
-            papers.extend(data.get("results", []))
-        elif source in ("scienceon_patent", "scienceon_report"):
-            # 특허/보고서 결과를 papers 형식으로 정규화
-            for r in data.get("results", []):
-                paper_id = r.get("patent_id") or r.get("report_id") or ""
-                papers.append({
-                    "paper_id": paper_id,
-                    "title": r.get("title", ""),
-                    "abstract": r.get("abstract", ""),
-                    "url": r.get("url", ""),
-                    "year": r.get("year", 0),
-                    "authors": r.get("authors", []) if "authors" in r else [r.get("applicants", "")],
-                    "score_bm25": 0.0,
-                    "source": source,
-                    "full_text_sections": r.get("raw", {}),
-                })
-        # web source는 별도 처리 (papers에 합치지 않음)
-    return papers
+            if name == "web":
+                # Tavily는 list[dict] 반환
+                if isinstance(result, list):
+                    for r in result:
+                        web_results.append({
+                            "title": r.get("title", ""),
+                            "url": r.get("url", ""),
+                            "content": r.get("content") or r.get("snippet", ""),
+                            "source": "web",
+                        })
+                print(f"  [parallel_search] {name}: {len(web_results)} results")
+            elif name in ("scienceon_patent", "scienceon_report"):
+                # dict with "results" list containing patent/report items
+                if isinstance(result, dict):
+                    for r in result.get("results", []):
+                        paper_id = r.get("patent_id") or r.get("report_id") or ""
+                        all_papers.append({
+                            "paper_id": paper_id,
+                            "title": r.get("title", ""),
+                            "abstract": r.get("abstract", ""),
+                            "url": r.get("url", ""),
+                            "year": r.get("year", 0),
+                            "authors": r.get("authors", []) if "authors" in r else [r.get("applicants", "")],
+                            "score_bm25": 0.0,
+                            "source": name,
+                            "full_text_sections": r.get("raw", {}),
+                        })
+                print(f"  [parallel_search] {name}: {len(result.get('results', []) if isinstance(result, dict) else [])} results")
+            elif name == "scienceon":
+                # scienceon_search returns dict with "results"
+                if isinstance(result, dict):
+                    all_papers.extend(result.get("results", []))
+                print(f"  [parallel_search] {name}: {len(result.get('results', []) if isinstance(result, dict) else [])} results")
+            else:
+                # arxiv, crossref, semantic_scholar, openalex return list[dict]
+                if isinstance(result, list):
+                    all_papers.extend(result)
+                print(f"  [parallel_search] {name}: {len(result) if isinstance(result, list) else 0} results")
 
-
-def _parse_web_results_from_tool_messages(messages: list) -> list[dict]:
-    """ToolMessage에서 웹 검색 결과만 별도로 파싱."""
-    web_results = []
-    for msg in messages:
-        content = getattr(msg, "content", "")
-        if not content or getattr(msg, "type", "") != "tool":
-            continue
-        data = _safe_json_loads(content)
-        if not data or not isinstance(data, dict):
-            continue
-        if data.get("source") == "web":
-            for r in data.get("results", []):
-                web_results.append({
-                    "title": r.get("title", ""),
-                    "url": r.get("url", ""),
-                    "content": r.get("content") or r.get("snippet", ""),
-                    "source": "web",
-                })
-    return web_results
-
-
-def _parse_web_results_from_ai_message(content: str) -> list[dict]:
-    """AIMessage JSON에서 web_results를 별도로 파싱."""
-    data = _safe_json_loads(content)
-    if not data or not isinstance(data, dict):
-        return []
-    web_results = []
-    for r in data.get("web_results", []):
-        if not isinstance(r, dict):
-            continue
-        web_results.append({
-            "title": r.get("title", ""),
-            "url": r.get("url", ""),
-            "content": r.get("content") or r.get("snippet", ""),
-            "source": "web",
-        })
-    return web_results
+    return all_papers, web_results
 
 
 def _dedupe_papers(raw_papers: list[dict]) -> list[dict]:
@@ -436,16 +408,16 @@ def _filter_fulltext_available(papers: list[dict], target_count: int = 30) -> li
 
 
 
-def _faiss_filter(papers: list[dict], query: str, top_k: int) -> list[dict]:
+def _faiss_filter(papers: list[dict], query: str, top_k: int, model_tier: str = "light") -> list[dict]:
     """
-    SPECTER2 임베딩 + FAISS 코사인 유사도 기반 2차 필터.
+    임베딩 + FAISS 코사인 유사도 기반 2차 필터.
     BM25 통과 논문 중 의미적으로 가장 유사한 top_k 편을 선별.
     모델 로딩 실패 시 원본 리스트 그대로 반환.
     """
     if len(papers) <= top_k:
         return papers
 
-    model = _get_specter_model()
+    model = _get_specter_model(model_tier)
     if model is None:
         print(f"  [FAISS] 모델 없음 → 스킵 (BM25 결과 {len(papers)}편 유지)")
         return papers
@@ -492,16 +464,16 @@ def _faiss_filter(papers: list[dict], query: str, top_k: int) -> list[dict]:
         return papers
 
 
-def _cross_encoder_rerank(papers: list[dict], query: str, top_k: int) -> list[dict]:
+def _cross_encoder_rerank(papers: list[dict], query: str, top_k: int, model_tier: str = "light") -> list[dict]:
     """
-    CrossEncoder(BAAI/bge-reranker-v2-m3) 기반 3차 reranking.
-    한국어/영어 모두 지원. 로딩 실패 시 LLM Reranker로 fallback.
+    CrossEncoder 기반 3차 reranking.
+    로딩 실패 시 LLM Reranker로 fallback (None 반환).
     Returns top_k papers sorted by cross-encoder score (desc).
     """
     if len(papers) <= top_k:
         return papers
 
-    reranker = _get_cross_encoder()
+    reranker = _get_cross_encoder(model_tier)
     if reranker is None:
         return None  # fallback 신호: None 반환 시 LLM Reranker 사용
 
@@ -620,68 +592,21 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
     provider = state.get("llm_provider")
     session_id = state.get("session_id", "")
 
-    # state에서 연도 필터 읽기 → 시스템 프롬프트에 반영
+    # state에서 연도 필터 읽기
     year_range = state.get("year_range", "auto")
     resolved_year = _resolve_year_range(year_range)
     print(f"  [retrieval] year_range={year_range}, resolved_year={resolved_year}")
 
-    paper_retrieval_agent = _build_retrieval_agent(
-        provider=provider,
-        year_range=year_range,
-        resolved_year=resolved_year,
-    )
+    cfg = Configuration()
 
-    messages = state.get("messages", [])
-    print(f"  [DEBUG] 전체 messages 수: {len(messages)}")
-    for i, m in enumerate(messages):
-        print(f"  [DEBUG] msg[{i}] type={type(m).__name__} name={getattr(m, 'name', None)} content={getattr(m, 'content', '')[:80]}")
-    # ✅ user query HumanMessage를 항상 앞에 추가
-    # LLM이 "user message가 없다"며 도구 호출을 거부하는 문제 방지
-    user_query_text = state.get("user_question") or state.get("refined_query", "")
-    user_query_msg = HumanMessage(content=user_query_text) if user_query_text else None
+    # 모델 tier 결정: auto → CPU이면 light, GPU이면 full
+    model_tier = cfg.rerank_models
+    if model_tier == "auto":
+        model_tier = "light" if _get_device() == "cpu" else "full"
+    print(f"  [retrieval] rerank_models tier={model_tier}")
 
-    # meaning_expand 메시지 우선, 없으면 query_analysis, 그것도 없으면 user_question
-    agent_messages = [
-        m for m in state.get("messages", [])
-        if getattr(m, "name", None) == "meaning_expand"
-    ]
-    if not agent_messages:
-        agent_messages = [
-            m for m in state.get("messages", [])
-            if getattr(m, "name", None) == "query_analysis"
-        ]
-    if not agent_messages:
-        fallback_text = state.get("refined_query") or state.get("user_question", "")
-        agent_messages = [HumanMessage(content=fallback_text)]
-
-    # 가장 최신 agent 메시지 1개 선택
-    agent_messages = agent_messages[-1:]
-
-    # user query + agent 메시지 순서로 전달 (LLM이 context를 올바르게 인식)
-    if user_query_msg:
-        query_messages = [user_query_msg] + agent_messages
-    else:
-        query_messages = agent_messages
-
-    result = paper_retrieval_agent.invoke({
-        **state,
-        "messages": query_messages,
-    })
-
-    messages = result.get("messages", [])
-    last_content = messages[-1].content if messages else "{}"
-
-    # ✅ 1순위: tool 메시지에서 직접 파싱
-    raw_papers = _parse_papers_from_tool_messages(messages)
-
-    # ✅ 웹 결과 별도 파싱
-    web_results = _parse_web_results_from_tool_messages(messages)
-
-    # ✅ 2순위: LLM output JSON의 papers 필드에서 파싱 (현재 구조 대응)
-    if not raw_papers:
-        raw_papers = _parse_papers_from_ai_message(last_content)
-        if not web_results:
-            web_results = _parse_web_results_from_ai_message(last_content)
+    # ✅ 병렬 검색 (ReAct 에이전트 대신 ThreadPoolExecutor)
+    raw_papers, web_results = _parallel_search(state, resolved_year, cfg)
 
     raw_papers = _dedupe_papers(raw_papers)
     total_candidates_count = len(raw_papers)  # BM25 전 전체 후보 수
@@ -703,14 +628,13 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
 
     # ✅ 1단계: BM25 + SPECTER2/FAISS 병렬 필터 → union → 중복 제거
     total_found = len(raw_papers)
-    cfg = Configuration()
     query = state.get("refined_query") or state.get("user_question", "")
 
     # BM25와 FAISS 각각 bm25_top_k 편씩 선별 후 합집합
     # → CrossEncoder 입력 후보 풀: 최대 bm25_top_k * 2편 (중복 제거 후)
     stage1_papers = []
     if raw_papers and query:
-        # ── BM25: 키워드 매칭 기반 ──────────────────────────────────────
+        # BM25 dynamic_k 계산 (BM25 스레드에서 사용)
         corpus = [_tokenize(f"{p.get('title', '')} {p.get('abstract', '')}") for p in raw_papers]
         bm25 = BM25Okapi(corpus)
         scores = bm25.get_scores(_tokenize(query))
@@ -723,12 +647,14 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
             print(f"  [BM25] dynamic_k={dynamic_k} (mean={mean_score:.2f}, std={std_score:.2f}, threshold={threshold:.2f})")
         else:
             dynamic_k = cfg.bm25_top_k
-        ranked    = bm25_rank(raw_papers, query, top_k=dynamic_k)
-        bm25_pool = ranked.get("selected", raw_papers[:dynamic_k])
-        print(f"  [BM25] 1st pool: {len(bm25_pool)} papers")
 
-        # ── SPECTER2 + FAISS: 의미적 유사도 기반 ───────────────────────
-        faiss_pool = _faiss_filter(raw_papers, query, top_k=cfg.bm25_top_k)
+        # ── BM25 + FAISS 병렬 실행 ──────────────────────────────────────
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            bm25_future = executor.submit(bm25_rank, raw_papers, query, top_k=dynamic_k)
+            faiss_future = executor.submit(_faiss_filter, raw_papers, query, top_k=cfg.bm25_top_k, model_tier=model_tier)
+            bm25_pool = bm25_future.result().get("selected", raw_papers[:dynamic_k])
+            faiss_pool = faiss_future.result()
+        print(f"  [BM25] 1st pool: {len(bm25_pool)} papers")
         print(f"  [FAISS] 1st pool: {len(faiss_pool)} papers")
 
         # ── Union + 중복 제거 ────────────────────────────────────────────
@@ -750,7 +676,7 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
     # 선별되지 않은 논문은 backup으로 보관 (full text 실패 시 대체용)
     backup_raw = []
     if stage1_papers and query and len(stage1_papers) > cfg.reranker_top_k:
-        ce_result = _cross_encoder_rerank(stage1_papers, query, top_k=cfg.reranker_top_k)
+        ce_result = _cross_encoder_rerank(stage1_papers, query, top_k=cfg.reranker_top_k, model_tier=model_tier)
         if ce_result is not None:
             raw_papers = ce_result
             print(f"  [CrossEncoder] 2nd stage: {len(raw_papers)} papers")
@@ -844,6 +770,12 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
     print(f"  ✓ Retrieved {len(papers)}/{total_candidates_count} papers + {len(web_results)} web results")
     print(f"  ✓ Backup pool: {len(backup_papers)} papers ({arxiv_backup} arXiv)")
 
+    last_content = json.dumps({
+        "total_candidates": total_candidates_count,
+        "selected": len(papers),
+        "web_results": len(web_results),
+        "backup": len(backup_papers),
+    }, ensure_ascii=False)
     last = AIMessage(content=last_content, name="paper_retrieval")
     return {
         "messages": [last],

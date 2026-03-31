@@ -29,6 +29,7 @@ feedparser
 PyMuPDF
 pymupdf4llm
 faiss-cpu
+sentence-transformers
 onnxruntime
 optimum[onnxruntime]
 requests
