@@ -2462,13 +2462,14 @@ function updateLivePreview() {
     // Papers
     if (hasPapers) {
         html += `<div class="preview-section"><div class="preview-section-title">검색된 논문 (${pipelineData.papers.length}/${pipelineData.total_searched || '?'})</div>`;
+        html += `<div style="max-height:300px;overflow-y:auto;">`;
         pipelineData.papers.forEach(p => {
             html += `<div class="preview-paper-item">
                 <div class="preview-paper-title">${esc(p.title || '')}</div>
                 <div class="preview-paper-meta">${p.year || ''} ${p.venue ? '· ' + esc(p.venue) : ''}</div>
             </div>`;
         });
-        html += '</div>';
+        html += '</div></div>';
     }
 
     // Query & Keywords (show at bottom as context)
