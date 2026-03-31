@@ -2982,11 +2982,10 @@ function renderResults() {
     if (pipelineData.report) {
         reportHTML = `
         <div style="margin-top:16px;border-top:1px solid var(--border-light);padding-top:16px;">
-            <div class="report-actions" style="margin-bottom:12px;">
+            <div class="report-actions" style="margin-bottom:0;">
                 <button onclick="copyReport()">클립보드에 복사</button>
                 <button class="report-download-btn" onclick="downloadReport()">다운로드 .md</button>
             </div>
-            <div class="report-content">${renderMarkdown(pipelineData.report)}</div>
         </div>`;
     }
 
