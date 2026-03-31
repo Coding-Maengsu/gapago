@@ -1449,7 +1449,7 @@ def limitation_extract_node(state: AgentState) -> AgentState:
                            for lim in result["limitations"]]
                 report_progress(
                     session_id, "limitation_extract",
-                    f"{len(all_limitations)} limitations found so far",
+                    f"현재까지 {len(all_limitations)}개 한계점 추출",
                     type="partial_limitations", data=partial,
                 )
 
