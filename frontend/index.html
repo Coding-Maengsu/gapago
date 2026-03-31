@@ -797,52 +797,53 @@
             line-height: 1.6;
         }
 
-        /* ── Report Collapse ── */
-        .report-collapse {
-            margin-top: 16px;
+        /* ── Master Report Collapse ── */
+        .report-master-collapse {
             border: 1px solid var(--border-light);
             border-radius: var(--radius-lg);
             background: var(--surface);
             overflow: hidden;
         }
-
-        .report-collapse-toggle {
+        .report-master-toggle {
             width: 100%;
             padding: 14px 20px;
             background: var(--surface);
             border: none;
             cursor: pointer;
             font-family: inherit;
-            font-size: 0.92em;
+            font-size: 0.95em;
             font-weight: 600;
-            color: var(--text-dim);
+            color: var(--accent);
             display: flex;
             align-items: center;
             justify-content: space-between;
             transition: background 0.15s;
+            position: sticky;
+            top: 0;
+            z-index: 5;
         }
-
-        .report-collapse-toggle:hover { background: var(--surface2); }
-
-        .report-collapse-toggle .toggle-arrow {
-            transition: transform 0.2s;
+        .report-master-toggle:hover { background: var(--surface2); }
+        .report-master-toggle .toggle-arrow {
+            transition: transform 0.25s ease;
             font-size: 0.8em;
         }
-
-        .report-collapse.open .toggle-arrow { transform: rotate(180deg); }
-
-        .report-collapse-body {
+        .report-master-collapse.open .toggle-arrow {
+            transform: rotate(180deg);
+        }
+        .report-master-body {
             max-height: 0;
             overflow: hidden;
-            transition: max-height 0.3s ease;
+            transition: max-height 0.4s ease;
         }
-
-        .report-collapse.open .report-collapse-body {
-            max-height: 5000px;
+        .report-master-collapse.open .report-master-body {
+            max-height: none;
+            overflow: visible;
         }
-
-        .report-collapse-inner {
+        .report-master-body-inner {
             padding: 0 20px 20px;
+        }
+        #chatContainer {
+            margin-top: 24px;
         }
 
         .report-actions { display: flex; gap: 8px; margin-bottom: 18px; }
@@ -1870,19 +1871,20 @@ async function sendChatMessage() {
     autoResizeTextarea(input);
     toggleSendBtn();
 
-    // Append user message bubble to results
-    const results = document.getElementById('results');
+    // Append user message bubble to chat container
+    const chatContainer = document.getElementById('chatContainer');
+    const scrollContainer = document.getElementById('results');
     const userMsg = document.createElement('div');
     userMsg.className = 'chat-msg user';
     userMsg.innerHTML = `<div class="chat-msg-bubble">${esc(message)}</div>`;
-    results.appendChild(userMsg);
+    chatContainer.appendChild(userMsg);
 
     // Typing indicator
     const typingEl = document.createElement('div');
     typingEl.className = 'chat-msg assistant';
     typingEl.innerHTML = `<div class="chat-msg-bubble"><div class="chat-typing"><span></span><span></span><span></span></div></div>`;
-    results.appendChild(typingEl);
-    results.scrollTop = results.scrollHeight;
+    chatContainer.appendChild(typingEl);
+    scrollContainer.scrollTop = scrollContainer.scrollHeight;
 
     try {
         const resp = await fetch('api/chat', {
@@ -1897,22 +1899,22 @@ async function sendChatMessage() {
             const errEl = document.createElement('div');
             errEl.className = 'chat-msg assistant';
             errEl.innerHTML = `<div class="chat-msg-bubble" style="color:var(--red)">오류: ${esc(errText)}</div>`;
-            results.appendChild(errEl);
+            chatContainer.appendChild(errEl);
         } else {
             const data = await resp.json();
             const aiMsg = document.createElement('div');
             aiMsg.className = 'chat-msg assistant';
             aiMsg.innerHTML = `<div class="chat-msg-bubble">${renderMarkdown(data.response)}</div>`;
-            results.appendChild(aiMsg);
+            chatContainer.appendChild(aiMsg);
         }
     } catch (e) {
         typingEl.remove();
         const errEl = document.createElement('div');
         errEl.className = 'chat-msg assistant';
         errEl.innerHTML = `<div class="chat-msg-bubble" style="color:var(--red)">네트워크 오류: ${esc(e.message)}</div>`;
-        results.appendChild(errEl);
+        chatContainer.appendChild(errEl);
     }
-    results.scrollTop = results.scrollHeight;
+    scrollContainer.scrollTop = scrollContainer.scrollHeight;
 }
 
 function newAnalysis() {
@@ -2176,7 +2178,7 @@ function handleEvent(data) {
             const totalSecs = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
             const tm = Math.floor(totalSecs / 60), ts = totalSecs % 60;
             const completionInfo = `<div style="text-align:center;padding:12px 0 8px;"><span style="color:var(--accent);font-weight:600;font-size:1em;">분석 완료</span><span style="color:var(--text-light);font-size:0.82em;margin-left:10px;">${tm > 0 ? tm + '분 ' : ''}${ts}초 소요</span></div>`;
-            results.innerHTML = completionInfo + '<div id="resultArea" style="display:none"></div>';
+            results.innerHTML = completionInfo + '<div id="resultArea" style="display:none"></div><div id="chatContainer"></div>';
             renderResults();
             results.classList.remove('fade-out');
             results.classList.add('fade-in');
@@ -2519,37 +2521,39 @@ function renderResults() {
     // Right panel: detail (default: first gap)
     let rightHTML = getGapDetailHTML(0);
 
-    // Report collapse
+    // Report — inline (no separate toggle)
     let reportHTML = '';
     if (pipelineData.report) {
         reportHTML = `
-        <div class="report-collapse" id="reportCollapse">
-            <button class="report-collapse-toggle" onclick="toggleReport()">
-                <span>전체 리포트 보기</span>
-                <span class="toggle-arrow">&#x25BC;</span>
-            </button>
-            <div class="report-collapse-body">
-                <div class="report-collapse-inner">
-                    <div class="report-actions">
-                        <button onclick="copyReport()">클립보드에 복사</button>
-                        <button onclick="downloadReport()">다운로드 (.md)</button>
-                    </div>
-                    <div class="report-content">${renderMarkdown(pipelineData.report)}</div>
-                </div>
+        <div style="margin-top:16px;border-top:1px solid var(--border-light);padding-top:16px;">
+            <div class="report-actions">
+                <button onclick="copyReport()">클립보드에 복사</button>
+                <button onclick="downloadReport()">다운로드 (.md)</button>
             </div>
+            <div class="report-content">${renderMarkdown(pipelineData.report)}</div>
         </div>`;
     }
 
     area.innerHTML = `
-        ${optionsHTML}
-        ${summaryHTML}
-        <div class="result-panels">
-            <div class="panel-left" id="panelLeft">${leftHTML}</div>
-            <div class="panel-right" id="panelRight">
-                <div class="detail-panel" id="detailPanel">${rightHTML}</div>
+        <div class="report-master-collapse open" id="reportMasterCollapse">
+            <button class="report-master-toggle" onclick="toggleMasterReport()">
+                <span>전체 리포트 보기</span>
+                <span class="toggle-arrow">&#x25BC;</span>
+            </button>
+            <div class="report-master-body">
+                <div class="report-master-body-inner">
+                    ${optionsHTML}
+                    ${summaryHTML}
+                    <div class="result-panels">
+                        <div class="panel-left" id="panelLeft">${leftHTML}</div>
+                        <div class="panel-right" id="panelRight">
+                            <div class="detail-panel" id="detailPanel">${rightHTML}</div>
+                        </div>
+                    </div>
+                    ${reportHTML}
+                </div>
             </div>
         </div>
-        ${reportHTML}
     `;
 }
 
@@ -2661,9 +2665,20 @@ function selectPaper(index) {
     if (dp) dp.innerHTML = getPaperDetailHTML(index);
 }
 
-function toggleReport() {
-    const rc = document.getElementById('reportCollapse');
-    if (rc) rc.classList.toggle('open');
+function toggleMasterReport() {
+    const mc = document.getElementById('reportMasterCollapse');
+    const body = mc.querySelector('.report-master-body');
+    if (mc.classList.contains('open')) {
+        body.style.maxHeight = body.scrollHeight + 'px';
+        requestAnimationFrame(() => { body.style.maxHeight = '0'; });
+        mc.classList.remove('open');
+    } else {
+        mc.classList.add('open');
+        body.style.maxHeight = body.scrollHeight + 'px';
+        body.addEventListener('transitionend', () => {
+            if (mc.classList.contains('open')) body.style.maxHeight = 'none';
+        }, { once: true });
+    }
 }
 
 async function exploreDirection(topic) {
@@ -2785,6 +2800,7 @@ function renderSavedResult(data) {
             <p style="color:var(--text-light);font-size:0.7em;margin-top:3px">${data.timestamp || ''}</p>
         </div>
         <div id="resultArea" style="display:block"></div>
+        <div id="chatContainer"></div>
     `;
 
     // Need to set area reference before renderResults
