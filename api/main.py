@@ -40,6 +40,7 @@ OUTPUT_DIR = Path("outputs")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+LANDING_DIR = Path(__file__).resolve().parent.parent / "landing" / "dist"
 
 
 # ── Startup warm-up ──────────────────────────────────────────────────
@@ -732,7 +733,26 @@ async def middle_image():
 
 @app.get("/")
 async def root():
+    # 랜딩페이지 우선 서빙
+    landing_index = LANDING_DIR / "index.html"
+    if landing_index.exists():
+        return FileResponse(str(landing_index), media_type="text/html")
+    # 랜딩페이지 미빌드 시 기존 앱으로 fallback
     index = FRONTEND_DIR / "index.html"
     if index.exists():
         return FileResponse(str(index), media_type="text/html")
-    return {"message": f"Frontend not found. FRONTEND_DIR={FRONTEND_DIR}, exists={FRONTEND_DIR.exists()}"}
+    return {"message": "Frontend not found"}
+
+
+@app.get("/app")
+async def app_page():
+    index = FRONTEND_DIR / "index.html"
+    if index.exists():
+        return FileResponse(str(index), media_type="text/html")
+    raise HTTPException(404, "App not found")
+
+
+# ── Landing page static assets ──
+_landing_assets = LANDING_DIR / "assets"
+if _landing_assets.exists():
+    app.mount("/assets", StaticFiles(directory=str(_landing_assets)), name="landing-assets")
