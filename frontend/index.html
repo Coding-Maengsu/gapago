@@ -2562,8 +2562,9 @@ function updateLivePreview() {
 
     let html = '';
 
-    // Limitation extraction progress bar (한계점 데이터 도착 전에만 단독 표시)
-    if (hasProgress && !hasGaps && !hasLimitations) {
+    // Limitation extraction progress bar (진행 중이면 한계점 데이터와 함께도 표시)
+    const limInProgress = hasProgress && _progressData.progress < 100;
+    if ((limInProgress || (hasProgress && !hasLimitations)) && !hasGaps) {
         html += `<div class="preview-progress">
             <div class="preview-progress-bar"><div class="preview-progress-fill" style="width:${_progressData.progress}%"></div></div>
             <div class="preview-progress-detail">${_progressData.current} / ${_progressData.total} (${_progressData.progress}%)</div>
