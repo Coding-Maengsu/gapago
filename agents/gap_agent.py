@@ -821,6 +821,77 @@ Output JSON only:
         return None
 
 
+# ── Gap 중복 제거 (시맨틱 유사도) ──────────────────────────────────────────────
+
+DEDUP_SIMILARITY_THRESHOLD = 0.85
+
+def _deduplicate_gaps(gaps: list[dict]) -> list[dict]:
+    """
+    시맨틱 유사도 기반 중복 gap 제거.
+    cosine similarity > DEDUP_SIMILARITY_THRESHOLD 쌍 → urgency 높은 쪽에 병합.
+    임베딩 불가 시 Jaccard 토큰 오버랩 fallback.
+    """
+    if len(gaps) <= 1:
+        return gaps
+
+    statements = [g["gap_statement"] for g in gaps]
+
+    # 임베딩 시도
+    embeddings = None
+    try:
+        from agents.retrieval_agent import _get_specter_model
+        model = _get_specter_model()
+        if model is not None:
+            embeddings = model.encode(statements, normalize_embeddings=True)
+    except Exception as e:
+        print(f"  ⚠️ 임베딩 로드 실패, Jaccard fallback 사용: {e}")
+
+    def _jaccard(a: str, b: str) -> float:
+        ta = set(a.lower().split())
+        tb = set(b.lower().split())
+        if not ta or not tb:
+            return 0.0
+        return len(ta & tb) / len(ta | tb)
+
+    def _similarity(i: int, j: int) -> float:
+        if embeddings is not None:
+            import numpy as np
+            return float(np.dot(embeddings[i], embeddings[j]))
+        return _jaccard(statements[i], statements[j])
+
+    # Find pairs to merge
+    merged_into: dict[int, int] = {}  # victim_idx → survivor_idx
+    for i in range(len(gaps)):
+        if i in merged_into:
+            continue
+        for j in range(i + 1, len(gaps)):
+            if j in merged_into:
+                continue
+            sim = _similarity(i, j)
+            if sim > DEDUP_SIMILARITY_THRESHOLD:
+                # Keep the one with higher urgency
+                score_i = gaps[i].get("urgency_score", 0)
+                score_j = gaps[j].get("urgency_score", 0)
+                if score_i >= score_j:
+                    survivor, victim = i, j
+                else:
+                    survivor, victim = j, i
+                merged_into[victim] = survivor
+                # Absorb supporting_papers
+                existing = set(gaps[survivor].get("supporting_papers", []))
+                for p in gaps[victim].get("supporting_papers", []):
+                    if p not in existing:
+                        gaps[survivor]["supporting_papers"].append(p)
+                        existing.add(p)
+                print(f"  🔗 Gap 병합: [{gaps[victim]['axis']}] → [{gaps[survivor]['axis']}] (sim={sim:.2f})")
+
+    if merged_into:
+        result = [g for idx, g in enumerate(gaps) if idx not in merged_into]
+        print(f"  ✓ Gap 중복 제거: {len(gaps)}개 → {len(result)}개")
+        return result
+    return gaps
+
+
 # ── 메인 노드 ────────────────────────────────────────────────────────────────
 
 def gap_infer_node(state: AgentState) -> AgentState:
@@ -1031,11 +1102,14 @@ def gap_infer_node(state: AgentState) -> AgentState:
                 ax_key = futures[future]
                 print(f"  ⚠️ 축 [{ax_key}] 처리 중 오류: {e}")
 
+    # ── Gap 중복 제거 (시맨틱 유사도) ──────────────────────────────────
+    gaps = _deduplicate_gaps(gaps)
+
     # urgency 점수 기준 정렬
     urgency_map = {ax: score for ax, score, _, _ in scored_axes}
     gaps.sort(key=lambda g: urgency_map.get(g["axis"], 0), reverse=True)
 
-    print(f"\n  ✅ GAP {len(gaps)}개 생성 완료")
+    print(f"\n  ✅ GAP {len(gaps)}개 생성 완료 (중복 제거 후)")
 
     trace = dict(state.get("trace", {}))
     trace["gaps_generated"]    = len(gaps)
