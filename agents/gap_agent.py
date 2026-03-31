@@ -1,14 +1,14 @@
 """
-GAP Inference Agent — 완전 동적 축 버전
+GAP Inference Agent — 완전 동적 축 버전 (Qwen/Groq 추론 모델 지원)
 
 핵심 설계 원칙:
   1. limitation의 단순 반전(반사적 반전) 금지
   2. recency_status 활용 → "아직 아무도 안 푼" limitation만 GAP 후보로 승격
   3. web_results 맥락 주입 → 창의적 방향 제안 시 최신 동향 반영
   4. 3단계 추론 파이프라인:
-       Step 5a. 가장 시급한 축 선정 (urgency scoring)
-       Step 5b. 왜 아무도 못 풀었는가 (기술적 장벽 분석)
-       Step 5c. 장벽을 우회하는 창의적 연구 방향 제안
+       Step 4a. 가장 시급한 축 선정 (urgency scoring)
+       Step 4b. 왜 아무도 못 풀었는가 (기술적 장벽 분석)
+       Step 4c. 장벽을 우회하는 창의적 연구 방향 제안
   5. 동일 축 내에서도 여러 방향 후보 생성 후 가장 참신한 것을 채택
 
 처리 흐름 (고정 축 완전 제거):
@@ -16,12 +16,19 @@ GAP Inference Agent — 완전 동적 축 버전
   Step 2. 생성된 동적 축이 없으면 fallback 축 자동 생성
   Step 3. 각 limitation 배치 분류 + recency 가중치 적용
   Step 4a. 축별 긴급도(urgency) 점수화 → 우선순위 결정
-  Step 4b. 상위 N개 축에 대해 기술적 장벽 분석
+  Step 4b. 상위 N개 축에 대해 기술적 장벽 분석 (barrier_type도 동적 도출)
   Step 4c. 장벽 기반 창의적 방향 제안 (web_results 맥락 활용)
+
+LLM 라우팅:
+  - 단순 분류/점수화 (Step 3, 4a): 기본 provider 사용
+  - 핵심 추론 (Step 1, 4b, 4c): GAP_REASONING_PROVIDER 환경변수 또는
+    GAP_REASONING_PROVIDER 환경변수로 QwQ-32B / Groq Qwen3-32B 선택
 """
 
+import os
 import re
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from states import AgentState, GapCandidate, LimitationItem
 from llm import get_llm
 from utils.parse_json import parse_json
@@ -45,17 +52,38 @@ RECENCY_WEIGHT = {
 
 # ── LLM 헬퍼 ─────────────────────────────────────────────────────────────────
 
-def _llm_invoke(messages: list[dict], provider: str = None) -> str:
-    llm = get_llm(provider=provider)
+def _llm_invoke(messages: list[dict], use_reasoning: bool = False) -> str:
+    """
+    LLM 호출 헬퍼.
+
+    gap_agent 내부 전용 — state["llm_provider"](상용 LLM)와 완전히 분리.
+
+    use_reasoning=True:
+      GAP_REASONING_PROVIDER 환경변수("qwq" or "groq")가 설정된 경우
+      해당 추론 전용 모델 사용 (동적 축 생성, 장벽 분석, 창의적 방향 제안).
+      미설정이면 기본 LLM으로 fallback.
+
+    use_reasoning=False:
+      기본 LLM 사용 (배치 분류, 긴급도 점수화 등 단순 작업).
+    """
+    reasoning_provider = os.getenv("GAP_REASONING_PROVIDER", "")
+    effective_provider = None  # 기본값: get_llm()의 기본 provider
+
+    if use_reasoning and reasoning_provider in ("qwq", "groq"):
+        effective_provider = reasoning_provider
+        label = "Groq Qwen3-32B" if reasoning_provider == "groq" else "QwQ-32B"
+        print(f"  [LLM] 추론 단계 → {label} 사용")
+
+    llm = get_llm(provider=effective_provider)
     lc_messages = []
     for m in messages:
-        role, content = m["role"], m["content"]
+        role, content_text = m["role"], m["content"]
         if role == "system":
-            lc_messages.append(SystemMessage(content=content))
+            lc_messages.append(SystemMessage(content=content_text))
         elif role == "user":
-            lc_messages.append(HumanMessage(content=content))
+            lc_messages.append(HumanMessage(content=content_text))
         elif role == "assistant":
-            lc_messages.append(AIMessage(content=content))
+            lc_messages.append(AIMessage(content=content_text))
     return llm.invoke(lc_messages).content
 
 
@@ -114,7 +142,10 @@ def _parse_limitations_from_messages(messages) -> list:
 
 # ── Step 1. 완전 동적 축 생성 ────────────────────────────────────────────────
 
-def _generate_all_axes(all_claims_text: str, research_question: str) -> list:
+def _generate_all_axes(
+    all_claims_text: str,
+    research_question: str,
+) -> list:
     """
     고정 축 없이 LLM이 limitations 전체를 분석하여
     연구 질문과 논문 도메인에 특화된 축을 자유롭게 생성한다.
@@ -177,7 +208,8 @@ Output JSON only:
     ]
 
     try:
-        response = _llm_invoke(messages)
+        # 도메인 축 귀납 도출 → 추론 모델 사용
+        response = _llm_invoke(messages, use_reasoning=True)
         result = parse_json(response)
         axes_raw = result.get("axes", [])
 
@@ -205,7 +237,10 @@ Output JSON only:
 
 # ── Step 1 Fallback. 동적 축 생성 실패 시 최소 축 자동 구성 ─────────────────
 
-def _generate_fallback_axes(all_claims_text: str, research_question: str) -> list:
+def _generate_fallback_axes(
+    all_claims_text: str,
+    research_question: str,
+) -> list:
     """
     LLM 동적 축 생성이 실패하거나 결과가 너무 적을 때
     더 단순한 프롬프트로 재시도하는 fallback.
@@ -235,7 +270,7 @@ Output JSON only:
     ]
 
     try:
-        response = _llm_invoke(messages)
+        response = _llm_invoke(messages, use_reasoning=True)
         result = parse_json(response)
         axes_raw = result.get("axes", [])
         return [
@@ -253,11 +288,11 @@ Output JSON only:
         print(f"  ⚠️ Fallback axis generation also failed: {e}")
         return [
             {
-                "name": "general_limitation",
-                "label": "General Research Limitation",
+                "name":        "general_limitation",
+                "label":       "General Research Limitation",
                 "description": "Limitations that could not be further categorized",
-                "rationale": "",
-                "type": "dynamic",
+                "rationale":   "",
+                "type":        "dynamic",
             }
         ]
 
@@ -278,7 +313,11 @@ def _build_final_axes(dynamic_axes: list) -> dict:
 
 # ── Step 3. 배치 분류 + recency 가중치 적용 ──────────────────────────────────
 
-def _classify_limitations_batch(limitations: list, final_axes: dict, lang_instruction: str = "") -> dict:
+def _classify_limitations_batch(
+    limitations: list,
+    final_axes: dict,
+    lang_instruction: str = "",
+) -> dict:
     BATCH_SIZE = 20
     axis_mapping = {}
 
@@ -287,7 +326,6 @@ def _classify_limitations_batch(limitations: list, final_axes: dict, lang_instru
     fallback = axis_keys[0] if axis_keys else "general_limitation"
 
     axes_block = "\n".join(f"  {k}: {v['description']}" for k, v in final_axes.items())
-
     batches = [limitations[i: i + BATCH_SIZE] for i in range(0, len(limitations), BATCH_SIZE)]
 
     for batch_idx, batch in enumerate(batches):
@@ -311,11 +349,18 @@ Output JSON only:
 }}
 """
         messages = [
-            {"role": "system", "content": "You are a research limitation classifier. Always respond in valid JSON." + lang_instruction},
+            {
+                "role": "system",
+                "content": (
+                    "You are a research limitation classifier. Always respond in valid JSON."
+                    + lang_instruction
+                )
+            },
             {"role": "user", "content": prompt},
         ]
 
         try:
+            # 분류는 단순 작업 → 기본 provider (use_reasoning=False)
             response = _llm_invoke(messages)
             result = parse_json(response)
             cls_map = result.get("classifications", {})
@@ -376,7 +421,7 @@ def _score_axis_urgency(
     final_axes: dict,
     research_question: str,
     lang_instruction: str = "",
-) -> list[tuple[str, float]]:
+) -> list[tuple[str, float, str, str]]:
     """
     각 축의 긴급도를 LLM으로 점수화하여 우선순위를 결정한다.
 
@@ -384,6 +429,7 @@ def _score_axis_urgency(
       - 미해결 limitation 수 (recency-weighted)
       - 연구 질문과의 직접적 관련성
       - 해당 축이 다른 축의 병목이 되는 정도 (cascade impact)
+    최종 점수 = LLM 긴급도(60%) + recency 가중 카운트 정규화(40%)
     """
     axes_summary = []
     for ax_key, grp in axis_groups.items():
@@ -427,16 +473,20 @@ Output JSON only:
 }}
 """
     messages = [
-        {"role": "system", "content": (
-            "You are a research prioritization expert. "
-            "Be critical and differentiate scores meaningfully — avoid giving everything the same score. "
-            "Always respond in valid JSON."
-            + lang_instruction
-        )},
+        {
+            "role": "system",
+            "content": (
+                "You are a research prioritization expert. "
+                "Be critical and differentiate scores meaningfully — avoid giving everything the same score. "
+                "Always respond in valid JSON."
+                + lang_instruction
+            )
+        },
         {"role": "user", "content": prompt},
     ]
 
     try:
+        # 점수화도 단순 판단 → 기본 provider
         response = _llm_invoke(messages)
         result = parse_json(response)
         scores_raw = result.get("urgency_scores", {})
@@ -450,7 +500,8 @@ Output JSON only:
             cascade = scores_raw.get(ax_key, {}).get("cascade_impact", "none")
             rationale = scores_raw.get(ax_key, {}).get("rationale", "")
             scored.append((ax_key, final_score, cascade, rationale))
-            print(f"  [urgency] {ax_key}: LLM={llm_score}, weighted={grp['weighted_count']:.1f}, final={final_score:.2f} | {rationale[:60]}")
+            print(f"  [urgency] {ax_key}: LLM={llm_score}, weighted={grp['weighted_count']:.1f}, "
+                  f"final={final_score:.2f} | {rationale[:60]}")
 
         scored.sort(key=lambda x: -x[1])
         return scored
@@ -475,7 +526,7 @@ def _analyze_barriers(
 ) -> dict:
     """
     왜 N편의 논문이 이 문제를 인정하면서도 해결하지 못했는지를 분석한다.
-    단순히 "어렵다"가 아니라 구체적인 기술적/구조적 장벽을 명시한다.
+    barrier_type도 고정 카테고리 없이 동적으로 도출한다.
     """
     claims_block = "\n".join(
         f"  [{i+1}] [{lim.paper_id}] (recency={getattr(lim, 'recency_status', 'unresolved')}) {lim.claim}"
@@ -526,10 +577,18 @@ Examples of GOOD barriers:
   - "Existing uncertainty calibration methods assume i.i.d. test distributions, failing under domain shift"
 
 STEP C — barrier_type
-Classify the PRIMARY barrier:
-  "data_scarcity" | "benchmark_absence" | "computational_cost" |
-  "evaluation_mismatch" | "methodological_gap" | "domain_shift" |
-  "conflicting_objectives" | "other"
+Derive a SHORT label (3-6 words, snake_case) that precisely names
+the ROOT CAUSE of the PRIMARY barrier for THIS specific gap.
+Do NOT use generic labels. The label must be specific enough
+that someone reading it immediately understands the exact obstacle.
+
+Bad examples (too generic): "data_scarcity", "methodological_gap", "other"
+Good examples (domain-specific):
+  - "missing_cross_domain_benchmark"
+  - "label_noise_in_clinical_annotations"
+  - "quadratic_attention_cost_at_scale"
+  - "task_boundary_assumption_violation"
+  - "conflicting_privacy_and_utility_objectives"
 
 STEP D — what_was_tried
 List 2-3 approaches the existing papers already tried that did NOT work.
@@ -539,27 +598,31 @@ Output JSON only:
 {{
   "gap_statement":  "...",
   "barriers":       ["barrier 1", "barrier 2", "barrier 3"],
-  "barrier_type":   "...",
+  "barrier_type":   "short_snake_case_label_specific_to_this_gap",
   "what_was_tried": ["approach 1", "approach 2"]
 }}
 """
     messages = [
-        {"role": "system", "content": (
-            "You are a rigorous research analyst who identifies root causes, not symptoms. "
-            "Be specific and honest about what has already failed. "
-            "Always respond in valid JSON."
-            + lang_instruction
-        )},
+        {
+            "role": "system",
+            "content": (
+                "You are a rigorous research analyst who identifies root causes, not symptoms. "
+                "Be specific and honest about what has already failed. "
+                "Always respond in valid JSON."
+                + lang_instruction
+            )
+        },
         {"role": "user", "content": prompt},
     ]
 
     try:
-        response = _llm_invoke(messages)
+        # 장벽 분석은 핵심 추론 → 추론 모델 사용
+        response = _llm_invoke(messages, use_reasoning=True)
         result = parse_json(response)
         return {
             "gap_statement":  result.get("gap_statement",  f"Unsolved gap in {ax_key}"),
             "barriers":       result.get("barriers",       []),
-            "barrier_type":   result.get("barrier_type",   "methodological_gap"),
+            "barrier_type":   result.get("barrier_type",   "unclassified"),
             "what_was_tried": result.get("what_was_tried", []),
         }
     except Exception as e:
@@ -567,7 +630,7 @@ Output JSON only:
         return {
             "gap_statement":  f"Unsolved gap in {ax_key}",
             "barriers":       [],
-            "barrier_type":   "methodological_gap",
+            "barrier_type":   "unclassified",
             "what_was_tried": [],
         }
 
@@ -586,22 +649,21 @@ def _generate_creative_directions(
     web_results: list,
     cascade_impact: str,
     lang_instruction: str = "",
-    provider: str = None,
-) -> dict:
+) -> dict | None:
     """
     Step 4b에서 도출한 장벽과 "이미 시도된 것들"을 출발점으로,
     기존 논문이 시도하지 않은 창의적 연구 방향을 3개 후보 생성 후
     LLM 스스로 가장 참신하고 실행 가능한 것을 선택한다.
 
-    핵심 원칙:
-      - limitation의 반대를 제안하는 단순 반전 절대 금지
-      - 이미 시도된 접근 재사용 금지
-      - 인접 분야 기법 조합, 문제 재정의, 평가 프레임워크 변경 등 창의적 각도 탐색
-      - web_results의 최신 동향을 활용하되, 거기서 이미 다룬 것은 제외
+    반환:
+      elaboration  — GAP 카드용 한 줄 핵심 인사이트
+      detail       — 리포트 상세 섹션용 풍부한 컨텍스트
+      proposed_topic, barriers, barrier_type, what_was_tried,
+      alt_topics, novelty_score
     """
-    barriers_block  = "\n".join(f"  - {b}" for b in barriers)
-    tried_block     = "\n".join(f"  - {t}" for t in what_was_tried)
-    lim_block       = "\n".join(
+    barriers_block = "\n".join(f"  - {b}" for b in barriers)
+    tried_block    = "\n".join(f"  - {t}" for t in what_was_tried)
+    lim_block      = "\n".join(
         f"  [{lim.paper_id}] {lim.claim[:110]}" for lim in unresolved_lims[:8]
     )
 
@@ -684,30 +746,33 @@ Output JSON only:
 }}
 """
     messages = [
-        {"role": "system", "content": (
-            "You are a creative yet rigorous research mentor. "
-            "Your proposals must feel surprising to someone who has read all the papers, "
-            "yet be grounded enough to implement. "
-            "Avoid generic benchmark-expansion proposals. "
-            "Always respond in valid JSON with no extra text."
-            + lang_instruction
-        )},
+        {
+            "role": "system",
+            "content": (
+                "You are a creative yet rigorous research mentor. "
+                "Your proposals must feel surprising to someone who has read all the papers, "
+                "yet be grounded enough to implement. "
+                "Avoid generic benchmark-expansion proposals. "
+                "Always respond in valid JSON with no extra text."
+                + lang_instruction
+            )
+        },
         {"role": "user", "content": prompt},
     ]
 
     try:
-        response = _llm_invoke(messages, provider=provider)
+        # 창의적 방향 제안은 핵심 추론 → 추론 모델 사용
+        response = _llm_invoke(messages, use_reasoning=True)
         result = parse_json(response)
 
-        candidates   = result.get("candidates", [])
-        best_id      = result.get("best_candidate_id", 1)
-        rationale    = result.get("selection_rationale", "")
+        candidates = result.get("candidates", [])
+        best_id    = result.get("best_candidate_id", 1)
+        rationale  = result.get("selection_rationale", "")
 
         # best candidate 선택
         best = next((c for c in candidates if c.get("direction_id") == best_id), None)
         if not best and candidates:
             best = max(candidates, key=lambda c: c.get("novelty_score", 0))
-
         if not best:
             return None
 
@@ -716,15 +781,13 @@ Output JSON only:
         methodology_hint = best.get("methodology_hint", "")
         novelty_score    = best.get("novelty_score", 0)
 
-        # 다른 후보들 요약
         alt_topics = [
             c.get("proposed_topic", "")
             for c in candidates
             if c.get("direction_id") != best_id and c.get("proposed_topic")
         ]
 
-        # ── elaboration: GAP 카드에 표시될 간결한 요약 (1~2문장) ──────────────
-        # 핵심 인사이트 한 줄만 담음 — 상세 내용은 detail 필드로 분리
+        # ── elaboration: GAP 카드에 표시될 간결한 요약 (한 줄) ───────────────
         elaboration = core_insight if core_insight else rationale
 
         # ── detail: 리포트 상세 섹션용 풍부한 컨텍스트 ───────────────────────
@@ -758,13 +821,91 @@ Output JSON only:
         return None
 
 
+# ── Gap 중복 제거 (시맨틱 유사도) ──────────────────────────────────────────────
+
+DEDUP_SIMILARITY_THRESHOLD = 0.85
+
+def _deduplicate_gaps(gaps: list[dict]) -> list[dict]:
+    """
+    시맨틱 유사도 기반 중복 gap 제거.
+    cosine similarity > DEDUP_SIMILARITY_THRESHOLD 쌍 → urgency 높은 쪽에 병합.
+    임베딩 불가 시 Jaccard 토큰 오버랩 fallback.
+    """
+    if len(gaps) <= 1:
+        return gaps
+
+    statements = [g["gap_statement"] for g in gaps]
+
+    # 임베딩 시도
+    embeddings = None
+    try:
+        from agents.retrieval_agent import _get_specter_model
+        model = _get_specter_model()
+        if model is not None:
+            embeddings = model.encode(statements, normalize_embeddings=True)
+    except Exception as e:
+        print(f"  ⚠️ 임베딩 로드 실패, Jaccard fallback 사용: {e}")
+
+    def _jaccard(a: str, b: str) -> float:
+        ta = set(a.lower().split())
+        tb = set(b.lower().split())
+        if not ta or not tb:
+            return 0.0
+        return len(ta & tb) / len(ta | tb)
+
+    def _similarity(i: int, j: int) -> float:
+        if embeddings is not None:
+            import numpy as np
+            return float(np.dot(embeddings[i], embeddings[j]))
+        return _jaccard(statements[i], statements[j])
+
+    # Find pairs to merge
+    merged_into: dict[int, int] = {}  # victim_idx → survivor_idx
+    for i in range(len(gaps)):
+        if i in merged_into:
+            continue
+        for j in range(i + 1, len(gaps)):
+            if j in merged_into:
+                continue
+            sim = _similarity(i, j)
+            if sim > DEDUP_SIMILARITY_THRESHOLD:
+                # Keep the one with higher urgency
+                score_i = gaps[i].get("urgency_score", 0)
+                score_j = gaps[j].get("urgency_score", 0)
+                if score_i >= score_j:
+                    survivor, victim = i, j
+                else:
+                    survivor, victim = j, i
+                merged_into[victim] = survivor
+                # Absorb supporting_papers
+                existing = set(gaps[survivor].get("supporting_papers", []))
+                for p in gaps[victim].get("supporting_papers", []):
+                    if p not in existing:
+                        gaps[survivor]["supporting_papers"].append(p)
+                        existing.add(p)
+                print(f"  🔗 Gap 병합: [{gaps[victim]['axis']}] → [{gaps[survivor]['axis']}] (sim={sim:.2f})")
+
+    if merged_into:
+        result = [g for idx, g in enumerate(gaps) if idx not in merged_into]
+        print(f"  ✓ Gap 중복 제거: {len(gaps)}개 → {len(result)}개")
+        return result
+    return gaps
+
+
 # ── 메인 노드 ────────────────────────────────────────────────────────────────
 
 def gap_infer_node(state: AgentState) -> AgentState:
     """
-    GAP Inference Node — 완전 동적 축 버전 (고정 축 없음)
+    GAP Inference Node — 완전 동적 축 버전 (고정 축 없음, Qwen/Groq 추론 지원)
     """
     print("\n💡 GAP Inference Node (완전 동적 축 버전 — 고정 축 없음)")
+
+    # ── state에서 설정값 읽기 ────────────────────────────────────────────────
+    session_id  = state.get("session_id", "")
+    output_lang = state.get("output_language", "auto")
+
+    from prompts.system import get_language_instruction
+    lang_instruction = get_language_instruction(output_lang)
 
     # ── limitations 획득 ────────────────────────────────────────────────────
     raw_limitations = state.get("limitations", [])
@@ -789,12 +930,6 @@ def gap_infer_node(state: AgentState) -> AgentState:
     else:
         limitations = _parse_limitations_from_messages(state.get("messages", []))
 
-    # ── output_language / lang_instruction ──────────────────────────────────
-    output_language = state.get("output_language", "auto")
-    session_id = state.get("session_id", "")
-    from prompts.system import get_language_instruction
-    lang_instruction = get_language_instruction(output_language)
-
     if not limitations:
         print("  ⚠️ No limitations to analyze")
         return {**state, "gaps": []}
@@ -804,9 +939,11 @@ def gap_infer_node(state: AgentState) -> AgentState:
         1 for lim in limitations
         if getattr(lim, "recency_status", "unresolved") == "unresolved"
     )
-    print(f"  ✓ recency: unresolved={unresolved_count}, "
-          f"partial={sum(1 for l in limitations if getattr(l,'recency_status','unresolved')=='partial')}, "
-          f"resolved={sum(1 for l in limitations if getattr(l,'recency_status','unresolved')=='resolved')}")
+    print(
+        f"  ✓ recency: unresolved={unresolved_count}, "
+        f"partial={sum(1 for l in limitations if getattr(l,'recency_status','unresolved')=='partial')}, "
+        f"resolved={sum(1 for l in limitations if getattr(l,'recency_status','unresolved')=='resolved')}"
+    )
 
     # ── web_results ─────────────────────────────────────────────────────────
     web_results = state.get("web_results", [])
@@ -825,10 +962,9 @@ def gap_infer_node(state: AgentState) -> AgentState:
     # ── Step 1. 완전 동적 축 생성 ───────────────────────────────────────────
     all_claims_text = "\n".join(f"[{lim.paper_id}] {lim.claim}" for lim in limitations)
 
-    print(f"  🔄 완전 동적 축 생성 중 (고정 축 없음)...")
+    print("  🔄 완전 동적 축 생성 중 (고정 축 없음)...")
     dynamic_axes = _generate_all_axes(all_claims_text, research_question)
 
-    # 결과가 너무 적으면 fallback
     if len(dynamic_axes) < 2:
         print(f"  ⚠️ 동적 축이 {len(dynamic_axes)}개뿐 → fallback 재시도...")
         dynamic_axes = _generate_fallback_axes(all_claims_text, research_question)
@@ -841,9 +977,11 @@ def gap_infer_node(state: AgentState) -> AgentState:
     final_axes = _build_final_axes(dynamic_axes)
 
     # ── Step 3. 배치 분류 + recency 가중치 적용 ─────────────────────────────
-    print(f"  🔄 배치 분류 중...")
-    axis_mapping = _classify_limitations_batch(limitations, final_axes, lang_instruction=lang_instruction)
-    axis_groups  = _build_axis_groups_with_recency(limitations, axis_mapping)
+    print("  🔄 배치 분류 중...")
+    axis_mapping = _classify_limitations_batch(
+        limitations, final_axes, lang_instruction=lang_instruction
+    )
+    axis_groups = _build_axis_groups_with_recency(limitations, axis_mapping)
 
     print(f"\n  {'축':<32} {'가중':>6}  {'전체':>6}")
     print(f"  {'-'*48}")
@@ -857,33 +995,42 @@ def gap_infer_node(state: AgentState) -> AgentState:
         print("  ⚠️ 모든 limitation이 resolved → gaps 없음")
         return {**state, "gaps": []}
 
+    fast_mode = state.get("fast_mode", False)
+
     print(f"\n  🔄 Step 4a: {len(active_groups)}개 축 긴급도 점수화...")
-    scored_axes = _score_axis_urgency(active_groups, final_axes, research_question, lang_instruction)
+    scored_axes = _score_axis_urgency(
+        active_groups, final_axes, research_question, lang_instruction
+    )
+
+    # fast_mode: 상위 3개 축만 분석
+    if fast_mode and len(scored_axes) > 3:
+        print(f"  ⚡ fast_mode: {len(scored_axes)}개 → 상위 3개 축만 분석")
+        scored_axes = scored_axes[:3]
 
     # ── Step 4b + 4c. 축별 장벽 분석 → 창의적 방향 제안 ────────────────────
     gaps = []
     total_axes = len(scored_axes)
     print(f"\n  🔄 Step 4b+4c: 장벽 분석 → 창의적 방향 제안...")
 
-    for ax_idx, (ax_key, urgency_score, cascade_impact, urgency_rationale) in enumerate(scored_axes):
+    # ── 축별 처리를 병렬로 실행 (ThreadPoolExecutor) ──────────────────────
+    completed_count = [0]  # mutable counter for thread-safe progress
+
+    def _process_single_axis(ax_idx, ax_key, urgency_score, cascade_impact, urgency_rationale):
+        """단일 축의 4b(장벽 분석) + 4c(창의적 방향 제안)를 처리."""
         grp     = active_groups[ax_key]
         ax_info = final_axes.get(ax_key, {"label": ax_key, "description": "", "type": "dynamic"})
         unresolved_lims = grp["unresolved_lims"]
 
         if not unresolved_lims:
-            continue
+            return None
 
-        report_progress(
-            session_id, "gap_infer",
-            f"Analyzing research axis {ax_idx + 1}/{total_axes}: {ax_info.get('label', ax_key)}",
-            current=ax_idx + 1, total=total_axes,
-        )
         print(f"\n  ── [{ax_key}] urgency={urgency_score:.2f} ──")
 
         # Step 4b
-        print(f"  🔍 4b 장벽 분석...")
+        print(f"  🔍 4b 장벽 분석 ({ax_key})...")
         barrier = _analyze_barriers(
-            ax_key, ax_info, unresolved_lims, grp["lims"], research_question, lang_instruction
+            ax_key, ax_info, unresolved_lims, grp["lims"],
+            research_question, lang_instruction,
         )
         print(f"     gap: {barrier['gap_statement'][:70]}...")
         print(f"     barrier_type: {barrier['barrier_type']}")
@@ -891,7 +1038,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
             print(f"     - {b[:80]}")
 
         # Step 4c
-        print(f"  💡 4c 창의적 방향 제안 (web_results={len(web_results)}개 활용)...")
+        print(f"  💡 4c 창의적 방향 제안 ({ax_key}, web_results={len(web_results)}개 활용)...")
         direction = _generate_creative_directions(
             ax_key=ax_key,
             ax_info=ax_info,
@@ -907,7 +1054,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
         )
 
         if direction is None:
-            continue
+            return None
 
         gap_dict = GapCandidate(
             axis=ax_key,
@@ -918,9 +1065,11 @@ def gap_infer_node(state: AgentState) -> AgentState:
             proposed_topic=direction["proposed_topic"],
             repeat_count=grp["total_count"],
             supporting_papers=list({lim.paper_id for lim in grp["lims"]}),
-            supporting_quotes=[lim.evidence_quote for lim in unresolved_lims if lim.evidence_quote][:5],
+            supporting_quotes=[
+                lim.evidence_quote for lim in unresolved_lims if lim.evidence_quote
+            ][:5],
         ).model_dump()
-        # GapCandidate 스키마 외 상세 필드 병합 (리포트 상세 섹션용)
+
         gap_dict.update({
             "detail":            direction.get("detail", ""),
             "barriers":          direction.get("barriers", []),
@@ -931,14 +1080,43 @@ def gap_infer_node(state: AgentState) -> AgentState:
             "urgency_score":     urgency_score,
             "urgency_rationale": urgency_rationale,
         })
-        gaps.append(gap_dict)
+
+        # 완료 시 진행률 리포트
+        completed_count[0] += 1
+        report_progress(
+            session_id, "gap_infer",
+            f"Analyzed research axis {completed_count[0]}/{total_axes}: {ax_info.get('label', ax_key)}",
+            current=completed_count[0], total=total_axes,
+        )
+
+        return gap_dict
+
+    max_workers = min(5, total_axes)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(
+                _process_single_axis,
+                ax_idx, ax_key, urgency_score, cascade_impact, urgency_rationale,
+            ): ax_key
+            for ax_idx, (ax_key, urgency_score, cascade_impact, urgency_rationale) in enumerate(scored_axes)
+        }
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+                if result is not None:
+                    gaps.append(result)
+            except Exception as e:
+                ax_key = futures[future]
+                print(f"  ⚠️ 축 [{ax_key}] 처리 중 오류: {e}")
+
+    # ── Gap 중복 제거 (시맨틱 유사도) ──────────────────────────────────
+    gaps = _deduplicate_gaps(gaps)
 
     # urgency 점수 기준 정렬
     urgency_map = {ax: score for ax, score, _, _ in scored_axes}
     gaps.sort(key=lambda g: urgency_map.get(g["axis"], 0), reverse=True)
-    gaps_as_dict = gaps
 
-    print(f"\n  ✅ GAP {len(gaps)}개 생성 완료")
+    print(f"\n  ✅ GAP {len(gaps)}개 생성 완료 (중복 제거 후)")
 
     trace = dict(state.get("trace", {}))
     trace["gaps_generated"]    = len(gaps)
@@ -949,6 +1127,6 @@ def gap_infer_node(state: AgentState) -> AgentState:
 
     return {
         **state,
-        "gaps":  gaps_as_dict,
+        "gaps":  gaps,
         "trace": trace,
     }

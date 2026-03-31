@@ -62,7 +62,7 @@ datasets/
 checkpoints/
 models/
 cache/
-
+input_dir/
 # =========================
 # ML / LLM 캐시
 # =========================
@@ -104,3 +104,8 @@ main2.py
 aws/
 CLAUDE.md
 awscliv2.zip
+
+# =========================
+# Landing Page (React/Vite)
+# =========================
+landing/node_modules/

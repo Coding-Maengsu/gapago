@@ -15,7 +15,7 @@ from datetime import datetime
 # 1. 그래프 빌드
 # =====================================================================
 from graphs.graph import build_graph
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage
 
 app = build_graph()
 OUTPUT_DIR = Path("outputs")
@@ -169,6 +169,19 @@ def run():
     from llm import get_llm
     get_llm.cache_clear()
 
+    # --- LLM 사전 초기화 (warmup) ---
+    # 기본 LLM 미리 캐시에 올림
+    print(f"  [warmup] 기본 LLM ({selected_provider}) 초기화 중...")
+    get_llm(provider=selected_provider)
+    print(f"  [warmup] 기본 LLM 초기화 완료")
+
+    # GAP 추론 LLM도 미리 캐시 (API 클라이언트 객체 생성, 수십 ms)
+    reasoning_provider = os.getenv("GAP_REASONING_PROVIDER", "")
+    if reasoning_provider:
+        print(f"  [warmup] GAP 추론 LLM ({reasoning_provider}) 초기화 중...")
+        get_llm(provider=reasoning_provider)
+        print(f"  [warmup] GAP 추론 LLM 초기화 완료")
+
     # --- 연구 도메인 선택 (recency check용) ---
     print("\n=== 연구 도메인 선택 (최신성 검증 소스 결정) ===")
     print("  0) auto - LLM이 자동 판단 (기본값)")
@@ -278,54 +291,7 @@ def run():
     print("is_ambiguous =", values.get("is_ambiguous"))
     print("refined_query =", values.get("refined_query"))
 
-    result_path = save_result(user_input, values)
-
-    # -----------------------------------------------------------------
-    # [STEP 5] 결과 검토 후 대화 모드
-    # -----------------------------------------------------------------
-    print_divider("[STEP 5] 결과 검토 및 대화")
-
-    print("\n분석이 완료되었습니다!")
-    print(f"결과 파일: {result_path}")
-
-    chat_choice = input("\n결과에 대해 질문하거나 추가 분석을 원하시나요? > ").strip()
-
-    # 빈 입력이면 종료
-    if not chat_choice:
-        print("\n프로그램을 종료합니다.")
-    else:
-        # LLM이 긍정/부정 의도 파악
-        from llm import get_llm
-        from utils.parse_json import parse_json
-
-        llm = get_llm()
-        intent_prompt = f"""사용자 응답이 대화 모드 진입을 원하는지 판단하세요.
-
-질문: "결과에 대해 질문하거나 추가 분석을 원하시나요?"
-사용자 응답: "{chat_choice}"
-
-응답이 긍정적이면(yes, 예, 네, 응, 좋아, 그래 등) "yes", 부정적이면(no, 아니, 괜찮아, 됐어 등) "no"를 반환하세요.
-애매하거나 질문이면 "yes"로 처리하세요 (질문이 있으면 대화 모드로 진입).
-
-JSON만 출력:
-{{"intent": "yes" or "no", "reasoning": "판단 근거"}}"""
-
-        try:
-            result = llm.invoke([
-                SystemMessage(content="You are an intent classifier. Always respond with valid JSON only."),
-                HumanMessage(content=intent_prompt)
-            ])
-            parsed = parse_json(result.content)
-            should_chat = parsed.get("intent", "yes") == "yes"
-        except Exception:
-            # 파싱 실패 시 기본값: 대화 모드 진입
-            should_chat = True
-
-        if should_chat:
-            from agents import interactive_chat_loop
-            interactive_chat_loop(values)
-        else:
-            print("\n프로그램을 종료합니다.")
+    save_result(user_input, values)
 
 if __name__ == "__main__":
     run()

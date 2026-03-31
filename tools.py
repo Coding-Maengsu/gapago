@@ -153,9 +153,8 @@ def arxiv_api_call(
                 r = requests.get(url, timeout=30)
                 if r.status_code == 429:
                     wait = 3 * (attempt + 1)
-                    print(
-                        f"  [arxiv] 429 rate limit → {wait}s 대기 후 재시도 ({attempt + 1}/3)"
-                    )
+
+                    print(f"  [arxiv] 429 rate limit → {wait}s 대기 후 재시도 ({attempt + 1}/3)")
                     print(f"  [arxiv] 응답 body: {r.text[:200]}")  # ← 이거 추가
                     time.sleep(wait)
                     continue
@@ -179,10 +178,7 @@ def arxiv_api_call(
 
 # ============================== Crossref ==============================
 _CROSSREF_API = "https://api.crossref.org/works"
-_CROSSREF_HEADERS = {
-    "User-Agent": "GAPAGO-Research-Agent/1.0 (mailto:gapago@research.org)"
-}
-
+_CROSSREF_HEADERS = {"User-Agent": "GAPAGO-Research-Agent/1.0 (mailto:gapago@research.org)"}
 
 def crossref_search(query: str, rows: int = 40, year: str = "") -> list[dict]:
     """Crossref API로 학술 논문 검색. 1.5억+ 메타데이터, 넉넉한 rate limit."""
@@ -202,9 +198,9 @@ def crossref_search(query: str, rows: int = 40, year: str = "") -> list[dict]:
         params["filter"] = f"from-pub-date:{from_year},until-pub-date:{to_year}"
 
     try:
-        r = requests.get(
-            _CROSSREF_API, params=params, headers=_CROSSREF_HEADERS, timeout=30
-        )
+
+        r = requests.get(_CROSSREF_API, params=params, headers=_CROSSREF_HEADERS, timeout=30)
+
         r.raise_for_status()
         data = r.json()
     except Exception as e:
@@ -230,9 +226,7 @@ def crossref_search(query: str, rows: int = 40, year: str = "") -> list[dict]:
                 authors.append(name)
 
         # 연도
-        date_parts = item.get(
-            "published-print", item.get("published-online", item.get("created", {}))
-        )
+        date_parts = item.get("published-print", item.get("published-online", item.get("created", {})))
         year_val = 0
         if date_parts and date_parts.get("date-parts"):
             try:
@@ -246,7 +240,8 @@ def crossref_search(query: str, rows: int = 40, year: str = "") -> list[dict]:
         # PDF URL 추출: link 필드에서 application/pdf 타입 우선
         # Elsevier TDM API URL (api.elsevier.com, httpAccept=text/xml) 등은 제외
         pdf_url = ""
-        for link in item.get("link") or []:
+
+        for link in (item.get("link") or []):
             ct = (link.get("content-type") or "").lower()
             link_url = link.get("URL", "")
             if "api.elsevier.com" in link_url or "httpAccept=text/xml" in link_url:
@@ -255,7 +250,7 @@ def crossref_search(query: str, rows: int = 40, year: str = "") -> list[dict]:
                 pdf_url = link_url
                 break
         if not pdf_url:
-            for link in item.get("link") or []:
+            for link in (item.get("link") or []):
                 link_url = link.get("URL", "")
                 if "api.elsevier.com" in link_url or "httpAccept=text/xml" in link_url:
                     continue
@@ -263,25 +258,19 @@ def crossref_search(query: str, rows: int = 40, year: str = "") -> list[dict]:
                     pdf_url = link_url
                     break
 
-        results.append(
-            {
-                "paper_id": f"crossref:{doi}" if doi else f"crossref:{title[:50]}",
-                "title": title,
-                "abstract": abstract,
-                "url": url,
-                "year": year_val,
-                "authors": authors,
-                "doi": doi,
-                "score_bm25": 0.0,
-                "venue": (
-                    _norm((item.get("container-title") or [""])[0])
-                    if item.get("container-title")
-                    else ""
-                ),
-                "source": "crossref",
-                "full_text_sections": {"doi": doi, "pdf_url": pdf_url} if doi else {},
-            }
-        )
+        results.append({
+            "paper_id": f"crossref:{doi}" if doi else f"crossref:{title[:50]}",
+            "title": title,
+            "abstract": abstract,
+            "url": url,
+            "year": year_val,
+            "authors": authors,
+            "doi": doi,
+            "score_bm25": 0.0,
+            "venue": _norm((item.get("container-title") or [""])[0]) if item.get("container-title") else "",
+            "source": "crossref",
+            "full_text_sections": {"doi": doi, "pdf_url": pdf_url} if doi else {},
+        })
 
     return results
 
@@ -827,20 +816,20 @@ def semantic_scholar_search(query: str, limit: int = 20, year: str = "") -> list
                 if not venue and arxiv_id:
                     venue = "arXiv preprint"
                 oa_pdf = (p.get("openAccessPdf") or {}).get("url", "")
-                papers.append(
-                    {
-                        "paper_id": paper_id,
-                        "title": _norm(p.get("title", "")),
-                        "abstract": _norm(p.get("abstract") or ""),
-                        "url": p.get("url") or "",
-                        "year": p.get("year") or 0,
-                        "authors": authors,
-                        "score_bm25": 0.0,
-                        "venue": venue,
-                        "source": "semantic_scholar",
-                        "full_text_sections": {"doi": doi, "pdf_url": oa_pdf},
-                    }
-                )
+
+                papers.append({
+                    "paper_id": paper_id,
+                    "title": _norm(p.get("title", "")),
+                    "abstract": _norm(p.get("abstract") or ""),
+                    "url": p.get("url") or "",
+                    "year": p.get("year") or 0,
+                    "authors": authors,
+                    "score_bm25": 0.0,
+                    "venue": venue,
+                    "source": "semantic_scholar",
+                    "full_text_sections": {"doi": doi, "pdf_url": oa_pdf},
+                })
+
             last_error = None
             break
         except Exception as e:
@@ -927,20 +916,19 @@ def openalex_search(query: str, per_page: int = 20, year: str = "") -> list[dict
             if isinstance(oa_info, dict):
                 oa_pdf = oa_info.get("oa_url") or ""
 
-        papers.append(
-            {
-                "paper_id": f"openalex:{openalex_id}",
-                "title": title,
-                "abstract": _norm(abstract),
-                "url": doi_url or f"https://openalex.org/{openalex_id}",
-                "year": p.get("publication_year") or 0,
-                "authors": authors,
-                "score_bm25": 0.0,
-                "venue": venue,
-                "source": "openalex",
-                "full_text_sections": {"doi": doi, "pdf_url": oa_pdf},
-            }
-        )
+        papers.append({
+            "paper_id": f"openalex:{openalex_id}",
+            "title": title,
+            "abstract": _norm(abstract),
+            "url": doi_url or f"https://openalex.org/{openalex_id}",
+            "year": p.get("publication_year") or 0,
+            "authors": authors,
+            "score_bm25": 0.0,
+            "venue": venue,
+            "source": "openalex",
+            "full_text_sections": {"doi": doi, "pdf_url": oa_pdf},
+        })
+
     return papers
 
 
@@ -950,10 +938,9 @@ class ArxivApiCallInput(BaseModel):
     max_total: int = Field(default=100, description="총 최대 결과 수")
     page_size: int = Field(default=100, description="페이지당 결과 수")
     max_pages: int = Field(default=1, description="최대 페이지 수")
-    year: str = Field(
-        default="",
-        description="연도 필터 (e.g. '2022-2026'). submittedDate 범위로 변환",
-    )
+
+    year: str = Field(default="", description="연도 필터 (e.g. '2022-2026'). submittedDate 범위로 변환")
+
 
 
 class CrossrefSearchInput(BaseModel):
@@ -1051,14 +1038,12 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
         """Search Crossref for academic papers. Covers 150M+ scholarly works with DOI, abstracts, and citation metadata. Very reliable with no rate limit issues. Use year param for filtering (e.g. '2022-2026')."""
         try:
             results = crossref_search(query=query, rows=rows, year=year)
-            return json.dumps(
-                {
-                    "source": "crossref",
-                    "query": query,
-                    "results": results,
-                },
-                ensure_ascii=False,
-            )
+
+            return json.dumps({
+                "source": "crossref",
+                "query": query,
+                "results": results,
+            }, ensure_ascii=False)
         except Exception as e:
             return f"<Error>Crossref search failed: {str(e)}</Error>"
 
@@ -1079,9 +1064,8 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
             return f"<Error>Web search failed: {str(e)}</Error>"
 
     @tool(args_schema=SemanticScholarSearchInput)
-    def semantic_scholar_search_tool(
-        query: str, limit: int = 50, year: str = ""
-    ) -> str:
+
+    def semantic_scholar_search_tool(query: str, limit: int = 50, year: str = "") -> str:
         """Search Semantic Scholar for academic papers. Returns papers with metadata. Good for finding highly-cited and cross-domain papers."""
         try:
             results = semantic_scholar_search(query=query, limit=limit, year=year)
@@ -1113,13 +1097,8 @@ def build_retrieval_tools(config: Optional[RunnableConfig] = None) -> List:
             return f"<Error>OpenAlex search failed: {str(e)}</Error>"
 
     @tool(args_schema=ScienceOnSearchInput)
-    def scienceon_search_tool(
-        query: str,
-        target: str = "ARTI",
-        cur_page: int = 1,
-        row_count: int = 15,
-        year: str = "",
-    ) -> str:
+
+    def scienceon_search_tool(query: str, target: str = "ARTI", cur_page: int = 1, row_count: int = 15, year: str = "") -> str:
         """Search ScienceON paper records. Use year param for filtering (e.g. '2022-2026')."""
         if not cfg.scienceon_client_id:
             return "<Error>ScienceON client_id is not configured. Set SCIENCEON_CLIENT_ID.</Error>"

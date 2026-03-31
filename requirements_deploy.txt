@@ -1,13 +1,17 @@
 # GAPAGO Deploy Requirements (Render/Cloud)
 # No version pins - let pip resolve dependencies
+# CPU-only PyTorch (~200MB vs ~2GB full) — Render에는 GPU 없음
+--extra-index-url https://download.pytorch.org/whl/cpu
 
 fastapi
 uvicorn
 langchain
 langchain-anthropic
+langchain_groq
 langchain-aws
 langchain-community
 langchain-core
+langchain-google-vertexai
 langchain-google-genai
 langchain-openai
 langchain-text-splitters
@@ -25,6 +29,11 @@ tavily
 beautifulsoup4
 feedparser
 PyMuPDF
+pymupdf4llm
+faiss-cpu
+sentence-transformers
+onnxruntime
+optimum[onnxruntime]
 requests
 python-dotenv
 pydantic
