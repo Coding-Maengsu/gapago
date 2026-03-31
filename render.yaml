@@ -2,11 +2,15 @@ services:
   - type: web
     name: gapago
     runtime: python
-    buildCommand: pip install -r requirements_deploy.txt
+    buildCommand: |
+      pip install -r requirements_deploy.txt
+      cd landing && npm ci && npm run build
     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT --workers 1
     envVars:
       - key: PYTHON_VERSION
         value: "3.10.12"
+      - key: NODE_VERSION
+        value: "20"
       - key: LLM_PROVIDER
         value: azure
       - key: RERANK_MODELS
