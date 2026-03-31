@@ -33,13 +33,13 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ### 3.2 `GET /api/providers` — LLM 프로바이더 목록
 
-**응답:**
+**응답** (키는 숫자 문자열 — `AVAILABLE_PROVIDERS` 기반):
 ```json
 {
-  "azure": {"id": "azure", "name": "Azure OpenAI"},
-  "claude": {"id": "claude", "name": "Claude (Bedrock)"},
-  "gemini": {"id": "gemini", "name": "Google Gemini"},
-  "exaone": {"id": "exaone", "name": "LG EXAONE"}
+  "1": {"id": "azure", "name": "Azure OpenAI (GPT)"},
+  "2": {"id": "claude", "name": "Claude (AWS Bedrock)"},
+  "3": {"id": "gemini", "name": "Google Gemini"},
+  "4": {"id": "exaone", "name": "LG EXAONE (Local GPU)"}
 }
 ```
 
@@ -109,7 +109,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.4 `GET /api/stream/{session_id}` — SSE 스트림
+### 3.5 `GET /api/stream/{session_id}` — SSE 스트림
 
 실시간 파이프라인 진행 상황을 SSE로 스트리밍한다.
 
@@ -181,7 +181,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.5 `GET /api/status/{session_id}` — 세션 상태 조회
+### 3.6 `GET /api/status/{session_id}` — 세션 상태 조회
 
 **응답:**
 ```json
@@ -194,7 +194,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.6 `GET /api/stop/{session_id}` — 분석 중지
+### 3.7 `GET /api/stop/{session_id}` — 분석 중지
 
 실행 중인 분석을 중지한다.
 
@@ -205,7 +205,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.7 `GET /api/clarify` — 명확화 응답 제출
+### 3.8 `GET /api/clarify` — 명확화 응답 제출
 
 인터럽트된 파이프라인에 사용자 응답을 전달하고 재개한다.
 
@@ -218,7 +218,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 **응답:**
 ```json
-{"status": "resumed", "accumulated_events": 5}
+{"session_id": "...", "status": "resumed", "events_count": 5}
 ```
 
 **내부 동작:**
@@ -228,7 +228,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.8 `GET /api/history` — 분석 히스토리 목록
+### 3.9 `GET /api/history` — 분석 히스토리 목록
 
 **쿼리 파라미터:**
 
@@ -243,18 +243,21 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
     "filename": "gapago_result_20260328_143022.json",
     "query": "연구 질문 미리보기",
     "timestamp": "2026-03-28T14:30:22",
+    "refined_query": "정제된 쿼리",
     "gaps_count": 7,
-    "status": "completed"
+    "status": "completed",
+    "session_id": "uuid-string",
+    "parent_session_id": ""
   }
 ]
 ```
 
-- 활성 세션 + 저장된 파일 결과 모두 포함
-- 타임스탬프 역순 정렬
+- 활성 세션 (`running`/`interrupted`) + 저장된 파일 결과 모두 포함
+- `HistoryItem` Pydantic 모델로 구조화
 
 ---
 
-### 3.9 `GET /api/history/{filename}` — 저장된 결과 상세
+### 3.10 `GET /api/history/{filename}` — 저장된 결과 상세
 
 **응답:** 저장된 JSON 결과 파일 전체 내용
 
@@ -263,6 +266,8 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
   "query": "원본 질문",
   "timestamp": "ISO8601",
   "user_id": "사용자 ID",
+  "session_id": "세션 ID",
+  "parent_session_id": "부모 세션 ID (추가 탐색 시)",
   "refined_query": "정제된 검색 쿼리",
   "keywords": ["keyword1", "keyword2"],
   "papers": [...],
@@ -277,7 +282,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.10 `GET /` — 정적 파일 서빙
+### 3.11 `GET /` — 정적 파일 서빙
 
 - `frontend/index.html` 반환
 - `/logo.png`, `/new_logo.png`, `/middle_image.png` 정적 이미지 서빙
@@ -344,7 +349,9 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
   "decision": "PASS|RETRY",
   "call1_results": [...],
   "call2_result": {...},
-  "warnings": [...]
+  "eval_warnings": [...],
+  "limitations_count": 12,
+  "detail": "12 limitations evaluated — PASS"
 }
 ```
 
@@ -372,7 +379,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
     {
       "axis": "data",
       "axis_label": "Data & Dataset",
-      "axis_type": "fixed|dynamic",
+      "axis_type": "dynamic",
       "gap_statement": "갭 설명 (25단어 이내)",
       "elaboration": "상세 설명",
       "proposed_topic": "제안 연구 방향",
@@ -417,9 +424,11 @@ _sessions[session_id] = {
     "event_signal": Event,  # 새 이벤트 알림용
     "query": str,           # 원본 쿼리
     "user_id": str,         # 사용자 ID
+    "started_at": str,      # ISO8601 시작 시간
     "filename": str,        # 결과 파일명 (완료 시)
     "cancelled": Event,     # 중지 시그널
-    "parent_session_id": str,  # 추가 탐색 시 부모 세션 (선택)
+    "clarify_prompt": str,  # 명확화 프롬프트 (인터럽트 시)
+    "parent_session_id": str,  # 추가 탐색 시 부모 세션 (/api/explore에서만)
 }
 ```
 
@@ -459,15 +468,29 @@ _sessions[session_id] = {
 | `AWS_SECRET_ACCESS_KEY` | AWS 시크릿 키 | - |
 | `BEDROCK_CLAUDE_MODEL` | 모델 ID | `us.anthropic.claude-sonnet-4-20250514-v1:0` |
 
-#### Google Gemini
-| 변수 | 설명 |
-|------|------|
-| `GOOGLE_API_KEY` | Google API 키 |
+#### Google Gemini (Vertex AI)
+| 변수 | 설명 | 기본값 |
+|------|------|--------|
+| `GOOGLE_APPLICATION_CREDENTIALS_JSON` | GCP 서비스 계정 JSON (임시 파일로 저장됨) | - |
+| `GOOGLE_CLOUD_PROJECT` | GCP 프로젝트 ID | `coding-beast` |
+| `GOOGLE_CLOUD_LOCATION` | GCP 리전 | `us-central1` |
 
 #### LG EXAONE (로컬 GPU)
 | 변수 | 설명 | 기본값 |
 |------|------|--------|
 | `EXAONE_MODEL_PATH` | 모델 경로 | `LGAI-EXAONE/EXAONE-3.5-7.8B-Instruct` |
+
+#### Groq (GAP 추론 단계 전용)
+| 변수 | 설명 | 기본값 |
+|------|------|--------|
+| `GROQ_API_KEY` | Groq API 키 | - |
+| `GROQ_MODEL` | 모델 ID | `qwen/qwen3-32b` |
+| `GROQ_REASONING_EFFORT` | 추론 노력 수준 | `default` (`default`/`none`) |
+
+#### QwQ (GAP 추론 단계 전용, 로컬 GPU)
+| 변수 | 설명 | 기본값 |
+|------|------|--------|
+| `QWQ_MODEL_PATH` | 모델 경로 | `Qwen/QwQ-32B` |
 
 ### 6.2 필수 (공통)
 | 변수 | 설명 |
@@ -481,15 +504,18 @@ _sessions[session_id] = {
 |------|------|--------|------|
 | `LLM_PROVIDER` | string | `azure` | 기본 LLM 프로바이더 |
 | `LLM_MODEL` | string | - | 모델/배포 이름 |
+| `GAP_REASONING_PROVIDER` | string | - | GAP 추론 단계 전용 프로바이더 (`groq`, `qwq`) |
 | `TAVILY_MAX_RESULTS` | int | `5` | 최대 웹 검색 결과 수 |
-| `ARXIV_MAX_RESULTS` | int | `10` | 최대 arXiv 논문 수 |
-| `BM25_TOP_K` | int | `30` | BM25 1차 필터 수 |
-| `RERANKER_TOP_K` | int | `15` | LLM 리랭커 2차 선택 수 |
+| `ARXIV_MAX_RESULTS` | int | `20` | 최대 arXiv 논문 수 |
+| `BM25_TOP_K` | int | `50` | BM25 1차 필터 수 |
+| `RERANKER_TOP_K` | int | `15` | CrossEncoder/LLM 리랭커 2차 선택 수 |
+| `RERANK_MODELS` | string | `auto` | 랭킹 모델 tier (`auto`/`light`/`full`) |
+| `FULLTEXT_TARGET_COUNT` | int | `30` | Full text 필터 후 최대 논문 수 |
 | `SCIENCEON_CLIENT_ID` | string | - | ScienceON API 클라이언트 ID |
 | `SCIENCEON_MAC_ADDRESS` | string | - | ScienceON 토큰 생성용 MAC |
 | `SCIENCEON_KEY` | string | - | ScienceON AES 암호화 키 |
 | `SCIENCEON_DEFAULT_TARGET` | string | `ARTI` | ScienceON 검색 대상 |
-| `SCIENCEON_DEFAULT_ROW_COUNT` | int | `10` | ScienceON 기본 결과 수 |
+| `SCIENCEON_DEFAULT_ROW_COUNT` | int | `20` | ScienceON 기본 결과 수 |
 
 ---
 
@@ -503,14 +529,16 @@ _sessions[session_id] = {
 @dataclass
 class Configuration:
     tavily_max_results: int    # 1-50, 기본 5
-    arxiv_max_docs: int        # 1-50, 기본 10
-    bm25_top_k: int            # 10-100, 기본 30
-    reranker_top_k: int        # 5-50, 기본 15
+    arxiv_max_docs: int        # 1-50, 기본 20
     scienceon_client_id: str
     scienceon_mac_address: str
     scienceon_key: str
     scienceon_default_target: str  # 기본 "ARTI"
-    scienceon_default_row_count: int  # 기본 10
+    scienceon_default_row_count: int  # 기본 20
+    fulltext_target_count: int # 15-60, 기본 30
+    bm25_top_k: int            # 10-100, 기본 50
+    reranker_top_k: int        # 5-50, 기본 15
+    rerank_models: str         # "auto"/"light"/"full", 기본 "auto"
 ```
 
 **접근 방식:** `Configuration.from_runnable_config(config)` 메서드로 요청별 설정 조회
@@ -523,14 +551,23 @@ class Configuration:
 
 `get_llm(provider, model)` 팩토리 함수, `@lru_cache(maxsize=8)` 캐싱.
 
+**기본 파이프라인 프로바이더** (사용자 선택 가능):
+
 | 프로바이더 | 라이브러리 | 기본 모델 | 반환 타입 |
 |-----------|-----------|----------|----------|
 | `azure` | `langchain-openai` | `gpt-5.1-chat` | `AzureChatOpenAI` |
-| `claude` / `anthropic` | `langchain-aws` | `claude-sonnet-4-20250514-v1:0` | `ChatBedrockConverse` |
-| `gemini` / `google` | `langchain-google-genai` | `gemini-2.0-flash` | `ChatGoogleGenerativeAI` |
+| `claude` / `anthropic` | `langchain-aws` | `claude-sonnet-4-20250514-v1:0` | `ChatBedrockConverse` (read_timeout=300s) |
+| `gemini` / `google` | `langchain-google-vertexai` | `gemini-3.1-flash-lite-preview` | `ChatVertexAI` |
 | `exaone` | `transformers` + `langchain` | `EXAONE-3.5-7.8B-Instruct` | `ChatHuggingFace` |
 
-**대화형 선택:** `select_provider_interactive()` 함수로 CLI에서 프로바이더 선택
+**GAP 추론 전용 프로바이더** (`GAP_REASONING_PROVIDER` 환경변수로 선택, 내부 라우팅 전용):
+
+| 프로바이더 | 라이브러리 | 기본 모델 | 특징 |
+|-----------|-----------|----------|------|
+| `groq` | `langchain-groq` | `qwen/qwen3-32b` | ~535 tok/s, Thinking Mode 지원, `reasoning_effort` 파라미터 |
+| `qwq` | `transformers` + `langchain` | `Qwen/QwQ-32B` | 로컬 GPU (A100 권장), CoT 추론 특화 |
+
+**대화형 선택:** `select_provider_interactive()` 함수로 CLI에서 기본 프로바이더 선택. GAP 추론 프로바이더는 환경변수로만 설정.
 
 ---
 
@@ -538,17 +575,20 @@ class Configuration:
 
 **파일:** `tools.py`
 
-### 9.1 도구 목록
+### 9.1 검색 함수 목록
 
-| 도구 | 데이터 소스 | API 키 필요 | 설명 |
+> **참고:** LLM tool 호출이 아닌, `retrieval_agent.py`의 `_parallel_search()`가 직접 호출하는 Python 함수.
+
+| 함수 | 데이터 소스 | API 키 필요 | 설명 |
 |------|-----------|------------|------|
-| `arxiv_api_call_tool` | arXiv | X | 직접 API (XML/Atom 파싱) |
-| `semantic_scholar_search_tool` | Semantic Scholar | X | 학술 그래프 API (2억+ 논문) |
-| `openalex_search_tool` | OpenAlex | X | 학술 데이터 (2억+ 저작물) |
-| `web_search_tool` | Tavily | O | 웹 검색 |
-| `scienceon_search_tool` | ScienceON (KISTI) | O | 한국 학술 DB |
-| `scienceon_patent_search_tool` | ScienceON | O | 특허 검색 |
-| `scienceon_report_search_tool` | ScienceON | O | 국가 R&D 보고서 |
+| `arxiv_api_call` | arXiv | X | 직접 API (XML/Atom), `threading.Lock` 직렬화 + 5초 간격 |
+| `crossref_search` | Crossref | X | 1.5억+ 메타데이터, PDF URL 추출, venue 포함 |
+| `semantic_scholar_search` | Semantic Scholar | X | 학술 그래프 API (2억+ 논문) |
+| `openalex_search` | OpenAlex | X | 학술 데이터 (2억+ 저작물), inverted index abstract |
+| `TavilySearch.search` | Tavily | O | 웹 검색 (트렌드용) |
+| `scienceon_search` | ScienceON (KISTI) | O | 한국 학술 DB |
+| `scienceon_patent_search` | ScienceON | O | 특허 검색 |
+| `scienceon_report_search` | ScienceON | O | 국가 R&D 보고서 |
 
 ### 9.2 논문 정규화 스키마
 
@@ -562,11 +602,14 @@ class Configuration:
   "url": "https://...",
   "year": 2024,
   "authors": ["Author A", "Author B"],
-  "source": "arxiv|semantic_scholar|openalex|scienceon|web"
+  "doi": "10.xxxx/yyyy",
+  "venue": "arXiv preprint",
+  "source": "arxiv|crossref|semantic_scholar|openalex|scienceon|web",
+  "full_text_sections": {"doi": "...", "pdf_url": "..."}
 }
 ```
 
-`paper_id` 접두사: `arxiv:`, `s2:`, `openalex:`, `scienceon:`, `web:`
+`paper_id` 접두사: `arxiv:`, `crossref:`, `s2:`, `openalex:`, `scienceon:`, `web:`
 
 ### 9.3 BM25 랭킹
 
@@ -577,17 +620,11 @@ bm25_rank(papers, query_text, top_k=30) -> List[dict]
 - title + abstract를 토큰화하여 점수 계산
 - 내림차순 정렬 후 상위 `top_k` 반환
 
-### 9.4 도구 그룹핑
+### 9.4 검색 호출 방식
 
-```python
-build_role_tools(config) -> dict:
-    "QUERY_TOOLS": []                    # 도구 없음
-    "RETRIEVAL_TOOLS": [7개 검색 도구]    # 모든 검색 도구
-    "LIMITATION_TOOLS": []               # 도구 없음
-    "GAP_INFER_TOOLS": []               # 도구 없음
-    "CRITIC_TOOLS": []                   # 도구 없음
-    "RESPONSE_TOOLS": []                # 도구 없음
-```
+> LLM ReAct 에이전트 기반 tool 호출에서 **직접 병렬 함수 호출**로 전환됨.
+
+`retrieval_agent.py`의 `_parallel_search()`가 `ThreadPoolExecutor(max_workers=len(tasks))`로 8개 검색 함수를 동시 실행. LangChain `@tool` 데코레이터나 `build_role_tools()`는 더 이상 사용하지 않음.
 
 ### 9.5 ScienceON 인증 흐름
 
@@ -658,10 +695,12 @@ services:
 | `langgraph` | 1.0.8 | 상태 그래프 오케스트레이션 |
 | `langchain-openai` | 1.1.9 | Azure OpenAI |
 | `langchain-aws` | 1.4.0 | AWS Bedrock (Claude) |
-| `langchain-google-genai` | 4.2.1 | Gemini |
+| `langchain-google-vertexai` | - | Gemini (Vertex AI) |
+| `langchain-groq` | - | Groq (Qwen3-32B) |
 | `anthropic` | 0.86.0 | Claude SDK |
+| `sentence-transformers` | - | SPECTER2/MiniLM 임베딩 + CrossEncoder |
+| `faiss-cpu` / `faiss-gpu` | - | FAISS 벡터 검색 |
 | `rank-bm25` | 0.2.2 | BM25 랭킹 |
-| `arxiv` | 2.4.1 | arXiv API 클라이언트 |
 | `tavily` | 1.1.0 | Tavily 웹 검색 |
 | `pydantic` | 2.12.5 | 데이터 검증 |
 | `python-dotenv` | 1.2.1 | .env 로딩 |
