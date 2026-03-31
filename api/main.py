@@ -23,6 +23,7 @@ from graphs.graph import build_graph
 from langchain_core.messages import HumanMessage, AIMessage
 from llm import AVAILABLE_PROVIDERS, get_llm
 from agents.gap_chat_agent import gap_chat_respond
+from agents.retrieval_agent import preload_models
 from utils.progress import init_progress, drain_progress, cleanup_progress
 
 # ── App ──────────────────────────────────────────────────────────────
@@ -51,7 +52,13 @@ async def warmup():
             print("[startup] Warming up LLM...")
             get_llm()
             print("[startup] Warming up graph...")
-            build_graph()
+            _get_graph()  # 캐시 채우기 — 이후 analyze/explore는 즉시 반환
+            # ── 모델 사전 로딩 ──────────────────────────────────────────
+            # workers=1 단일 프로세스이므로 여기서 한 번만 로딩하면
+            # 이후 모든 요청이 캐시된 모델을 재사용 (메모리 절약 + 첫 요청 지연 제거)
+            print("[startup] Preloading Embedding + CrossEncoder models...")
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, preload_models, "light")
             print("[startup] Warm-up complete.")
         except Exception as e:
             print(f"[startup] Warm-up failed (non-fatal): {e}")
@@ -63,6 +70,18 @@ async def warmup():
 async def health():
     """Health check endpoint for uptime monitoring."""
     return {"status": "ok"}
+
+
+# ── Graph 캐시 (프로세스당 1회만 빌드) ───────────────────────────────────
+# build_graph()는 StateGraph + MemorySaver 초기화로 수백ms 소요.
+# 매 요청마다 호출하면 event loop를 블로킹하여 /api/stream 404를 유발.
+_graph_cache = None
+
+def _get_graph():
+    global _graph_cache
+    if _graph_cache is None:
+        _graph_cache = build_graph()
+    return _graph_cache
 
 
 # ── In-memory session store ──────────────────────────────────────────
@@ -299,11 +318,33 @@ async def analyze(query: str, provider: str = "azure", domain: str = "auto", yea
     Client should connect to /api/stream/{session_id} for SSE updates.
     """
     session_id = str(uuid.uuid4())
-    graph = build_graph()
+
+    # ── 세션을 graph 빌드보다 먼저 등록 ──────────────────────────────
+    # graph = build_graph()가 동기 함수라 수백ms 소요될 수 있음.
+    # 프론트는 /api/analyze 응답 즉시 /api/stream을 호출하므로,
+    # 세션 등록이 늦으면 stream에서 404가 발생함.
+    # → 세션을 먼저 "pending" 상태로 등록하고, graph는 이후에 채움.
+    _sessions[session_id] = {
+        "status": "running",
+        "query": query,
+        "user_id": user_id,
+        "started_at": datetime.now().isoformat(),
+        "graph": None,  # graph는 아래에서 채움
+        "config": None,
+        "events": [],
+        "event_signal": asyncio.Event(),
+        "cancelled": asyncio.Event(),
+        "filename": None,
+        "clarify_prompt": None,
+    }
+
+    graph = _get_graph()  # 캐시된 graph 반환 (최초 1회만 빌드)
     config_dict = {
         "configurable": {"thread_id": session_id},
         "recursion_limit": 30,
     }
+    _sessions[session_id]["graph"] = graph
+    _sessions[session_id]["config"] = config_dict
 
     inputs = {
         "messages": [HumanMessage(content=query)],
@@ -313,20 +354,6 @@ async def analyze(query: str, provider: str = "azure", domain: str = "auto", yea
         "year_range": year_range,
         "output_language": output_language,
         "session_id": session_id,
-    }
-
-    _sessions[session_id] = {
-        "status": "running",
-        "query": query,
-        "user_id": user_id,
-        "started_at": datetime.now().isoformat(),
-        "graph": graph,
-        "config": config_dict,
-        "events": [],
-        "event_signal": asyncio.Event(),
-        "cancelled": asyncio.Event(),
-        "filename": None,
-        "clarify_prompt": None,
     }
 
     # Launch pipeline in background
@@ -342,11 +369,30 @@ async def explore(topic: str, session_id: str = "", provider: str = "azure", dom
     Links the new session to the parent session for hierarchical history.
     """
     new_session_id = str(uuid.uuid4())
-    graph = build_graph()
+
+    # 세션 먼저 등록 (analyze와 동일한 race condition 방지)
+    _sessions[new_session_id] = {
+        "status": "running",
+        "query": topic,
+        "user_id": user_id,
+        "started_at": datetime.now().isoformat(),
+        "graph": None,
+        "config": None,
+        "events": [],
+        "event_signal": asyncio.Event(),
+        "cancelled": asyncio.Event(),
+        "filename": None,
+        "clarify_prompt": None,
+        "parent_session_id": session_id,
+    }
+
+    graph = _get_graph()
     config_dict = {
         "configurable": {"thread_id": new_session_id},
         "recursion_limit": 30,
     }
+    _sessions[new_session_id]["graph"] = graph
+    _sessions[new_session_id]["config"] = config_dict
 
     inputs = {
         "messages": [HumanMessage(content=topic)],
@@ -355,21 +401,6 @@ async def explore(topic: str, session_id: str = "", provider: str = "azure", dom
         "llm_provider": provider,
         "year_range": year_range,
         "output_language": output_language,
-    }
-
-    _sessions[new_session_id] = {
-        "status": "running",
-        "query": topic,
-        "user_id": user_id,
-        "started_at": datetime.now().isoformat(),
-        "graph": graph,
-        "config": config_dict,
-        "events": [],
-        "event_signal": asyncio.Event(),
-        "cancelled": asyncio.Event(),
-        "filename": None,
-        "clarify_prompt": None,
-        "parent_session_id": session_id,
     }
 
     asyncio.create_task(_run_pipeline(new_session_id, graph, config_dict, inputs))
@@ -453,7 +484,14 @@ async def stream(session_id: str, from_idx: int = 0):
     Supports reconnection — client can reconnect after refresh.
     Use from_idx to skip already-consumed events (e.g. after clarify resume).
     """
+    # 세션이 아직 등록 안 됐을 수 있으므로 잠시 대기 (race condition 방어)
     session = _sessions.get(session_id)
+    if not session:
+        for _ in range(10):  # 최대 1초 대기
+            await asyncio.sleep(0.1)
+            session = _sessions.get(session_id)
+            if session:
+                break
     if not session:
         raise HTTPException(404, "Session not found")
 

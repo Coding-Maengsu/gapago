@@ -3,11 +3,19 @@ from __future__ import annotations
 
 import re
 import time
+import threading
+import xml.etree.ElementTree as ET
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import hashlib
+import json
+import os
+from pathlib import Path
+
 import requests
 import pymupdf as fitz
+import pymupdf4llm
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
@@ -40,19 +48,41 @@ TRACK2_KEYS = {"introduction", "method", "experiment", "discussion"}
 MAX_SECTION_CHARS = 3000  # 섹션별 최대 글자 수 (토큰 비용 제한)
 
 
+def _clean_doi(doi: str) -> str:
+    """Strip URL prefixes from DOI, returning bare DOI like '10.1109/xxx'."""
+    return doi.replace("https://doi.org/", "").replace("http://doi.org/", "").strip()
+
+
+# PMC BioC section_type → SECTION_KEYWORDS 키 매핑
+_PMC_SECTION_MAP = {
+    "INTRO": "introduction",
+    "METHODS": "method",
+    "RESULTS": "experiment",
+    "DISCUSS": "discussion",
+    "CONCL": "conclusion",
+}
+
+# S2 API rate limiter (1 req/s without key)
+_S2_RATE_LOCK = threading.Lock()
+_S2_LAST_CALL = 0.0
+
+
 # =====================================================================
 # 섹션 분리 유틸
 # =====================================================================
 def _split_sections(full_text: str) -> dict:
-    """전체 텍스트에서 섹션별로 분리."""
+    """전체 텍스트에서 섹션별로 분리. plain text 및 Markdown 헤딩 모두 지원."""
+    _kw_alt = "|".join(
+        re.escape(kw)
+        for kws in SECTION_KEYWORDS.values()
+        for kw in kws
+    )
     heading_pattern = re.compile(
-        r"(?m)^(\d+[\.\d]*\s+)?("
-        + "|".join(
-            kw.title()
-            for kws in SECTION_KEYWORDS.values()
-            for kw in kws
-        )
-        + r")(\s*:)?\s*$",
+        # "3.1 Conclusion:", "## Conclusions", "Experimental Results and Discussion" 등
+        # 키워드가 포함된 줄을 헤딩으로 인식 (키워드 뒤 추가 단어 허용)
+        r"(?m)^(?:#{1,4}\s+)?(?:\d+[\.\d]*\.?\s+)?(?:[^\n]{0,30}?\b)("
+        + _kw_alt
+        + r")s?\b[^\n]{0,60}$",
         re.IGNORECASE,
     )
 
@@ -63,6 +93,9 @@ def _split_sections(full_text: str) -> dict:
     sections = {}
     for i, match in enumerate(matches):
         h = match.group(0).lower().strip()
+        # 너무 긴 줄은 헤딩이 아닐 가능성이 높음
+        if len(h) > 100:
+            continue
         key = None
         for k, kws in SECTION_KEYWORDS.items():
             if any(kw in h for kw in kws):
@@ -83,7 +116,48 @@ def _split_sections(full_text: str) -> dict:
 # =====================================================================
 # Full text 로드 (소스별 분기)
 # =====================================================================
-_REQUEST_HEADERS = {"User-Agent": "GAPAGO-Research-Agent/1.0"}
+_REQUEST_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,application/pdf;q=0.8,*/*;q=0.7",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://scholar.google.com/",
+}
+
+# ── Full text 캐시 ──
+_CACHE_DIR = Path(".cache/fulltext")
+_CACHE_TTL_DAYS = 7
+
+
+def _cache_key(paper_id: str) -> str:
+    return hashlib.sha256(paper_id.encode()).hexdigest()[:16]
+
+
+def _cache_get(paper_id: str) -> Optional[dict]:
+    """캐시에서 full text 섹션 로드. TTL 초과 시 None."""
+    path = _CACHE_DIR / f"{_cache_key(paper_id)}.json"
+    if not path.exists():
+        return None
+    try:
+        age_days = (time.time() - path.stat().st_mtime) / 86400
+        if age_days > _CACHE_TTL_DAYS:
+            path.unlink(missing_ok=True)
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        pass
+    return None
+
+
+def _cache_put(paper_id: str, sections: dict) -> None:
+    """섹션 데이터를 캐시에 저장."""
+    try:
+        _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        path = _CACHE_DIR / f"{_cache_key(paper_id)}.json"
+        path.write_text(json.dumps(sections, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
 
 
 def _extract_arxiv_id(paper: Paper) -> Optional[str]:
@@ -110,7 +184,7 @@ def _load_arxiv_html(paper: Paper) -> dict:
     try:
         from bs4 import BeautifulSoup
 
-        resp = requests.get(url, headers=_REQUEST_HEADERS, timeout=15)
+        resp = requests.get(url, headers=_REQUEST_HEADERS, timeout=8)
         resp.raise_for_status()
 
         soup = BeautifulSoup(resp.text, "html.parser")
@@ -167,25 +241,62 @@ def _load_arxiv_full_text(paper: Paper) -> dict:
 
 
 def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
-    """PyMuPDF로 PDF 바이트에서 텍스트 추출."""
+    """pymupdf4llm으로 PDF 바이트에서 Markdown 텍스트 추출 (섹션 헤딩 보존)."""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    text = ""
-    for page in doc:
-        text += page.get_text()
+    try:
+        text = pymupdf4llm.to_markdown(doc)
+    except Exception:
+        # fallback: plain text
+        text = ""
+        for page in doc:
+            text += page.get_text()
     doc.close()
     return text
+
+
+def _publisher_pdf_url(final_url: str) -> Optional[str]:
+    """출판사별 PDF URL 패턴을 이용해 직접 PDF URL을 생성."""
+    from urllib.parse import urlparse
+    parsed = urlparse(final_url)
+    host = parsed.hostname or ""
+    path = parsed.path
+
+    # MDPI — Cloudflare 보호로 requests 접근 불가. HTML fallback으로 전환
+    if "mdpi.com" in host:
+        return None
+
+    # PeerJ (peerj.com/articles/cs-XXXX → .../articles/cs-XXXX.pdf 대신 XML)
+    if "peerj.com" in host and path.startswith("/articles/"):
+        # PeerJ는 .pdf 직접 접근이 400이므로 HTML 본문 추출로 전환
+        return None
+
+    # Springer — /content/pdf/ 는 HTML을 반환하는 경우가 많으므로 HTML fallback 우선
+    if "springer" in host:
+        return None
+
+    # ScienceDirect / Elsevier
+    if "sciencedirect.com" in host and "/science/article/" in path:
+        # ScienceDirect는 PDF 직접 링크 생성이 어려움 → HTML fallback
+        return None
+
+    return None
 
 
 def _find_pdf_url_from_doi(doi: str) -> Optional[str]:
     """DOI 페이지에 접근하여 PDF 다운로드 링크를 찾는다."""
     doi_url = doi if doi.startswith("http") else f"https://doi.org/{doi}"
     try:
-        resp = requests.get(doi_url, headers=_REQUEST_HEADERS, timeout=15, allow_redirects=True)
+        resp = requests.get(doi_url, headers=_REQUEST_HEADERS, timeout=8, allow_redirects=True)
         resp.raise_for_status()
 
         # 리다이렉트된 최종 URL이 PDF인 경우
         if resp.headers.get("content-type", "").startswith("application/pdf"):
             return resp.url
+
+        # 출판사별 패턴으로 PDF URL 생성 시도
+        publisher_url = _publisher_pdf_url(resp.url)
+        if publisher_url:
+            return publisher_url
 
         # HTML 페이지에서 PDF 링크 추출
         pdf_patterns = [
@@ -197,7 +308,6 @@ def _find_pdf_url_from_doi(doi: str) -> Optional[str]:
             matches = re.findall(pattern, resp.text, re.IGNORECASE)
             for url in matches:
                 if not url.startswith("http"):
-                    # 상대 URL → 절대 URL
                     from urllib.parse import urljoin
                     url = urljoin(resp.url, url)
                 return url
@@ -207,44 +317,541 @@ def _find_pdf_url_from_doi(doi: str) -> Optional[str]:
     return None
 
 
+def _extract_fulltext_from_html(html: str, title: str = "") -> dict:
+    """HTML 페이지에서 논문 본문 텍스트를 추출하여 섹션 분리."""
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+
+        # 불필요한 요소 제거
+        for tag in soup.find_all(["script", "style", "nav", "footer", "header", "aside",
+                                   "figure", "table", "sup", "math"]):
+            tag.decompose()
+        # 참고문헌 영역 제거 (불필요한 텍스트 줄임)
+        for ref_section in soup.find_all(["section", "div"], id=re.compile(r"ref|bib|citation", re.I)):
+            ref_section.decompose()
+        for ref_section in soup.find_all(["section", "div"], class_=re.compile(r"ref|bib|citation", re.I)):
+            ref_section.decompose()
+
+        # 본문 영역 탐색 (출판사별 패턴)
+        article = (
+            # PeerJ
+            soup.find("div", class_="article-content")
+            # MDPI
+            or soup.find("div", class_="html-body")
+            # 일반 패턴
+            or soup.find("article")
+            or soup.find("div", class_=re.compile(r"article|paper|fulltext|main-content", re.I))
+            or soup.find("div", id=re.compile(r"article|paper|fulltext|main-content", re.I))
+            or soup.find("main")
+            or soup
+        )
+
+        full_text = article.get_text(separator="\n", strip=True)
+        if len(full_text) < 500:
+            return {}
+
+        return _split_sections(full_text)
+    except Exception:
+        return {}
+
+
+def _find_pdf_link_in_html(html: str, base_url: str) -> str:
+    """HTML 페이지에서 실제 PDF 다운로드 링크를 찾는다."""
+    from urllib.parse import urljoin
+    pdf_patterns = [
+        r'href=["\']([^"\']*\.pdf[^"\']*)["\']',
+        r'href=["\']([^"\']*\/pdf[^"\']*)["\']',
+        r'content=["\']([^"\']*\.pdf[^"\']*)["\']',
+    ]
+    for pattern in pdf_patterns:
+        matches = re.findall(pattern, html, re.IGNORECASE)
+        for url in matches:
+            if not url.startswith("http"):
+                url = urljoin(base_url, url)
+            return url
+    return ""
+
+
+_BLOCKED_PDF_HOSTS = {
+    "api.elsevier.com",       # TDM API (키 필요, XML 반환)
+    "www.mdpi.com",           # Cloudflare 차단
+    "www.tandfonline.com",    # 봇 차단
+    "www.igi-global.com",     # 봇 차단 / 429
+    "peerj.com",              # .pdf 엔드포인트 불안정 (400), HTML 추출이 안정적
+}
+
+_UNPAYWALL_EMAIL = "gapago-research@university.edu"
+
+
+# Unpaywall에서 건너뛸 호스트 (메타 페이지이거나 DOI 리다이렉트)
+_UNPAYWALL_SKIP_HOSTS = {"doaj.org", "dx.doi.org", "doi.org"}
+
+
+def _unpaywall_find_accessible_url(doi: str) -> Optional[str]:
+    """Unpaywall API로 접근 가능한 OA URL을 찾는다. PMC > biorxiv > 기타 순."""
+    if not doi:
+        return None
+    clean_doi = doi.replace("https://doi.org/", "").replace("http://doi.org/", "")
+    try:
+        r = requests.get(
+            f"https://api.unpaywall.org/v2/{clean_doi}",
+            params={"email": _UNPAYWALL_EMAIL},
+            timeout=5,
+        )
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        locations = data.get("oa_locations") or []
+
+        # 1순위: PMC (봇 차단 없음, HTML 본문 풍부)
+        for loc in locations:
+            url = loc.get("url_for_pdf") or loc.get("url") or ""
+            if "pmc" in url.lower() or "ncbi.nlm.nih.gov/pmc" in url.lower():
+                return _normalize_oa_url(url)
+
+        # 2순위: biorxiv/medrxiv (프리프린트, HTML 접근 가능)
+        for loc in locations:
+            url = loc.get("url_for_pdf") or loc.get("url") or ""
+            if "biorxiv.org" in url or "medrxiv.org" in url:
+                return _normalize_oa_url(url)
+
+        # 3순위: 기타 repository (DOAJ, doi.org 리다이렉트 제외)
+        for loc in locations:
+            if loc.get("host_type") == "repository":
+                url = loc.get("url_for_pdf") or loc.get("url") or ""
+                if url:
+                    from urllib.parse import urlparse
+                    host = (urlparse(url).hostname or "").lower()
+                    if host not in _UNPAYWALL_SKIP_HOSTS and host not in _BLOCKED_PDF_HOSTS:
+                        return _normalize_oa_url(url)
+
+        # 4순위: publisher (봇 차단될 수 있지만 시도)
+        for loc in locations:
+            url = loc.get("url_for_pdf") or loc.get("url") or ""
+            if url:
+                from urllib.parse import urlparse
+                host = (urlparse(url).hostname or "").lower()
+                if host not in _BLOCKED_PDF_HOSTS and host not in _UNPAYWALL_SKIP_HOSTS:
+                    return url
+    except Exception:
+        pass
+    return None
+
+
+def _normalize_oa_url(url: str) -> str:
+    """OA URL을 접근 가능한 형태로 정규화."""
+    # PMC: 다양한 형식 → 통일된 HTML 페이지 URL
+    m = re.search(r"ncbi\.nlm\.nih\.gov/pmc/articles/(?:PMC)?(\d+)", url)
+    if m:
+        return f"https://pmc.ncbi.nlm.nih.gov/articles/PMC{m.group(1)}/"
+    m = re.search(r"pmc\.ncbi\.nlm\.nih\.gov/articles/PMC(\d+)", url)
+    if m:
+        return f"https://pmc.ncbi.nlm.nih.gov/articles/PMC{m.group(1)}/"
+    m = re.search(r"europepmc\.org/article/\w+/PMC(\d+)", url)
+    if m:
+        return f"https://pmc.ncbi.nlm.nih.gov/articles/PMC{m.group(1)}/"
+
+    # biorxiv/medrxiv: PDF URL → HTML 페이지 URL (PDF 직접 접근 403)
+    m = re.search(r"(biorxiv|medrxiv)\.org/content/.*?/(\d+)\.full\.pdf", url)
+    if m:
+        server = m.group(1)
+        paper_num = m.group(2)
+        return f"https://www.{server}.org/content/10.1101/{paper_num}v1"
+
+    return url
+
+
+def _is_usable_pdf_url(url: str) -> bool:
+    """다운로드 시도할 가치가 있는 PDF URL인지 판별."""
+    if not url:
+        return False
+    from urllib.parse import urlparse
+    host = (urlparse(url).hostname or "").lower()
+    if host in _BLOCKED_PDF_HOSTS:
+        return False
+    # Elsevier XML API 패턴
+    if "api.elsevier.com" in url or "httpAccept=text/xml" in url:
+        return False
+    return True
+
+
+def _try_doi_landing_html(doi: str, title: str) -> dict:
+    """DOI 랜딩 페이지(출판사 HTML)에서 직접 본문 추출 시도."""
+    if not doi:
+        return {}
+    doi_url = doi if doi.startswith("http") else f"https://doi.org/{doi}"
+    try:
+        resp = requests.get(doi_url, headers=_REQUEST_HEADERS, timeout=10, allow_redirects=True)
+        resp.raise_for_status()
+        ct = (resp.headers.get("content-type") or "").lower()
+
+        # PDF로 리다이렉트된 경우
+        if resp.content[:4] == b"%PDF":
+            full_text = _extract_text_from_pdf_bytes(resp.content)
+            if len(full_text) >= 200:
+                sections = _split_sections(full_text)
+                if sections:
+                    print(f"  [fulltext:doi-redirect-pdf] '{title[:50]}' → {list(sections.keys())}")
+                    return sections
+
+        if "html" in ct:
+            sections = _extract_fulltext_from_html(resp.text, title)
+            if sections:
+                print(f"  [fulltext:doi-html] '{title[:50]}' → {list(sections.keys())}")
+                return sections
+    except Exception:
+        pass
+    return {}
+
+
+# =====================================================================
+# S2 / PMC / EuropePMC fallback 함수들
+# =====================================================================
+def _s2_discover_alt_ids(doi: str) -> dict:
+    """S2 batch API로 DOI에 대한 ArXiv/PMC ID를 발견. {arxiv_id, pmcid, oa_pdf_url}."""
+    global _S2_LAST_CALL
+    if not doi:
+        return {}
+    # Rate limit: 1 req/s
+    with _S2_RATE_LOCK:
+        elapsed = time.time() - _S2_LAST_CALL
+        if elapsed < 1.1:
+            time.sleep(1.1 - elapsed)
+        _S2_LAST_CALL = time.time()
+    try:
+        resp = requests.post(
+            "https://api.semanticscholar.org/graph/v1/paper/batch",
+            params={"fields": "externalIds,openAccessPdf"},
+            json={"ids": [f"DOI:{_clean_doi(doi)}"]},
+            timeout=10,
+        )
+        if resp.status_code == 429:
+            time.sleep(3)
+            return {}
+        resp.raise_for_status()
+        data = resp.json()
+        if not data or not data[0]:
+            return {}
+        paper_data = data[0]
+        ext = paper_data.get("externalIds") or {}
+        oa_pdf = (paper_data.get("openAccessPdf") or {}).get("url", "")
+        return {
+            "arxiv_id": ext.get("ArXiv", ""),
+            "pmcid": ext.get("PubMedCentral", ""),
+            "oa_pdf_url": oa_pdf,
+        }
+    except Exception:
+        return {}
+
+
+def _doi_to_pmcid(doi: str) -> Optional[str]:
+    """NCBI ID Converter API로 DOI → PMCID 변환."""
+    if not doi:
+        return None
+    try:
+        resp = requests.get(
+            "https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/",
+            params={"ids": _clean_doi(doi), "format": "json"},
+            timeout=5,
+        )
+        resp.raise_for_status()
+        records = resp.json().get("records", [])
+        if records and records[0].get("pmcid"):
+            return records[0]["pmcid"]
+    except Exception:
+        pass
+    return None
+
+
+def _load_pmc_bioc_full_text(pmcid: str, title: str = "") -> dict:
+    """PMC BioC API에서 구조화된 full text를 가져와 섹션으로 분리."""
+    if not pmcid:
+        return {}
+    if not pmcid.startswith("PMC"):
+        pmcid = f"PMC{pmcid}"
+    try:
+        resp = requests.get(
+            f"https://www.ncbi.nlm.nih.gov/research/bionlp/RESTful/pmcoa.cgi/BioC_json/{pmcid}/unicode",
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        # API returns either a list of collections or a single object
+        if isinstance(data, list):
+            data = data[0] if data else {}
+        docs = data.get("documents", [])
+        if not docs:
+            return {}
+
+        # passage별로 섹션 분류 후 텍스트 합치기
+        section_texts: dict[str, list[str]] = {}
+        for passage in docs[0].get("passages", []):
+            infons = passage.get("infons", {})
+            sec_type = infons.get("section_type", "")
+            sec_heading = (infons.get("section", "") or "").lower()
+            text = passage.get("text", "")
+            if not text or len(text) < 20:
+                continue
+
+            # 1순위: section_type 매핑
+            key = _PMC_SECTION_MAP.get(sec_type)
+
+            # 2순위: 헤딩 텍스트로 SECTION_KEYWORDS 매칭
+            if not key:
+                for k, kws in SECTION_KEYWORDS.items():
+                    if any(kw in sec_heading for kw in kws):
+                        key = k
+                        break
+
+            if key:
+                section_texts.setdefault(key, []).append(text)
+
+        # 섹션별 텍스트 합치기 + 길이 제한
+        sections = {}
+        for key, texts in section_texts.items():
+            combined = "\n".join(texts)
+            if len(combined) > 100:
+                sections[key] = combined[:MAX_SECTION_CHARS]
+
+        if sections:
+            print(f"  [fulltext:pmc-bioc] '{title[:50]}' → {list(sections.keys())}")
+        return sections
+    except Exception:
+        return {}
+
+
+def _load_europepmc_full_text(doi: str, title: str = "") -> dict:
+    """EuropePMC에서 JATS XML full text를 가져와 섹션으로 분리."""
+    if not doi:
+        return {}
+    clean = _clean_doi(doi)
+    try:
+        # Step 1: PMCID 검색
+        resp = requests.get(
+            "https://www.ebi.ac.uk/europepmc/webservices/rest/search",
+            params={"query": f"DOI:{clean}", "format": "json", "resultType": "core"},
+            timeout=8,
+        )
+        resp.raise_for_status()
+        results = resp.json().get("resultList", {}).get("result", [])
+        pmcid = None
+        for r in results:
+            if r.get("pmcid"):
+                pmcid = r["pmcid"]
+                break
+        if not pmcid:
+            return {}
+
+        # Step 2: Full text XML
+        xml_resp = requests.get(
+            f"https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML",
+            timeout=15,
+        )
+        xml_resp.raise_for_status()
+
+        # Step 3: JATS XML 파싱
+        root = ET.fromstring(xml_resp.content)
+        body = root.find(".//body")
+        if body is None:
+            return {}
+
+        sections = {}
+        for sec in body.iter("sec"):
+            # sec-type 속성 또는 title 텍스트에서 섹션 키 결정
+            sec_type = (sec.get("sec-type") or "").lower()
+            title_el = sec.find("title")
+            heading = (title_el.text or "").lower().strip() if title_el is not None else ""
+
+            key = None
+            # sec-type 매핑
+            for kw, mapped_key in [
+                ("intro", "introduction"), ("method", "method"), ("material", "method"),
+                ("result", "experiment"), ("discuss", "discussion"),
+                ("conclusion", "conclusion"), ("concl", "conclusion"),
+            ]:
+                if kw in sec_type:
+                    key = mapped_key
+                    break
+
+            # heading 텍스트 매핑
+            if not key:
+                for k, kws in SECTION_KEYWORDS.items():
+                    if any(kw in heading for kw in kws):
+                        key = k
+                        break
+
+            if not key or key in sections:
+                continue
+
+            # 섹션 내 모든 텍스트 추출
+            text = "".join(sec.itertext()).strip()
+            if len(text) > 100:
+                sections[key] = text[:MAX_SECTION_CHARS]
+
+        if sections:
+            print(f"  [fulltext:europepmc] '{title[:50]}' → {list(sections.keys())}")
+        return sections
+    except Exception:
+        return {}
+
+
 def _load_doi_full_text(paper: Paper) -> dict:
-    """DOI를 통해 출판사 PDF에서 full text를 로드."""
-    # paper에서 DOI 추출 (full_text_sections에 raw가 있을 수 있음)
+    """DOI를 통해 논문 full text를 로드. PDF → HTML → DOI 랜딩 순으로 시도."""
+    # DOI 확보
     doi = ""
     if hasattr(paper, "full_text_sections") and isinstance(paper.full_text_sections, dict):
         doi = paper.full_text_sections.get("doi", "")
     if not doi:
-        # Paper 객체의 url 필드가 DOI일 수 있음
         if paper.url and ("doi.org" in paper.url or "dx.doi.org" in paper.url):
             doi = paper.url
 
-    if not doi:
-        return {}
+    # 1순위: API 응답에서 이미 확보된 pdf_url (S2 openAccessPdf, OpenAlex best_oa_location, Crossref link)
+    pdf_url = ""
+    if hasattr(paper, "full_text_sections") and isinstance(paper.full_text_sections, dict):
+        pdf_url = paper.full_text_sections.get("pdf_url", "")
 
-    pdf_url = _find_pdf_url_from_doi(doi)
-    if not pdf_url:
-        print(f"  [fulltext:doi] PDF 링크 없음: {doi}")
-        return {}
+    # 쓸모없는 URL 필터링
+    if not _is_usable_pdf_url(pdf_url):
+        pdf_url = ""
 
-    try:
-        resp = requests.get(pdf_url, headers=_REQUEST_HEADERS, timeout=30)
-        resp.raise_for_status()
+    # 2순위: DOI 페이지 크롤링으로 PDF URL 탐색
+    if not pdf_url and doi:
+        pdf_url = _find_pdf_url_from_doi(doi)
+        if not _is_usable_pdf_url(pdf_url):
+            pdf_url = ""
 
-        if not resp.content[:4] == b"%PDF":
-            print(f"  [fulltext:doi] PDF가 아닌 응답: {pdf_url}")
-            return {}
+    # PDF URL이 있으면 다운로드 시도
+    if pdf_url:
+        try:
+            resp = requests.get(pdf_url, headers=_REQUEST_HEADERS, timeout=15)
+            resp.raise_for_status()
 
-        full_text = _extract_text_from_pdf_bytes(resp.content)
-        if len(full_text) < 200:
-            return {}
+            content_type = (resp.headers.get("content-type") or "").lower()
 
-        sections = _split_sections(full_text)
-        print(f"  [fulltext:doi] '{paper.title[:50]}' → {list(sections.keys())}")
+            # PDF 응답
+            if resp.content[:4] == b"%PDF":
+                full_text = _extract_text_from_pdf_bytes(resp.content)
+                if len(full_text) >= 200:
+                    sections = _split_sections(full_text)
+                    print(f"  [fulltext:doi-pdf] '{paper.title[:50]}' → {list(sections.keys())}")
+                    return sections
+
+            # HTML 응답
+            if "html" in content_type:
+                sections = _extract_fulltext_from_html(resp.text, paper.title)
+                if sections:
+                    print(f"  [fulltext:html] '{paper.title[:50]}' → {list(sections.keys())}")
+                    return sections
+                # HTML에서 실제 PDF 링크를 찾아 재시도
+                real_pdf = _find_pdf_link_in_html(resp.text, resp.url)
+                if real_pdf and _is_usable_pdf_url(real_pdf):
+                    try:
+                        pdf_resp = requests.get(real_pdf, headers=_REQUEST_HEADERS, timeout=15)
+                        pdf_resp.raise_for_status()
+                        if pdf_resp.content[:4] == b"%PDF":
+                            full_text = _extract_text_from_pdf_bytes(pdf_resp.content)
+                            if len(full_text) >= 200:
+                                sections = _split_sections(full_text)
+                                print(f"  [fulltext:doi→pdf] '{paper.title[:50]}' → {list(sections.keys())}")
+                                return sections
+                    except Exception:
+                        pass
+
+        except Exception:
+            pass  # PDF 실패 → DOI 랜딩 HTML fallback으로 진행
+
+    # fallback 2: DOI 랜딩 페이지 HTML에서 직접 본문 추출
+    sections = _try_doi_landing_html(doi, paper.title)
+    if sections:
         return sections
 
-    except Exception as e:
-        print(f"  [fulltext:doi] PDF 다운로드 실패: {pdf_url} ({e})")
-        return {}
+    # fallback 3: Unpaywall API로 접근 가능한 OA 소스(PMC 등) 탐색
+    if doi:
+        oa_url = _unpaywall_find_accessible_url(doi)
+        if oa_url:
+            try:
+                resp = requests.get(oa_url, headers=_REQUEST_HEADERS, timeout=15, allow_redirects=True)
+                resp.raise_for_status()
+                if resp.content[:4] == b"%PDF":
+                    full_text = _extract_text_from_pdf_bytes(resp.content)
+                    if len(full_text) >= 200:
+                        sections = _split_sections(full_text)
+                        if sections:
+                            print(f"  [fulltext:unpaywall-pdf] '{paper.title[:50]}' → {list(sections.keys())}")
+                            return sections
+                ct = (resp.headers.get("content-type") or "").lower()
+                if "html" in ct:
+                    sections = _extract_fulltext_from_html(resp.text, paper.title)
+                    if sections:
+                        print(f"  [fulltext:unpaywall-html] '{paper.title[:50]}' → {list(sections.keys())}")
+                        return sections
+            except Exception:
+                pass
+
+    # fallback 4: Semantic Scholar Batch API → arXiv / PMC 경유
+    if doi:
+        try:
+            alt = _s2_discover_alt_ids(doi)
+            # S2에서 arXiv ID 발견 → ar5iv HTML로 full text 로드
+            arxiv_id = alt.get("arxiv_id")
+            if arxiv_id:
+                from langchain_community.document_loaders import ArxivLoader
+                ar5iv_url = f"https://ar5iv.labs.arxiv.org/html/{arxiv_id}"
+                try:
+                    r = requests.get(ar5iv_url, timeout=15)
+                    r.raise_for_status()
+                    if "html" in (r.headers.get("content-type") or ""):
+                        sections = _extract_fulltext_from_html(r.text, paper.title)
+                        if sections:
+                            print(f"  [fulltext:s2→ar5iv] '{paper.title[:50]}' → {list(sections.keys())}")
+                            return sections
+                except Exception:
+                    pass
+            # S2에서 PMCID 발견 → PMC BioC API
+            pmcid = alt.get("pmcid")
+            if pmcid:
+                sections = _load_pmc_bioc_full_text(pmcid, paper.title)
+                if sections:
+                    print(f"  [fulltext:s2→pmc-bioc] '{paper.title[:50]}' → {list(sections.keys())}")
+                    return sections
+            # S2에서 OA PDF URL 발견
+            s2_pdf = alt.get("oa_pdf_url")
+            if s2_pdf and _is_usable_pdf_url(s2_pdf):
+                try:
+                    resp = requests.get(s2_pdf, headers=_REQUEST_HEADERS, timeout=15)
+                    resp.raise_for_status()
+                    if resp.content[:4] == b"%PDF":
+                        full_text = _extract_text_from_pdf_bytes(resp.content)
+                        if len(full_text) >= 200:
+                            sections = _split_sections(full_text)
+                            if sections:
+                                print(f"  [fulltext:s2→pdf] '{paper.title[:50]}' → {list(sections.keys())}")
+                                return sections
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    # fallback 5: NCBI ID Converter → PMCID → PMC BioC API
+    if doi:
+        pmcid = _doi_to_pmcid(doi)
+        if pmcid:
+            sections = _load_pmc_bioc_full_text(pmcid, paper.title)
+            if sections:
+                print(f"  [fulltext:ncbi→pmc-bioc] '{paper.title[:50]}' → {list(sections.keys())}")
+                return sections
+
+    # fallback 6: EuropePMC JATS XML
+    if doi:
+        sections = _load_europepmc_full_text(doi, paper.title)
+        if sections:
+            return sections
+
+    if doi:
+        print(f"  [fulltext:doi] full text 확보 불가 (abstract fallback): {doi}")
+    return {}
 
 
 def _load_scienceon_full_text(paper: Paper) -> dict:
@@ -272,7 +879,7 @@ def _load_scienceon_pdf_from_url(paper: Paper, url: str, label: str) -> dict:
     if not url:
         return {}
     try:
-        resp = requests.get(url, headers=_REQUEST_HEADERS, timeout=30, allow_redirects=True)
+        resp = requests.get(url, headers=_REQUEST_HEADERS, timeout=15, allow_redirects=True)
         resp.raise_for_status()
 
         # 직접 PDF인 경우
@@ -298,7 +905,7 @@ def _load_scienceon_pdf_from_url(paper: Paper, url: str, label: str) -> dict:
                         from urllib.parse import urljoin
                         pdf_url = urljoin(resp.url, pdf_url)
                     try:
-                        pdf_resp = requests.get(pdf_url, headers=_REQUEST_HEADERS, timeout=30)
+                        pdf_resp = requests.get(pdf_url, headers=_REQUEST_HEADERS, timeout=15)
                         pdf_resp.raise_for_status()
                         if pdf_resp.content[:4] == b"%PDF":
                             full_text = _extract_text_from_pdf_bytes(pdf_resp.content)
@@ -366,39 +973,36 @@ def _load_scienceon_report_full_text(paper: Paper) -> dict:
 def _load_full_text_sections(paper: Paper) -> dict:
     """
     논문 소스별로 full text를 로드하고 섹션으로 분리.
-    - arXiv → a5iv HTML / ArxivLoader PDF
-    - ScienceON 논문 → DOI 경유 PDF 다운로드
-    - ScienceON 특허 → ContentURL에서 PDF/HTML
-    - ScienceON 보고서 → FulltextURL에서 PDF
-    - 그 외 → abstract fallback (빈 dict)
+    캐시 히트 시 네트워크 요청 없이 즉시 반환.
     """
     if paper.full_text_sections and any(
         k in paper.full_text_sections for k in SECTION_KEYWORDS
     ):
         return paper.full_text_sections
 
+    # ── 캐시 체크 ──
+    cached = _cache_get(paper.paper_id or "")
+    if cached is not None:
+        print(f"  [fulltext:cache] '{paper.title[:50]}' → cache hit")
+        return cached
+
     pid = (paper.paper_id or "").lower()
+    sections: dict = {}
 
     if pid.startswith("arxiv:"):
-        return _load_arxiv_full_text(paper)
-
-    if pid.startswith("scienceon_patent:"):
-        return _load_scienceon_patent_full_text(paper)
-
-    if pid.startswith("scienceon_report:"):
-        return _load_scienceon_report_full_text(paper)
-
-    if pid.startswith("scienceon:"):
-        return _load_scienceon_full_text(paper)
-
-    # Semantic Scholar / OpenAlex: DOI 경유 시도, 없으면 abstract fallback
-    if pid.startswith(("s2:", "openalex:")):
+        sections = _load_arxiv_full_text(paper)
+    elif pid.startswith("scienceon_patent:"):
+        sections = _load_scienceon_patent_full_text(paper)
+    elif pid.startswith("scienceon_report:"):
+        sections = _load_scienceon_report_full_text(paper)
+    elif pid.startswith("scienceon:"):
+        sections = _load_scienceon_full_text(paper)
+    elif pid.startswith(("crossref:", "s2:", "openalex:")):
         sections = _load_doi_full_text(paper)
-        if sections:
-            return sections
 
-    # 웹 소스 등은 abstract fallback
-    return {}
+    # ── 캐시 저장 (빈 dict도 저장하여 반복 실패 방지) ──
+    _cache_put(paper.paper_id or "", sections)
+    return sections
 
 
 # =====================================================================
@@ -673,7 +1277,7 @@ def limitation_extract_node(state: AgentState) -> AgentState:
     # ── Step 1: Full text 로드 (병렬, LLM 호출 아님) ──
     print(f"  🔄 {len(papers)}편 논문 full text 로드 중...")
     paper_sections = {}
-    with ThreadPoolExecutor(max_workers=min(5, len(papers))) as executor:
+    with ThreadPoolExecutor(max_workers=min(8, len(papers))) as executor:
         futures = {executor.submit(_load_full_text_sections, p): p for p in papers}
         for future in as_completed(futures):
             paper = futures[future]
@@ -684,6 +1288,45 @@ def limitation_extract_node(state: AgentState) -> AgentState:
             paper_sections[paper.paper_id] = sections
             if not sections:
                 fulltext_fail_count += 1
+
+    # ── Step 1.5: Full text 실패 논문을 backup 논문으로 대체 ──
+    if fulltext_fail_count > 0:
+        backup_raw = state.get("backup_papers") or []
+        if backup_raw:
+            failed_ids = {pid for pid, sec in paper_sections.items() if not sec}
+            # backup 중 arXiv(guaranteed) 우선으로 대체
+            replacements = []
+            used_backup_ids = set()
+            for bp in backup_raw:
+                if len(replacements) >= fulltext_fail_count:
+                    break
+                bp_id = bp.get("paper_id", "")
+                if bp_id in used_backup_ids:
+                    continue
+                # arXiv 논문만 대체 후보 (guaranteed full text)
+                if not bp_id.lower().startswith("arxiv:"):
+                    continue
+                try:
+                    replacement = Paper(**bp) if isinstance(bp, dict) else bp
+                    sections = _load_full_text_sections(replacement)
+                    if sections:
+                        replacements.append((replacement, sections))
+                        used_backup_ids.add(bp_id)
+                except Exception:
+                    continue
+
+            if replacements:
+                # 실패 논문 제거 + 대체 논문 추가
+                original_count = len(papers)
+                papers = [p for p in papers if p.paper_id not in failed_ids]
+                for rep_paper, rep_sections in replacements:
+                    papers.append(rep_paper)
+                    paper_sections[rep_paper.paper_id] = rep_sections
+                # 실패 카운트 업데이트
+                new_fail = fulltext_fail_count - len(replacements)
+                print(f"  [fulltext_replace] {len(replacements)}편 대체 완료 "
+                      f"(실패 {fulltext_fail_count} → {max(0, new_fail)}편)")
+                fulltext_fail_count = max(0, new_fail)
 
     report_progress(
         session_id, "limitation_extract",
