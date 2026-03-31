@@ -2152,7 +2152,7 @@ function handleEvent(data) {
 
     if (data.event === 'node') {
         // Reset progress data on stage transition
-        _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: _progressData.pipeline_progress_pct, elapsed_s: 0, estimated_remaining_s: _progressData.estimated_remaining_s };
+        _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
         const tlStepId = findTimelineStep(data.node);
         if (tlStepId) updateTimeline(tlStepId, data.node);
         collectData(data);
