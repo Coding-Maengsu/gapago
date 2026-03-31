@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GAPAGO - Research GAP Analyzer</title>
+    <title>GAPAGO - Research GAP Agent</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">
     <style>
@@ -1435,7 +1435,7 @@
             <img src="new_logo.png" alt="GAPAGO" style="width:36px;height:36px;border-radius:8px;object-fit:cover;">
             <div style="padding-top:2px;">
                 <h1>GAPAGO</h1>
-                <p>Research GAP Analyzer</p>
+                <p>Research GAP Agent</p>
             </div>
         </a>
     </div>
@@ -2151,6 +2151,8 @@ function handleEvent(data) {
     }
 
     if (data.event === 'node') {
+        // Reset progress data on stage transition
+        _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: _progressData.pipeline_progress_pct, elapsed_s: 0, estimated_remaining_s: _progressData.estimated_remaining_s };
         const tlStepId = findTimelineStep(data.node);
         if (tlStepId) updateTimeline(tlStepId, data.node);
         collectData(data);
@@ -2362,7 +2364,8 @@ function updateLivePreview() {
     const hasPapers = pipelineData.papers.length > 0;
     const hasLimitations = pipelineData.limitations && pipelineData.limitations.length > 0;
     const hasGaps = pipelineData.gaps && pipelineData.gaps.length > 0;
-    const hasProgress = _progressData.total > 0;
+    const isLimitationStage = _progressData.node === 'limitation_extract';
+    const hasProgress = _progressData.total > 0 && isLimitationStage;
 
     if (!hasQuery && !hasPapers && !hasLimitations && !hasGaps && !hasProgress) return;
 
