@@ -2378,24 +2378,12 @@ function updateLivePreview() {
 
     let html = '';
 
-    // Pipeline-level progress bar with ETA
-    const hasPipelinePct = _progressData.pipeline_progress_pct > 0;
-    if ((hasPipelinePct || hasProgress) && !hasGaps) {
-        const pipelinePct = _progressData.pipeline_progress_pct || 0;
-        const remainSec = Math.round(_progressData.estimated_remaining_s || 0);
-        const etaText = remainSec > 60
-            ? `~${Math.ceil(remainSec / 60)}분 남음`
-            : remainSec > 0 ? `~${remainSec}초 남음` : '';
-        html += `<div class="preview-progress">`;
-        if (hasPipelinePct) {
-            html += `<div class="preview-progress-bar" style="margin-bottom:6px"><div class="preview-progress-fill" style="width:${pipelinePct}%"></div></div>`;
-            html += `<div class="preview-progress-detail" style="display:flex;justify-content:space-between"><span>전체 진행률 ${pipelinePct}%</span>${etaText ? `<span>${etaText}</span>` : ''}</div>`;
-        }
-        if (hasProgress) {
-            html += `<div class="preview-progress-bar"><div class="preview-progress-fill" style="width:${_progressData.progress}%"></div></div>`;
-            html += `<div class="preview-progress-detail">${_progressData.current} / ${_progressData.total} (${_progressData.progress}%)</div>`;
-        }
-        html += `</div>`;
+    // Limitation extraction progress bar only
+    if (hasProgress && !hasGaps) {
+        html += `<div class="preview-progress">
+            <div class="preview-progress-bar"><div class="preview-progress-fill" style="width:${_progressData.progress}%"></div></div>
+            <div class="preview-progress-detail">${_progressData.current} / ${_progressData.total} (${_progressData.progress}%)</div>
+        </div>`;
     }
 
     // GAPs
@@ -2428,13 +2416,12 @@ function updateLivePreview() {
     // Papers
     if (hasPapers) {
         html += `<div class="preview-section"><div class="preview-section-title">검색된 논문 (${pipelineData.papers.length}/${pipelineData.total_searched || '?'})</div>`;
-        pipelineData.papers.slice(0, 8).forEach(p => {
+        pipelineData.papers.forEach(p => {
             html += `<div class="preview-paper-item">
                 <div class="preview-paper-title">${esc(p.title || '')}</div>
                 <div class="preview-paper-meta">${p.year || ''} ${p.venue ? '· ' + esc(p.venue) : ''}</div>
             </div>`;
         });
-        if (pipelineData.papers.length > 8) html += `<div style="text-align:center;color:var(--text-light);font-size:0.78em;padding:4px">외 ${pipelineData.papers.length - 8}편...</div>`;
         html += '</div>';
     }
 
