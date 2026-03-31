@@ -9,6 +9,7 @@ langchain_groq
 langchain-aws
 langchain-community
 langchain-core
+langchain-google-vertexai
 langchain-google-genai
 langchain-openai
 langchain-text-splitters
@@ -27,7 +28,6 @@ beautifulsoup4
 feedparser
 PyMuPDF
 pymupdf4llm
-sentence-transformers
 faiss-cpu
 requests
 python-dotenv
