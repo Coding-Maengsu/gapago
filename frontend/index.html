@@ -865,6 +865,15 @@
             color: var(--text-dim);
             line-height: 1.6;
         }
+        .paper-lim-card {
+            padding: 10px 14px;
+            border-left: 3px solid var(--accent);
+            background: var(--surface2);
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 8px;
+        }
+        .paper-lim-claim { font-size: 0.9em; font-weight: 500; line-height: 1.55; color: var(--text); }
+        .paper-lim-quote { font-size: 0.82em; font-style: italic; color: var(--text-dim); margin-top: 6px; padding-left: 10px; line-height: 1.5; }
 
         /* ── Master Report Collapse ── */
         .report-master-collapse {
@@ -3031,8 +3040,13 @@ function getPaperDetailHTML(index) {
         const paperLimitations = pipelineData.limitations.filter(l => l.paper_id === p.paper_id);
         if (paperLimitations.length) {
             html += `<div class="detail-section-title">이 논문의 한계점 (${paperLimitations.length})</div>`;
-            paperLimitations.forEach(l => {
-                html += `<div class="paper-limitation-item">${esc(l.limitation_text || l.text || l.content || JSON.stringify(l))}</div>`;
+            paperLimitations.forEach((l, idx) => {
+                const claim = l.claim || l.limitation_text || l.text || l.content || '';
+                const quote = l.evidence_quote || '';
+                html += `<div class="paper-lim-card">
+                    <div class="paper-lim-claim">${esc(claim)}</div>
+                    ${quote ? `<div class="paper-lim-quote">"${esc(truncate(quote, 200))}"</div>` : ''}
+                </div>`;
             });
         }
     }
