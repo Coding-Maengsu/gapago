@@ -753,7 +753,7 @@ def _build_node_payload(node: str, values: dict) -> dict:
         limitations = values.get("limitations", [])
         payload["limitations_count"] = len(limitations)
         paper_ids = list({lim.get("paper_id", "") for lim in limitations})
-        payload["detail"] = f"Extracted {len(limitations)} limitations from {len(paper_ids)} papers"
+        payload["detail"] = f"{len(paper_ids)}편 논문에서 {len(limitations)}개 한계점 추출"
         payload["limitations"] = []
         for lim in limitations:
             payload["limitations"].append({
