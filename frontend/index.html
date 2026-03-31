@@ -1463,6 +1463,11 @@
             <option value="ko">한국어</option>
             <option value="en">English</option>
         </select>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer">
+            <input type="checkbox" id="fastMode" style="width:16px;height:16px;cursor:pointer">
+            <span>Fast Mode</span>
+            <span style="font-size:0.75em;color:var(--text-light)">(빠른 분석, 품질 트레이드오프)</span>
+        </label>
     </div>
 
     <div class="history-section" id="historySection">
@@ -1560,7 +1565,7 @@ function getAxisColor(axisName) {
 }
 
 // Progress state for live preview
-let _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0 };
+let _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
 
 // Track timeline detail text per node
 let timelineDetails = {};
@@ -1937,7 +1942,7 @@ async function startAnalysis() {
     const yearLabels = { auto: '자동 추천', '1y': '최근 1년', '3y': '최근 3년', '5y': '최근 5년' };
     const langLabels = { auto: '자동 감지', ko: '한국어', en: 'English' };
     pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: { provider: providerLabels[provider] || provider, yearRange: yearLabels[yearRange] || yearRange, outputLanguage: langLabels[outputLanguage] || outputLanguage } };
-    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0 };
+    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
     timelineDetails = {};
     timelineState = {};
     TIMELINE_NODES.forEach(n => { timelineState[n.id] = 'pending'; });
@@ -1948,7 +1953,8 @@ async function startAnalysis() {
     showPipelineUI();
 
     try {
-        const params = new URLSearchParams({ query, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID });
+        const fastMode = document.getElementById('fastMode')?.checked || false;
+        const params = new URLSearchParams({ query, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID, ...(fastMode ? {fast_mode: 'true'} : {}) });
         const resp = await fetch(`api/analyze?${params}`);
         if (!resp.ok) {
             showError(`API 오류 (${resp.status}): ${await resp.text()}`);
@@ -2031,7 +2037,7 @@ async function reconnectToSession(sessionId, query) {
     document.getElementById('queryInput').value = query || '';
     setInputEnabled(false);
     pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: {} };
-    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0 };
+    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
     timelineDetails = {};
     timelineState = {};
     TIMELINE_NODES.forEach(n => { timelineState[n.id] = 'pending'; });
@@ -2109,8 +2115,30 @@ function findTimelineStep(nodeName) {
 function handleEvent(data) {
     if (data.event === 'keepalive') return;
 
-    if (data.event === 'progress') {
-        _progressData = { node: data.node || '', detail: data.detail || '', current: data.current || 0, total: data.total || 0, progress: data.progress || 0 };
+    if (data.event === 'progress' || data.event === 'partial_limitations' || data.event === 'partial_papers') {
+        _progressData = {
+            node: data.node || '', detail: data.detail || '',
+            current: data.current || 0, total: data.total || 0, progress: data.progress || 0,
+            pipeline_progress_pct: data.pipeline_progress_pct || _progressData.pipeline_progress_pct || 0,
+            elapsed_s: data.elapsed_s || _progressData.elapsed_s || 0,
+            estimated_remaining_s: data.estimated_remaining_s || _progressData.estimated_remaining_s || 0,
+        };
+        // Handle partial results streaming
+        if (data.event === 'partial_limitations' && data.data) {
+            if (!pipelineData.limitations) pipelineData.limitations = [];
+            const existing = new Set(pipelineData.limitations.map(l => l.claim || l.text || ''));
+            (data.data || []).forEach(l => {
+                const key = l.claim || l.text || '';
+                if (!existing.has(key)) { pipelineData.limitations.push(l); existing.add(key); }
+            });
+        }
+        if (data.event === 'partial_papers' && data.data) {
+            if (!pipelineData.papers) pipelineData.papers = [];
+            const existingIds = new Set(pipelineData.papers.map(p => p.paper_id));
+            (data.data || []).forEach(p => {
+                if (!existingIds.has(p.paper_id)) { pipelineData.papers.push(p); existingIds.add(p.paper_id); }
+            });
+        }
         // Update timeline detail for this node
         const tlStep = findTimelineStep(data.node);
         if (tlStep) {
@@ -2347,12 +2375,24 @@ function updateLivePreview() {
 
     let html = '';
 
-    // Progress bar (overall only)
-    if (hasProgress && !hasGaps) {
-        html += `<div class="preview-progress">
-            <div class="preview-progress-bar"><div class="preview-progress-fill" style="width:${_progressData.progress}%"></div></div>
-            <div class="preview-progress-detail">${_progressData.current} / ${_progressData.total} (${_progressData.progress}%)</div>
-        </div>`;
+    // Pipeline-level progress bar with ETA
+    const hasPipelinePct = _progressData.pipeline_progress_pct > 0;
+    if ((hasPipelinePct || hasProgress) && !hasGaps) {
+        const pipelinePct = _progressData.pipeline_progress_pct || 0;
+        const remainSec = Math.round(_progressData.estimated_remaining_s || 0);
+        const etaText = remainSec > 60
+            ? `~${Math.ceil(remainSec / 60)}분 남음`
+            : remainSec > 0 ? `~${remainSec}초 남음` : '';
+        html += `<div class="preview-progress">`;
+        if (hasPipelinePct) {
+            html += `<div class="preview-progress-bar" style="margin-bottom:6px"><div class="preview-progress-fill" style="width:${pipelinePct}%"></div></div>`;
+            html += `<div class="preview-progress-detail" style="display:flex;justify-content:space-between"><span>전체 진행률 ${pipelinePct}%</span>${etaText ? `<span>${etaText}</span>` : ''}</div>`;
+        }
+        if (hasProgress) {
+            html += `<div class="preview-progress-bar"><div class="preview-progress-fill" style="width:${_progressData.progress}%"></div></div>`;
+            html += `<div class="preview-progress-detail">${_progressData.current} / ${_progressData.total} (${_progressData.progress}%)</div>`;
+        }
+        html += `</div>`;
     }
 
     // GAPs
@@ -2647,7 +2687,7 @@ async function exploreDirection(topic) {
 
     setInputEnabled(false);
     pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: {} };
-    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0 };
+    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
     timelineDetails = {};
     timelineState = {};
     TIMELINE_NODES.forEach(n => { timelineState[n.id] = 'pending'; });
@@ -2665,7 +2705,8 @@ async function exploreDirection(topic) {
             resp = await fetch(`api/explore?${exploreParams}`);
             if (!resp.ok) throw new Error('explore not available');
         } catch (e) {
-            const params = new URLSearchParams({ query: topic, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID });
+            const fastMode2 = document.getElementById('fastMode')?.checked || false;
+            const params = new URLSearchParams({ query: topic, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID, ...(fastMode2 ? {fast_mode: 'true'} : {}) });
             resp = await fetch(`api/analyze?${params}`);
         }
 

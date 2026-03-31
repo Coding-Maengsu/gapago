@@ -209,6 +209,7 @@ class AgentState(TypedDict):
     year_range: str          # 연도 필터 (auto/1y/3y/5y)
     output_language: str     # 출력 언어 (auto/ko/en)
     session_id: str          # SSE 진행률 리포팅용 세션 ID
+    fast_mode: bool          # True면 빠른 분석 (품질 트레이드오프)
 
     # ==================================================================
     # -3- LIMITATION AGENT

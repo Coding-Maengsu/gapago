@@ -696,9 +696,13 @@ def _paper_retrieval_sync(state: AgentState) -> AgentState:
     print(f"  [fulltext_filter] after filter: {len(stage1_papers)} papers")
 
     # ✅ 3단계: CrossEncoder reranking → 실패 시 LLM Reranker fallback
-    # 선별되지 않은 논문은 backup으로 보관 (full text 실패 시 대체용)
+    # fast_mode: CrossEncoder 스킵, BM25+FAISS만 사용
+    fast_mode = state.get("fast_mode", False)
     backup_raw = []
-    if stage1_papers and query and len(stage1_papers) > cfg.reranker_top_k:
+    if fast_mode:
+        print("  [fast_mode] CrossEncoder 스킵 — BM25+FAISS 결과만 사용")
+        raw_papers = stage1_papers[:cfg.reranker_top_k]
+    elif stage1_papers and query and len(stage1_papers) > cfg.reranker_top_k:
         ce_result = _cross_encoder_rerank(stage1_papers, query, top_k=cfg.reranker_top_k, model_tier=model_tier)
         if ce_result is not None:
             raw_papers = ce_result
@@ -792,6 +796,18 @@ def _paper_retrieval_sync(state: AgentState) -> AgentState:
     arxiv_backup = sum(1 for bp in backup_papers if bp.get("paper_id", "").lower().startswith("arxiv:"))
     print(f"  ✓ Retrieved {len(papers)}/{total_candidates_count} papers + {len(web_results)} web results")
     print(f"  ✓ Backup pool: {len(backup_papers)} papers ({arxiv_backup} arXiv)")
+
+    # Stream partial papers to frontend
+    if papers:
+        partial_papers = [
+            {"paper_id": p.paper_id, "title": p.title, "year": p.year, "url": p.url, "venue": p.venue}
+            for p in papers[:15]
+        ]
+        report_progress(
+            session_id, "paper_retrieval",
+            f"{len(papers)}편 논문 검색 완료",
+            type="partial_papers", data=partial_papers,
+        )
 
     last_content = json.dumps({
         "total_candidates": total_candidates_count,
