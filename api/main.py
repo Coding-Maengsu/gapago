@@ -484,7 +484,14 @@ async def stream(session_id: str, from_idx: int = 0):
     Supports reconnection — client can reconnect after refresh.
     Use from_idx to skip already-consumed events (e.g. after clarify resume).
     """
+    # 세션이 아직 등록 안 됐을 수 있으므로 잠시 대기 (race condition 방어)
     session = _sessions.get(session_id)
+    if not session:
+        for _ in range(10):  # 최대 1초 대기
+            await asyncio.sleep(0.1)
+            session = _sessions.get(session_id)
+            if session:
+                break
     if not session:
         raise HTTPException(404, "Session not found")
 
