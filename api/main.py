@@ -202,6 +202,7 @@ def _save_result(query: str, state_values: dict, user_id: str = "", parent_sessi
         "refined_query": state_values.get("refined_query", ""),
         "keywords": state_values.get("keywords", []),
         "papers": papers_out,
+        "total_searched": state_values.get("total_candidates_count", len(papers)),
         "limitations": state_values.get("limitations", []),
         "limitation_eval": state_values.get("limitation_eval", {}),
         "eval_warnings": state_values.get("eval_warnings", []),
