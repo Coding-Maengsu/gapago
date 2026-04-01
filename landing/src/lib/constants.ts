@@ -56,15 +56,57 @@ export const FEATURES: FeatureItem[] = [
 ]
 
 // ── DifferenceSection 비교 데이터 ──
-export type ComparisonRow = { feature: string; gapago: boolean; existing: boolean }
+export type ComparisonRow = {
+  feature: string
+  gapago: boolean
+  gapagoDetail: string
+  existing: boolean
+  existingDetail: string
+}
 
 export const COMPARISON_DATA: ComparisonRow[] = [
-  { feature: '논문 GAP 도출', gapago: true, existing: false },
-  { feature: '단순 논문 요약', gapago: true, existing: true },
-  { feature: '다중 논문 교차 분석', gapago: true, existing: false },
-  { feature: '연구 방향 제안', gapago: true, existing: false },
-  { feature: '시각적 리포트', gapago: true, existing: false },
-  { feature: '키워드 기반 자동 수집', gapago: true, existing: true },
+  {
+    feature: '논문 GAP 도출',
+    gapago: true,
+    gapagoDetail: 'Multi-Agent 파이프라인이 한계점 추출 → 연구 축 생성 → 장벽 분석을 자동 수행',
+    existing: false,
+    existingDetail: 'GAP 도출 기능 없음 (요약만 제공)',
+  },
+  {
+    feature: '다중 논문 교차 분석',
+    gapago: true,
+    gapagoDetail: '수십 편 논문의 한계점을 교차 비교하여 공통 패턴 도출',
+    existing: false,
+    existingDetail: '개별 논문 단위 분석만 가능',
+  },
+  {
+    feature: '연구 방향 제안',
+    gapago: true,
+    gapagoDetail: 'GAP 기반 구체적 연구 주제 및 방법론 제안 + Critic 검증',
+    existing: false,
+    existingDetail: '연구 방향 제안 기능 없음',
+  },
+  {
+    feature: '구조화된 리포트',
+    gapago: true,
+    gapagoDetail: '연구 축별 GAP 분류 + 근거 논문 + 연구 방향이 포함된 체계적 리포트',
+    existing: false,
+    existingDetail: '단순 텍스트 요약만 제공',
+  },
+  {
+    feature: '논문 수집 자동화',
+    gapago: true,
+    gapagoDetail: '6개 학술 DB 병렬 검색 + BM25/FAISS/CrossEncoder 3단계 랭킹',
+    existing: true,
+    existingDetail: '키워드 기반 검색은 가능하나 랭킹 정밀도 낮음',
+  },
+  {
+    feature: '대화형 후속 탐색',
+    gapago: true,
+    gapagoDetail: '분석 결과에 대해 자연어로 추가 질문 및 심층 탐색 가능',
+    existing: false,
+    existingDetail: '정적 결과만 제공',
+  },
 ]
 
 // ── ExampleSection 예시 데이터 ──
