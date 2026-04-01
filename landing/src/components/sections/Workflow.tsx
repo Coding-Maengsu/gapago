@@ -28,19 +28,6 @@ export default function Workflow() {
             </div>
           ))}
         </div>
-
-        {/* 사용 예시 미리보기 */}
-        <div className="mt-12 rounded-xl border border-border bg-card p-6 md:p-8">
-          <p className="text-sm text-muted-foreground mb-4 font-medium">사용 예시</p>
-          <div className="bg-background rounded-lg p-4 border border-border/50">
-            <p className="text-sm font-medium mb-2">
-              <span className="text-primary">키워드:</span> "LLM hallucination detection"
-            </p>
-            <p className="text-sm text-muted-foreground mb-1">→ 관련 논문 47편 수집 완료</p>
-            <p className="text-sm text-muted-foreground mb-1">→ 한계점 128개 추출, 5개 연구 축 도출</p>
-            <p className="text-sm text-muted-foreground">→ Research Gap 12개 발견, 연구 방향 8개 제안</p>
-          </div>
-        </div>
       </Container>
     </section>
   )

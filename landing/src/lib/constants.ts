@@ -1,6 +1,6 @@
 import {
   FileSearch, Brain, Target, Search, Database, Sparkles, FileText,
-  Layers, Zap, BarChart3, Globe, Clock,
+  Layers, Zap, BarChart3, Globe, Clock, MessageSquare,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -24,8 +24,8 @@ export const SERVICE_CARDS: ServiceCard[] = [
   },
   {
     icon: Brain,
-    title: 'AI 기반 Research GAP 도출',
-    description: '수집된 논문들의 한계점(Limitations)을 2-Track으로 추출(저자 명시 + 구조적 분석)한 뒤, AI가 연구 축(Research Axes)을 동적으로 생성하고 축별 장벽 분석을 통해 실질적인 연구 공백을 식별합니다.',
+    title: 'AI 기반 연구 공백(GAP) 도출',
+    description: '수집된 논문들에서 한계점을 자동으로 추출한 뒤, AI가 연구 주제별 분석 축을 생성하고 각 축에서 빠져 있는 연구 영역을 찾아냅니다. 단순 요약이 아닌, 논문 간 교차 분석을 통해 실질적인 연구 공백을 도출합니다.',
   },
   {
     icon: Target,
@@ -53,6 +53,7 @@ export const FEATURES: FeatureItem[] = [
   { icon: Zap, title: '실시간 AI 분석', description: '키워드 입력 후 수 분 내에 논문 수집부터 GAP 도출까지 전 과정을 자동 수행합니다. Multi-Agent 파이프라인이 병렬로 작업을 처리합니다.' },
   { icon: BarChart3, title: '구조화된 GAP 리포트', description: 'AI가 동적으로 생성한 연구 축(Research Axes)별로 GAP을 분류하고, 각 GAP의 근거 논문과 함께 구조화된 리포트를 제공합니다.' },
   { icon: Clock, title: '분석 이력 & 대화형 탐색', description: '이전 분석 결과를 저장하고 언제든 재확인할 수 있습니다. 분석 완료 후 GAP에 대해 추가 질문하며 심층 탐색이 가능합니다.' },
+  { icon: MessageSquare, title: '질의 분석 & 키워드 확장', description: '입력한 연구 주제를 AI가 분석하여 모호한 부분을 보완하고, 검색 효율을 높이기 위해 관련 키워드를 자동으로 확장합니다.' },
 ]
 
 // ── DifferenceSection 비교 데이터 ──
