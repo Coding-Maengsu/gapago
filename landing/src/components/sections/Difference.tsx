@@ -5,7 +5,7 @@ import { COMPARISON_DATA } from '@/lib/constants'
 
 export default function Difference() {
   return (
-    <section id="difference" className="py-24 md:py-32 bg-card/50">
+    <section id="difference" className="py-16 md:py-20 bg-card/50">
       <Container className="max-w-3xl">
         <SectionHeading
           title="왜 GAPAGO인가요?"
@@ -21,17 +21,21 @@ export default function Difference() {
           </div>
           {/* 데이터 행 */}
           {COMPARISON_DATA.map((row) => (
-            <div key={row.feature} className="grid grid-cols-3 p-4 border-t border-border items-center">
-              <span className="text-sm">{row.feature}</span>
-              <div className="flex justify-center">
+            <div key={row.feature} className="grid grid-cols-3 p-4 border-t border-border">
+              <div>
+                <span className="text-sm font-medium">{row.feature}</span>
+                <p className="text-xs text-muted-foreground mt-1">{row.gapagoDetail}</p>
+              </div>
+              <div className="flex justify-center items-start pt-1">
                 <CheckCircle2 className="h-5 w-5 text-primary" />
               </div>
-              <div className="flex justify-center">
+              <div className="flex flex-col items-center pt-1">
                 {row.existing ? (
                   <CheckCircle2 className="h-5 w-5 text-muted-foreground/50" />
                 ) : (
                   <XCircle className="h-5 w-5 text-muted-foreground/30" />
                 )}
+                <span className="text-xs text-muted-foreground/60 mt-1 text-center">{row.existingDetail}</span>
               </div>
             </div>
           ))}

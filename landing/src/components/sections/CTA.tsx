@@ -4,7 +4,7 @@ import Button from '@/components/ui/Button'
 
 export default function CTA() {
   return (
-    <section className="py-24 md:py-32 bg-card/50">
+    <section className="py-16 md:py-20 bg-card/50">
       <Container className="max-w-2xl text-center">
         <h2 className="text-3xl md:text-4xl font-bold mb-4">
           지금 바로 <span className="text-gradient">Research Gap</span>을 찾아보세요

@@ -4,7 +4,7 @@ import { SERVICE_CARDS } from '@/lib/constants'
 
 export default function Service() {
   return (
-    <section className="py-24 md:py-32">
+    <section id="service" className="py-16 md:py-20">
       <Container>
         <SectionHeading
           title="GAPAGO가 하는 일"
