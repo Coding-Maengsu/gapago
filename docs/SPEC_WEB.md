@@ -1,10 +1,16 @@
 # GAPAGO 웹 프론트엔드 스펙
 
-> **최종 업데이트:** 2026-03-29 (스펙-코드 일치 검증 반영)
+> **최종 업데이트:** 2026-04-02 (웹 UI 개선사항 반영)
 
 ## 1. 개요
 
-GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 인터페이스를 제공한다. 세 가지 구현이 존재하며, 메인 프론트엔드는 Vanilla JS SPA(`frontend/index.html`, 2,700줄)이고, Streamlit(`app.py`)과 Gradio(`app_gradio.py`)는 대안 구현이다.
+GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 인터페이스를 제공한다. 세 가지 구현이 존재하며, 메인 프론트엔드는 Vanilla JS SPA(`frontend/index.html`)이고, Streamlit(`app.py`)과 Gradio(`app_gradio.py`)는 대안 구현이다.
+
+**주요 변경 (2026-04-01):**
+- 용어 통일: 쿼리→질문, Research GAP→연구 GAP, 검색어 확장→확장
+- 클립보드 복사 제거 → .md/.docx 다운로드 버튼으로 교체
+- 관계도(Cytoscape) 개선: 라벨 길이 확장, 툴팁, 엣지 색상 통일, 인터랙션 강화
+- 한계점 평가 차트, GAP Axis 클러스터링, GAP Axis 도넛 차트 제거 (불필요한 시각화 정리)
 
 **주요 변경 (2026-03-28):**
 - 전체 UI 텍스트 한국어 통일
@@ -67,7 +73,7 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 
 | 설정 | 옵션 | 기본값 |
 |------|------|--------|
-| LLM Provider | `azure`, `claude`, `exaone` | `azure` |
+| LLM Provider | `azure`, `claude`, `gemini`, `exaone` | `azure` |
 | Year Range | `auto`, `1y`, `3y`, `5y` | `auto` |
 | Output Language | `auto`, `ko`, `en` | `auto` |
 | Fast Mode | 체크박스 (on/off) | off |
@@ -186,7 +192,26 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 **하단 리포트 섹션** (`report-collapse`):
 - 접힌(collapsible) 상태로 기본 표시
 - "전체 리포트 보기" 클릭 → 마크다운 렌더링 보고서 표시 (`toggleReport`)
-- 클립보드 복사 (`copyReport`) + .md 다운로드 (`downloadReport`) 버튼
+- **.md 다운로드** + **.docx 다운로드** 버튼 (타임스탬프 파일명: `GAPAGO_report_YYYYMMDD_HHMMSS.{md|docx}`)
+  - Markdown: 분석 옵션, 정제된 질문, 확장 키워드, 요약 통계, AI 생성 리포트 포함
+  - DOCX: Markdown → HTML 변환 후 Word 문서 생성
+
+**관계도 (Cytoscape 네트워크 시각화):**
+- 결과 요약 바 아래에 표시
+- **노드 유형:**
+  - 논문: 파란 사각형
+  - 한계점: 노란 타원 (60개 초과 시 논문별 그룹화)
+  - 연구 GAP: 축 색상별 사각형
+- **엣지 유형:**
+  - 논문 → 한계점: 실선 (연한 파란색, 0.5 opacity)
+  - 한계점 → GAP: 점선 (빨간색, 0.6 opacity)
+- **인터랙션:**
+  - 호버: 노드 이웃 하이라이트 + 전체 라벨 툴팁 표시
+  - 클릭: 노드 선택 고정/토글
+  - 더블클릭: 해당 이웃 영역으로 줌
+  - 시맨틱 줌: 0.7x 미만에서 도트 모드
+  - "전체 보기" 버튼(⊞)으로 뷰 리셋
+- **레이아웃:** DAG 좌→우 배치, 300-600px 동적 높이
 
 #### 상태 5: 결과 기반 채팅
 
@@ -377,5 +402,5 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 | 히스토리 | API 기반 | 파일 기반 | 없음 |
 | 반응형 | 3 브레이크포인트 | Streamlit 기본 | Gradio 기본 |
 | Human-in-the-Loop | SSE interrupt | Interrupt UI | 미지원 |
-| 결과 내보내기 | 복사/다운로드 | JSON 저장 | JSON 저장 |
+| 결과 내보내기 | .md/.docx 다운로드 | JSON 저장 | JSON 저장 |
 | 배포 | FastAPI 정적 서빙 | `streamlit run` | `gradio launch` |
