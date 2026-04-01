@@ -3063,8 +3063,8 @@ function renderResults() {
     let reportActionsHTML = '';
     if (pipelineData.report) {
         reportActionsHTML = `<div class="result-report-actions">
-            <button onclick="copyReport()">클립보드에 복사</button>
-            <button onclick="downloadReport()">다운로드 .md</button>
+            <button onclick="downloadReport('md')">다운로드 .md</button>
+            <button onclick="downloadReport('docx')">다운로드 .docx</button>
         </div>`;
     }
 
@@ -3406,39 +3406,10 @@ function renderMarkdown(text) {
         .replace(/\n/g, '<br>');
 }
 
-function copyReport() {
-    const report = pipelineData.report || '';
-    if (!report) return;
-    navigator.clipboard.writeText(report).then(() => {
-        const btn = document.querySelector('.report-actions button');
-        if (btn) {
-            const orig = btn.textContent;
-            btn.textContent = '복사됨!';
-            setTimeout(() => { btn.textContent = orig; }, 1500);
-        }
-    }).catch(() => {
-        // fallback for non-HTTPS or older browsers
-        const ta = document.createElement('textarea');
-        ta.value = report;
-        ta.style.cssText = 'position:fixed;left:-9999px';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        const btn = document.querySelector('.report-actions button');
-        if (btn) {
-            const orig = btn.textContent;
-            btn.textContent = '복사됨!';
-            setTimeout(() => { btn.textContent = orig; }, 1500);
-        }
-    });
-}
-
-function downloadReport() {
+function buildReportMd() {
     const opts = pipelineData.analysisOptions || {};
     let md = '# 분석 리포트\n\n';
 
-    // Analysis options
     if (opts.provider || opts.yearRange || opts.outputLanguage) {
         md += '## 분석 옵션\n';
         if (opts.provider) md += `- LLM: ${opts.provider}\n`;
@@ -3447,28 +3418,40 @@ function downloadReport() {
         md += '\n';
     }
 
-    // Refined query
     if (pipelineData.refined_query) {
         md += `## 정제된 질문\n${pipelineData.refined_query}\n\n`;
     }
 
-    // Keywords
     if (pipelineData.keywords && pipelineData.keywords.length) {
         md += `## 확장 키워드\n${pipelineData.keywords.join(', ')}\n\n`;
     }
 
-    // Summary
     md += `## 요약\n`;
     md += `- 검색 논문: ${pipelineData.papers.length}/${pipelineData.total_searched || pipelineData.papers.length || '?'}편\n`;
     md += `- 도출 GAP: ${pipelineData.gaps.length}개\n\n`;
-
     md += '---\n\n';
 
-    // Full report
-    if (pipelineData.report) {
-        md += pipelineData.report;
-    }
+    if (pipelineData.report) md += pipelineData.report;
+    return md;
+}
 
+function mdToHtml(md) {
+    return md
+        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+        .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+        .replace(/(?<!\w)_(.+?)_(?!\w)/g, '<i>$1</i>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
+        .replace(/(<\/ul>\s*<ul>)/g, '')
+        .replace(/^---$/gm, '<hr>')
+        .replace(/\n{2,}/g, '<br><br>')
+        .replace(/\n/g, '<br>');
+}
+
+function downloadReport(format) {
+    const md = buildReportMd();
     const now = new Date();
     const ts = now.getFullYear().toString()
         + String(now.getMonth() + 1).padStart(2, '0')
@@ -3477,10 +3460,19 @@ function downloadReport() {
         + String(now.getMinutes()).padStart(2, '0')
         + String(now.getSeconds()).padStart(2, '0');
 
-    const blob = new Blob([md], { type: 'text/markdown' });
+    let blob, filename;
+    if (format === 'docx') {
+        const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><style>body{font-family:'Malgun Gothic',sans-serif;font-size:11pt;line-height:1.6}h1{font-size:18pt}h2{font-size:14pt}h3{font-size:12pt}</style></head><body>${mdToHtml(md)}</body></html>`;
+        blob = new Blob(['\ufeff' + html], { type: 'application/msword' });
+        filename = `GAPAGO_report_${ts}.doc`;
+    } else {
+        blob = new Blob([md], { type: 'text/markdown' });
+        filename = `GAPAGO_report_${ts}.md`;
+    }
+
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `finalreport_${ts}.md`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(a.href);
 }
