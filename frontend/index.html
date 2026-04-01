@@ -1539,11 +1539,28 @@
         /* ── 관계도 그래프 (Cytoscape) ── */
         .flow-graph-section { margin-top: 18px; border-top: 1px solid var(--border-light); padding-top: 14px; }
         .flow-graph-section .section-title { font-weight: 600; font-size: 0.9em; color: var(--text); margin-bottom: 10px; }
-        .cy-container { width: 100%; height: 420px; border: 1px solid var(--border-light); border-radius: var(--radius-lg); background: var(--surface); position: relative; overflow: hidden; }
+        .cy-container { width: 100%; min-height: 300px; height: auto; max-height: 600px; border: 1px solid var(--border-light); border-radius: var(--radius-lg); background: var(--surface); position: relative; overflow: hidden; }
+        .cy-empty-placeholder { display: flex; align-items: center; justify-content: center; height: 200px; color: var(--text-light); font-size: 0.88em; }
         .cy-fit-btn { position: absolute; top: 10px; right: 10px; z-index: 10; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-dim); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s, box-shadow 0.15s; }
         .cy-fit-btn:hover { background: var(--surface2); box-shadow: var(--shadow-sm); }
         .cy-legend { display: flex; gap: 14px; padding: 8px 14px; font-size: 0.72em; color: var(--text-light); border: 1px solid var(--border-light); border-top: none; border-radius: 0 0 var(--radius-lg) var(--radius-lg); background: var(--surface2); flex-wrap: wrap; align-items: center; }
         .cy-legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: middle; }
+        .axis-donut-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+        .axis-donut { width: 80px; height: 80px; border-radius: 50%; position: relative; flex-shrink: 0; }
+        .axis-donut-center { position: absolute; inset: 18px; border-radius: 50%; background: var(--surface); display: flex; align-items: center; justify-content: center; font-size: 0.95em; font-weight: 700; color: var(--text); }
+        .axis-donut-legend { display: flex; flex-direction: column; gap: 3px; font-size: 0.78em; }
+        .axis-donut-legend-item { display: flex; align-items: center; gap: 6px; }
+        .axis-donut-legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+        .eval-chart-wrap { padding: 12px 0; }
+        .eval-chart-title { font-weight: 600; font-size: 0.85em; margin-bottom: 8px; color: var(--text); }
+        .eval-decision { display: inline-block; font-size: 0.8em; font-weight: 600; padding: 2px 10px; border-radius: 6px; margin-bottom: 8px; }
+        .eval-decision.pass { background: var(--green-light); color: var(--green); }
+        .eval-decision.retry { background: var(--yellow-light); color: var(--yellow); }
+        .eval-bar-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 0.8em; }
+        .eval-bar-label { width: 90px; text-align: right; color: var(--text-dim); font-size: 0.85em; flex-shrink: 0; }
+        .eval-bar-track { flex: 1; height: 8px; background: var(--surface3); border-radius: 4px; overflow: hidden; }
+        .eval-bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+        .eval-bar-value { width: 32px; font-size: 0.8em; color: var(--text-dim); }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
@@ -2703,9 +2720,10 @@ function buildCyElements() {
 
     // 논문 노드
     papers.forEach((p, i) => {
-        const title = truncate(p.title || p.paper_id || '', 28);
+        const fullTitle = p.title || p.paper_id || '';
+        const title = truncate(fullTitle, 28);
         const meta = [p.venue, p.year].filter(Boolean).join(', ');
-        elements.push({ data: { id: p.paper_id, label: title, meta, nodeType: 'paper', index: i } });
+        elements.push({ data: { id: p.paper_id, label: title, fullLabel: fullTitle, meta, nodeType: 'paper', index: i } });
     });
 
     // 한계점 노드
@@ -2733,8 +2751,9 @@ function buildCyElements() {
         });
     } else {
         validLimitations.forEach(l => {
-            const claim = truncate(l.claim || l.limitation_text || l.text || l.content || '(한계점)', 32);
-            elements.push({ data: { id: `lim-${l._idx}`, label: claim, nodeType: 'lim', paperId: l.paper_id } });
+            const fullClaim = l.claim || l.limitation_text || l.text || l.content || '(한계점)';
+            const claim = truncate(fullClaim, 32);
+            elements.push({ data: { id: `lim-${l._idx}`, label: claim, fullLabel: fullClaim, nodeType: 'lim', paperId: l.paper_id } });
         });
         // paper → lim edges
         paperToLim.forEach(e => {
@@ -2746,6 +2765,13 @@ function buildCyElements() {
         });
     }
 
+    // Axis compound parent nodes
+    const axes = [...new Set(gaps.map(g => g.axis_label || g.axis || '').filter(Boolean))];
+    axes.forEach(axis => {
+        const ac = getAxisColor(axis);
+        elements.push({ data: { id: `axis-${axis}`, label: axis, nodeType: 'axis', bgColor: ac.bg, borderColor: ac.border, textColor: ac.color } });
+    });
+
     // GAP 노드 (크기 = 연결된 엣지 수에 비례)
     const gapEdgeCounts = {};
     elements.filter(e => e.data.edgeType === 'lim-gap').forEach(e => {
@@ -2754,10 +2780,12 @@ function buildCyElements() {
     gaps.forEach((g, i) => {
         const axisLabel = g.axis_label || g.axis || '';
         const ac = getAxisColor(axisLabel);
-        const stmt = truncate(g.gap_statement || '', 28);
+        const fullStmt = g.gap_statement || '';
+        const stmt = truncate(fullStmt, 42);
         const edgeCount = gapEdgeCounts[`gap-${i}`] || 1;
         const nodeWidth = Math.round(160 * Math.max(1, Math.min(edgeCount / 2, 2.5)));
-        elements.push({ data: { id: `gap-${i}`, label: stmt, axisLabel, nodeType: 'gap', index: i, bgColor: ac.bg, borderColor: ac.border, textColor: ac.color, nodeWidth } });
+        const parentId = axisLabel ? `axis-${axisLabel}` : undefined;
+        elements.push({ data: { id: `gap-${i}`, label: stmt, fullLabel: fullStmt, axisLabel, nodeType: 'gap', index: i, bgColor: ac.bg, borderColor: ac.border, textColor: ac.color, nodeWidth, parent: parentId } });
     });
 
     return elements;
@@ -2768,7 +2796,10 @@ function initCyGraph() {
     if (!container) return;
 
     const elements = buildCyElements();
-    if (!elements.length) return;
+    if (!elements.length) {
+        container.innerHTML = '<div class="cy-empty-placeholder">관계도를 표시할 데이터가 없습니다</div>';
+        return;
+    }
 
     const cy = cytoscape({
         container,
@@ -2776,7 +2807,7 @@ function initCyGraph() {
         style: [
             // ── Base node ──
             { selector: 'node', style: {
-                'label': 'data(label)', 'text-wrap': 'wrap', 'text-max-width': '140px',
+                'label': 'data(label)', 'text-wrap': 'wrap', 'text-max-width': '200px',
                 'font-size': '10px', 'text-valign': 'center', 'text-halign': 'center',
                 'width': '160px', 'height': 'label', 'padding': '10px',
                 'shape': 'round-rectangle', 'background-color': '#f0f2f8',
@@ -2799,6 +2830,15 @@ function initCyGraph() {
                 'border-width': 3, 'color': 'data(textColor)', 'font-weight': '600',
                 'width': 'data(nodeWidth)',
             }},
+            // ── Axis compound nodes ──
+            { selector: 'node[nodeType="axis"]', style: {
+                'shape': 'round-rectangle',
+                'background-color': 'data(bgColor)', 'background-opacity': 0.15,
+                'border-color': 'data(borderColor)', 'border-width': 2, 'border-style': 'dashed',
+                'color': 'data(textColor)', 'font-weight': '700', 'font-size': '11px',
+                'text-valign': 'top', 'text-halign': 'center', 'text-margin-y': -6,
+                'padding': '20px',
+            }},
             // ── Edge types ──
             { selector: 'edge', style: {
                 'target-arrow-shape': 'triangle', 'curve-style': 'bezier',
@@ -2811,7 +2851,7 @@ function initCyGraph() {
                 'line-style': 'solid', 'opacity': 0.5,
             }},
             { selector: 'edge[edgeType="lim-gap"]', style: {
-                'width': 2, 'line-color': '#f59e0b', 'target-arrow-color': '#ef4444',
+                'width': 2, 'line-color': '#ef4444', 'target-arrow-color': '#ef4444',
                 'line-style': 'dashed', 'opacity': 0.6,
             }},
             // ── Semantic zoom (dot mode) ──
@@ -2827,6 +2867,9 @@ function initCyGraph() {
             }},
             { selector: 'node.zoom-dot[nodeType="gap"]', style: {
                 'width': 24, 'height': 24,
+            }},
+            { selector: 'node.zoom-dot[nodeType="axis"]', style: {
+                'border-width': 1, 'font-size': '6px', 'padding': '5px',
             }},
             { selector: 'edge.zoom-dot', style: {
                 'width': 1, 'arrow-scale': 0.5,
@@ -2858,6 +2901,16 @@ function initCyGraph() {
     });
 
     setupCyInteractions(cy);
+
+    // Dynamic container height based on graph extent
+    cy.on('layoutstop', function() {
+        const ext = cy.extent();
+        const newH = Math.min(600, Math.max(300, Math.round(ext.h + 60)));
+        container.style.height = newH + 'px';
+        cy.resize();
+        cy.fit(undefined, 30);
+    });
+
     window._cyInstance = cy;
 }
 
@@ -2877,11 +2930,15 @@ function setupCyInteractions(cy) {
     cy.on('mouseover', 'node', function(e) {
         if (lockedNode) return;
         highlightNeighborhood(e.target);
+        // Native tooltip with full label
+        const fullLabel = e.target.data('fullLabel');
+        if (fullLabel) cy.container().setAttribute('title', fullLabel);
     });
 
     cy.on('mouseout', 'node', function() {
         if (lockedNode) return;
         clearHighlight();
+        cy.container().removeAttribute('title');
     });
 
     cy.on('tap', 'node', function(e) {
@@ -2952,6 +3009,86 @@ function destroyCyGraph() {
     }
 }
 
+function renderEvalChart() {
+    const evalData = pipelineData.limitation_eval;
+    if (!evalData || (!evalData.decision && !evalData.call1_results)) return '';
+
+    let html = '<div class="eval-chart-wrap">';
+    html += '<div class="eval-chart-title">한계점 품질 평가</div>';
+
+    // Decision badge
+    const decision = evalData.decision || '';
+    if (decision) {
+        const cls = decision === 'PASS' ? 'pass' : 'retry';
+        html += `<span class="eval-decision ${cls}">${esc(decision)}</span>`;
+    }
+
+    // Aggregate scores from call1_results
+    const call1 = evalData.call1_results || [];
+    if (call1.length) {
+        const dims = ['groundedness', 'specificity', 'relevance'];
+        const dimLabels = { groundedness: 'Groundedness', specificity: 'Specificity', relevance: 'Relevance' };
+        // Also include fact_score if available
+        const hasFactScore = call1.some(r => r.fact_score !== undefined);
+        if (hasFactScore) { dims.unshift('fact_score'); dimLabels.fact_score = 'Fact Score'; }
+
+        dims.forEach(dim => {
+            let sum = 0, count = 0;
+            call1.forEach(r => {
+                let val = r[dim];
+                if (val === undefined || val === null) return;
+                // groundedness/specificity/relevance are 0-5, normalize to 0-1
+                if (dim !== 'fact_score' && val > 1) val = val / 5.0;
+                sum += val; count++;
+            });
+            if (!count) return;
+            const avg = sum / count;
+            const pct = Math.round(avg * 100);
+            const barColor = avg >= 0.7 ? 'var(--green)' : avg >= 0.4 ? 'var(--yellow)' : 'var(--red)';
+            html += `<div class="eval-bar-row">
+                <span class="eval-bar-label">${dimLabels[dim]}</span>
+                <div class="eval-bar-track"><div class="eval-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
+                <span class="eval-bar-value">${pct}%</span>
+            </div>`;
+        });
+
+        html += `<div style="font-size:0.75em;color:var(--text-light);margin-top:6px">${call1.length}개 한계점 평균 점수</div>`;
+    } else if (evalData.passed_count !== undefined) {
+        html += `<div style="font-size:0.82em;color:var(--text-dim)">${evalData.passed_count}개 통과${evalData.total_count ? ' / ' + evalData.total_count + '개 전체' : ''}</div>`;
+    }
+
+    html += '</div>';
+    return html;
+}
+
+function renderAxisDonut() {
+    const gaps = pipelineData.gaps || [];
+    if (!gaps.length) return '';
+    const axisCounts = {};
+    gaps.forEach(g => {
+        const axis = g.axis_label || g.axis || '기타';
+        axisCounts[axis] = (axisCounts[axis] || 0) + 1;
+    });
+    const entries = Object.entries(axisCounts).sort((a, b) => b[1] - a[1]);
+    const total = gaps.length;
+    // Build conic-gradient
+    let gradParts = [], cumPct = 0;
+    const legendItems = [];
+    entries.forEach(([axis, count]) => {
+        const ac = getAxisColor(axis);
+        const pct = (count / total) * 100;
+        gradParts.push(`${ac.border} ${cumPct}% ${cumPct + pct}%`);
+        legendItems.push(`<div class="axis-donut-legend-item"><span class="axis-donut-legend-dot" style="background:${ac.border}"></span>${esc(axis)} <span style="color:var(--text-light)">${count}</span></div>`);
+        cumPct += pct;
+    });
+    return `<div class="axis-donut-wrap">
+        <div class="axis-donut" style="background:conic-gradient(${gradParts.join(',')})">
+            <div class="axis-donut-center">${total}</div>
+        </div>
+        <div class="axis-donut-legend">${legendItems.join('')}</div>
+    </div>`;
+}
+
 function renderResults() {
     destroyCyGraph();
     const area = document.getElementById('resultArea');
@@ -2969,6 +3106,7 @@ function renderResults() {
 
     // Gaps section
     leftHTML += `<div class="panel-section-header">연구 GAP (${gapsCount})</div>`;
+    leftHTML += renderAxisDonut();
     if (pipelineData.gaps.length) {
         pipelineData.gaps.forEach((gap, i) => {
             const isTop = i === 0;
@@ -3005,7 +3143,7 @@ function renderResults() {
     }
 
     // Right panel: detail (default: first gap)
-    let rightHTML = getGapDetailHTML(0);
+    let rightHTML = getGapDetailHTML(0) + renderEvalChart();
 
     // Summary bar: query + stats + meta chips in one compact row
     let summaryBarHTML = '';
@@ -3070,6 +3208,7 @@ function renderResults() {
                             <span><span class="cy-legend-dot" style="background:#3b5998;border:1px solid #2d4373"></span> 논문</span>
                             <span><span class="cy-legend-dot" style="background:#fffbeb;border:1px solid #f59e0b"></span> 한계점</span>
                             <span><span class="cy-legend-dot" style="background:#eef0fb;border:1px solid #5469d4"></span> GAP</span>
+                            <span><span class="cy-legend-dot" style="background:transparent;border:2px dashed #999;width:10px;height:10px"></span> Axis 그룹</span>
                             <span style="margin-left:auto;font-style:italic;opacity:0.7">클릭 강조 · 더블클릭 줌인 · ⊞ 전체보기</span>
                         </div>
                     </div>
