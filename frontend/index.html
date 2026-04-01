@@ -2749,6 +2749,13 @@ function buildCyElements() {
         });
     }
 
+    // Axis compound parent nodes
+    const axes = [...new Set(gaps.map(g => g.axis_label || g.axis || '').filter(Boolean))];
+    axes.forEach(axis => {
+        const ac = getAxisColor(axis);
+        elements.push({ data: { id: `axis-${axis}`, label: axis, nodeType: 'axis', bgColor: ac.bg, borderColor: ac.border, textColor: ac.color } });
+    });
+
     // GAP 노드 (크기 = 연결된 엣지 수에 비례)
     const gapEdgeCounts = {};
     elements.filter(e => e.data.edgeType === 'lim-gap').forEach(e => {
@@ -2761,7 +2768,8 @@ function buildCyElements() {
         const stmt = truncate(fullStmt, 42);
         const edgeCount = gapEdgeCounts[`gap-${i}`] || 1;
         const nodeWidth = Math.round(160 * Math.max(1, Math.min(edgeCount / 2, 2.5)));
-        elements.push({ data: { id: `gap-${i}`, label: stmt, fullLabel: fullStmt, axisLabel, nodeType: 'gap', index: i, bgColor: ac.bg, borderColor: ac.border, textColor: ac.color, nodeWidth } });
+        const parentId = axisLabel ? `axis-${axisLabel}` : undefined;
+        elements.push({ data: { id: `gap-${i}`, label: stmt, fullLabel: fullStmt, axisLabel, nodeType: 'gap', index: i, bgColor: ac.bg, borderColor: ac.border, textColor: ac.color, nodeWidth, parent: parentId } });
     });
 
     return elements;
@@ -2806,6 +2814,15 @@ function initCyGraph() {
                 'border-width': 3, 'color': 'data(textColor)', 'font-weight': '600',
                 'width': 'data(nodeWidth)',
             }},
+            // ── Axis compound nodes ──
+            { selector: 'node[nodeType="axis"]', style: {
+                'shape': 'round-rectangle',
+                'background-color': 'data(bgColor)', 'background-opacity': 0.15,
+                'border-color': 'data(borderColor)', 'border-width': 2, 'border-style': 'dashed',
+                'color': 'data(textColor)', 'font-weight': '700', 'font-size': '11px',
+                'text-valign': 'top', 'text-halign': 'center', 'text-margin-y': -6,
+                'padding': '20px',
+            }},
             // ── Edge types ──
             { selector: 'edge', style: {
                 'target-arrow-shape': 'triangle', 'curve-style': 'bezier',
@@ -2834,6 +2851,9 @@ function initCyGraph() {
             }},
             { selector: 'node.zoom-dot[nodeType="gap"]', style: {
                 'width': 24, 'height': 24,
+            }},
+            { selector: 'node.zoom-dot[nodeType="axis"]', style: {
+                'border-width': 1, 'font-size': '6px', 'padding': '5px',
             }},
             { selector: 'edge.zoom-dot', style: {
                 'width': 1, 'arrow-scale': 0.5,
@@ -3091,6 +3111,7 @@ function renderResults() {
                             <span><span class="cy-legend-dot" style="background:#3b5998;border:1px solid #2d4373"></span> 논문</span>
                             <span><span class="cy-legend-dot" style="background:#fffbeb;border:1px solid #f59e0b"></span> 한계점</span>
                             <span><span class="cy-legend-dot" style="background:#eef0fb;border:1px solid #5469d4"></span> GAP</span>
+                            <span><span class="cy-legend-dot" style="background:transparent;border:2px dashed #999;width:10px;height:10px"></span> Axis 그룹</span>
                             <span style="margin-left:auto;font-style:italic;opacity:0.7">클릭 강조 · 더블클릭 줌인 · ⊞ 전체보기</span>
                         </div>
                     </div>
