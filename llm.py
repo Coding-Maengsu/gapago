@@ -10,15 +10,15 @@ from google import genai
 from google.genai.types import HttpOptions
 import json
 
-load_dotenv()
-
-# ── Render 환경 Google 인증 처리 ──────────────────────────────────
+# ── Render 환경 Google 인증 처리 (load_dotenv 이전에 실행!) ──────
 creds_json = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_JSON")
 if creds_json:
     creds_path = "/tmp/google_credentials.json"
     with open(creds_path, 'w') as f:
         f.write(creds_json)
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = creds_path
+
+load_dotenv(override=False)  # 기존 환경변수 덮어쓰지 않음
 
 # ── Gemini 래퍼 클래스 (gcloud 없이 직접 인증) ──────────────────────
 class GeminiVertexChat(BaseChatModel):
