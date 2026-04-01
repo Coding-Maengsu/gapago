@@ -1,8 +1,7 @@
 import Header from '@/components/sections/Header'
 import Hero from '@/components/sections/Hero'
-import Service from '@/components/sections/Service'
 import Workflow from '@/components/sections/Workflow'
-import Features from '@/components/sections/Features'
+import Service from '@/components/sections/Service'
 import Difference from '@/components/sections/Difference'
 import Example from '@/components/sections/Example'
 import CTA from '@/components/sections/CTA'
@@ -14,9 +13,8 @@ export default function App() {
       <Header />
       <main>
         <Hero />
-        <Service />
         <Workflow />
-        <Features />
+        <Service />
         <Difference />
         <Example />
         <CTA />

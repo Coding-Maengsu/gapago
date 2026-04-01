@@ -16,13 +16,13 @@ export default function Hero() {
 
         {/* 제목 */}
         <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold max-w-4xl leading-tight mb-6 mx-auto">
-          논문 속 <span className="text-[#5469d4]">Research Gap</span>을
+          논문 속 <span className="text-[#5469d4]">연구 GAP</span>을
           <br />찾아드립니다
         </h1>
 
         {/* 부제목 */}
         <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
-          키워드 하나로 관련 논문을 분석하고, 연구 공백을 도출합니다.
+          키워드 하나로 관련 논문을 분석하고, 연구 GAP을 도출합니다.
           <br className="hidden sm:block" />
           단순 요약이 아닌, 진짜 GAP을 발견하세요.
         </p>
@@ -40,7 +40,7 @@ export default function Hero() {
 
       {/* 스크롤 유도 화살표 */}
       <a
-        href="#service"
+        href="#workflow"
         className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 animate-bounce text-foreground/30 hover:text-foreground/60 transition-colors"
         aria-label="아래로 스크롤"
       >

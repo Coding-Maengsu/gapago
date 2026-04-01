@@ -15,7 +15,7 @@ export default function Example() {
           {EXAMPLES.map((example) => (
             <div key={example.query} className="rounded-xl border border-border bg-card p-6">
               {/* 키워드 배지 */}
-              <span className="inline-block rounded-full bg-primary/10 px-3 py-1 text-xs text-primary font-medium mb-4">
+              <span className="inline-block rounded-full bg-primary/10 px-4 py-1.5 text-base text-primary font-semibold mb-4">
                 {example.query}
               </span>
 

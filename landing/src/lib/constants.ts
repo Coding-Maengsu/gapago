@@ -1,14 +1,13 @@
 import {
   FileSearch, Brain, Target, Search, Database, Sparkles, FileText,
-  Layers, Zap, BarChart3, Globe, Clock, MessageSquare,
+  Zap, BarChart3, Clock, MessageSquare,
   type LucideIcon,
 } from 'lucide-react'
 
 // ── 네비게이션 ──
 export const NAV_LINKS = [
-  { label: '하는 일', href: '#service' },
   { label: '사용법', href: '#workflow' },
-  { label: '핵심 기능', href: '#features' },
+  { label: '하는 일', href: '#service' },
   { label: '차별점', href: '#difference' },
   { label: '예시', href: '#examples' },
 ] as const
@@ -20,17 +19,17 @@ export const SERVICE_CARDS: ServiceCard[] = [
   {
     icon: FileSearch,
     title: '논문 수집 & 분석',
-    description: 'arXiv, Semantic Scholar, OpenAlex, Crossref, ScienceON 등 6개 이상의 글로벌 학술 DB에서 키워드 기반으로 관련 논문을 자동 수집합니다. BM25 + FAISS 하이브리드 랭킹과 CrossEncoder 리랭킹으로 가장 관련성 높은 논문을 선별합니다.',
+    description: '관심 분야 키워드를 입력하면, 여러 글로벌 학술 데이터베이스에서 관련 논문을 자동으로 수집하고 관련성 순으로 정리합니다.',
   },
   {
     icon: Brain,
-    title: 'AI 기반 연구 공백(GAP) 도출',
-    description: '수집된 논문들에서 한계점을 자동으로 추출한 뒤, AI가 연구 주제별 분석 축을 생성하고 각 축에서 빠져 있는 연구 영역을 찾아냅니다. 단순 요약이 아닌, 논문 간 교차 분석을 통해 실질적인 연구 공백을 도출합니다.',
+    title: 'AI 기반 연구 GAP 도출',
+    description: '수집된 논문들의 한계점을 분석하고, 논문 간 교차 비교를 통해 아직 연구되지 않은 빈 영역을 찾아냅니다.',
   },
   {
     icon: Target,
     title: '연구 방향 제안',
-    description: '도출된 GAP을 기반으로 새로운 연구 주제와 구체적인 연구 방향을 제안합니다. Critic Agent가 결과를 평가하고, 품질이 부족하면 자동으로 재분석하여 신뢰도 높은 결과를 보장합니다.',
+    description: '도출된 연구 GAP을 바탕으로 새로운 연구 주제와 방향을 제안하고, 결과 검증을 통해 신뢰도 높은 결과를 보장합니다.',
   },
 ]
 
@@ -38,22 +37,20 @@ export const SERVICE_CARDS: ServiceCard[] = [
 export type WorkflowStep = { step: string; icon: LucideIcon; title: string; description: string }
 
 export const WORKFLOW_STEPS: WorkflowStep[] = [
-  { step: '01', icon: Search, title: '키워드 입력', description: '연구하고 싶은 주제나 관심 분야의 키워드를 입력하세요. 예: "LLM hallucination", "자율주행 안전성"' },
-  { step: '02', icon: Database, title: '논문 자동 수집', description: '입력한 키워드를 기반으로 6개 학술 DB에서 관련 논문을 자동으로 검색하고 랭킹합니다.' },
-  { step: '03', icon: Sparkles, title: 'GAP 분석 수행', description: 'AI가 수집된 논문들의 한계점을 추출하고, 연구 축별로 분류하여 비어 있는 연구 영역을 도출합니다.' },
-  { step: '04', icon: FileText, title: '결과 리포트 확인', description: '도출된 Research Gap과 추천 연구 방향이 담긴 구조화된 리포트를 확인하고 추가 질문할 수 있습니다.' },
+  { step: '01', icon: Search, title: '키워드 입력', description: '연구하고 싶은 주제나 관심 분야의 키워드를 입력하세요. 예: "LLM 할루시네이션 탐지", "자율주행 안전성"' },
+  { step: '02', icon: Database, title: '논문 자동 수집', description: '입력한 키워드를 기반으로 여러 학술 DB에서 관련 논문을 자동으로 검색하고 관련성 순으로 정리합니다.' },
+  { step: '03', icon: Sparkles, title: '연구 GAP 분석', description: 'AI가 수집된 논문들의 한계점을 분석하고, 연구 주제별로 비어 있는 영역을 찾아냅니다.' },
+  { step: '04', icon: FileText, title: '결과 리포트 확인', description: '도출된 연구 GAP과 추천 연구 방향이 담긴 리포트를 확인하고 추가 질문할 수 있습니다.' },
 ]
 
 // ── FeaturesSection 기능 데이터 ──
 export type FeatureItem = { icon: LucideIcon; title: string; description: string }
 
-export const FEATURES: FeatureItem[] = [
-  { icon: Globe, title: '글로벌 논문 DB 연동', description: 'arXiv, Semantic Scholar, OpenAlex, Crossref, ScienceON 등 6개 이상의 학술 데이터베이스에서 실시간으로 논문을 검색합니다. 영문/한글 논문 모두 지원합니다.' },
-  { icon: Layers, title: '다중 논문 교차 분석', description: '수십 편의 논문을 동시에 분석하여 개별 논문에서는 보이지 않는 교차 패턴과 공통 한계점을 도출합니다. BM25 + FAISS 하이브리드 랭킹으로 관련성을 보장합니다.' },
-  { icon: Zap, title: '실시간 AI 분석', description: '키워드 입력 후 수 분 내에 논문 수집부터 GAP 도출까지 전 과정을 자동 수행합니다. Multi-Agent 파이프라인이 병렬로 작업을 처리합니다.' },
-  { icon: BarChart3, title: '구조화된 GAP 리포트', description: 'AI가 동적으로 생성한 연구 축(Research Axes)별로 GAP을 분류하고, 각 GAP의 근거 논문과 함께 구조화된 리포트를 제공합니다.' },
-  { icon: Clock, title: '분석 이력 & 대화형 탐색', description: '이전 분석 결과를 저장하고 언제든 재확인할 수 있습니다. 분석 완료 후 GAP에 대해 추가 질문하며 심층 탐색이 가능합니다.' },
-  { icon: MessageSquare, title: '질의 분석 & 키워드 확장', description: '입력한 연구 주제를 AI가 분석하여 모호한 부분을 보완하고, 검색 효율을 높이기 위해 관련 키워드를 자동으로 확장합니다.' },
+export const EXTRA_FEATURES: FeatureItem[] = [
+  { icon: Zap, title: '빠른 자동 분석', description: '키워드 입력 후 몇 분 안에 논문 수집부터 연구 GAP 도출까지 전 과정을 자동 수행합니다.' },
+  { icon: BarChart3, title: '구조화된 리포트', description: 'AI가 생성한 연구 축별로 GAP을 분류하고, 근거 논문과 함께 체계적인 리포트를 제공합니다.' },
+  { icon: Clock, title: '분석 이력 & 대화형 탐색', description: '이전 분석 결과를 저장하고 다시 확인할 수 있으며, 추가 질문으로 심층 탐색이 가능합니다.' },
+  { icon: MessageSquare, title: '키워드 자동 확장', description: '입력한 연구 주제를 AI가 분석하여 검색 효율을 높이기 위한 관련 키워드를 자동으로 확장합니다.' },
 ]
 
 // ── DifferenceSection 비교 데이터 ──
@@ -67,11 +64,11 @@ export type ComparisonRow = {
 
 export const COMPARISON_DATA: ComparisonRow[] = [
   {
-    feature: '논문 GAP 도출',
+    feature: '논문 연구 GAP 도출',
     gapago: true,
-    gapagoDetail: 'Multi-Agent 파이프라인이 한계점 추출 → 연구 축 생성 → 장벽 분석을 자동 수행',
+    gapagoDetail: 'AI가 한계점 추출부터 연구 GAP 분석까지 자동 수행',
     existing: false,
-    existingDetail: 'GAP 도출 기능 없음 (요약만 제공)',
+    existingDetail: '연구 GAP 도출 기능 없음 (요약만 제공)',
   },
   {
     feature: '다중 논문 교차 분석',
@@ -83,30 +80,30 @@ export const COMPARISON_DATA: ComparisonRow[] = [
   {
     feature: '연구 방향 제안',
     gapago: true,
-    gapagoDetail: 'GAP 기반 구체적 연구 주제 및 방법론 제안 + Critic 검증',
+    gapagoDetail: '연구 GAP 기반 구체적 연구 주제 및 방향 제안 + 결과 검증',
     existing: false,
     existingDetail: '연구 방향 제안 기능 없음',
   },
   {
     feature: '구조화된 리포트',
     gapago: true,
-    gapagoDetail: '연구 축별 GAP 분류 + 근거 논문 + 연구 방향이 포함된 체계적 리포트',
+    gapagoDetail: '연구 축별 GAP 분류 + 근거 논문 + 연구 방향 포함 리포트',
     existing: false,
     existingDetail: '단순 텍스트 요약만 제공',
   },
   {
     feature: '논문 수집 자동화',
     gapago: true,
-    gapagoDetail: '6개 학술 DB 병렬 검색 + BM25/FAISS/CrossEncoder 3단계 랭킹',
+    gapagoDetail: '여러 학술 DB에서 병렬 검색 후 관련성 기반 다단계 선별',
     existing: true,
-    existingDetail: '키워드 기반 검색은 가능하나 랭킹 정밀도 낮음',
+    existingDetail: '키워드 기반 검색 가능하나 정밀도 낮음',
   },
   {
     feature: '대화형 후속 탐색',
     gapago: true,
     gapagoDetail: '분석 결과에 대해 자연어로 추가 질문 및 심층 탐색 가능',
-    existing: false,
-    existingDetail: '정적 결과만 제공',
+    existing: true,
+    existingDetail: '기본적인 대화형 탐색 지원',
   },
 ]
 
@@ -126,7 +123,7 @@ export type ExampleCard = {
 
 export const EXAMPLES: ExampleCard[] = [
   {
-    query: '자율주행 안전성',
+    query: '자율주행 센서 퓨전 안전성 검증',
     paperCount: 38,
     axes: ['센서 퓨전', '시뮬레이션 검증', '엣지 케이스 대응'],
     gaps: [
@@ -143,7 +140,7 @@ export const EXAMPLES: ExampleCard[] = [
     ],
   },
   {
-    query: 'LLM 할루시네이션',
+    query: 'LLM 할루시네이션 탐지 및 완화',
     paperCount: 52,
     axes: ['탐지 메트릭', '도메인 특화', '멀티모달 검증'],
     gaps: [
@@ -160,7 +157,7 @@ export const EXAMPLES: ExampleCard[] = [
     ],
   },
   {
-    query: '신약 개발 AI',
+    query: 'AI 기반 신약 후보 물질 발굴',
     paperCount: 41,
     axes: ['데이터 편향', '약물 상호작용', '임상 전환'],
     gaps: [
