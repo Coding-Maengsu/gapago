@@ -1539,7 +1539,9 @@
         /* ── 관계도 그래프 (Cytoscape) ── */
         .flow-graph-section { margin-top: 18px; border-top: 1px solid var(--border-light); padding-top: 14px; }
         .flow-graph-section .section-title { font-weight: 600; font-size: 0.9em; color: var(--text); margin-bottom: 10px; }
-        .cy-container { width: 100%; height: 420px; border: 1px solid var(--border-light); border-radius: var(--radius-lg); background: var(--surface); position: relative; }
+        .cy-container { width: 100%; height: 420px; border: 1px solid var(--border-light); border-radius: var(--radius-lg); background: var(--surface); position: relative; overflow: hidden; }
+        .cy-fit-btn { position: absolute; top: 10px; right: 10px; z-index: 10; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-dim); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s, box-shadow 0.15s; }
+        .cy-fit-btn:hover { background: var(--surface2); box-shadow: var(--shadow-sm); }
         .cy-legend { display: flex; gap: 14px; padding: 8px 14px; font-size: 0.72em; color: var(--text-light); border: 1px solid var(--border-light); border-top: none; border-radius: 0 0 var(--radius-lg) var(--radius-lg); background: var(--surface2); flex-wrap: wrap; align-items: center; }
         .cy-legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: middle; }
     </style>
@@ -2744,12 +2746,18 @@ function buildCyElements() {
         });
     }
 
-    // GAP 노드
+    // GAP 노드 (크기 = 연결된 엣지 수에 비례)
+    const gapEdgeCounts = {};
+    elements.filter(e => e.data.edgeType === 'lim-gap').forEach(e => {
+        gapEdgeCounts[e.data.target] = (gapEdgeCounts[e.data.target] || 0) + 1;
+    });
     gaps.forEach((g, i) => {
         const axisLabel = g.axis_label || g.axis || '';
         const ac = getAxisColor(axisLabel);
         const stmt = truncate(g.gap_statement || '', 28);
-        elements.push({ data: { id: `gap-${i}`, label: stmt, axisLabel, nodeType: 'gap', index: i, bgColor: ac.bg, borderColor: ac.border, textColor: ac.color } });
+        const edgeCount = gapEdgeCounts[`gap-${i}`] || 1;
+        const nodeWidth = Math.round(160 * Math.max(1, Math.min(edgeCount / 2, 2.5)));
+        elements.push({ data: { id: `gap-${i}`, label: stmt, axisLabel, nodeType: 'gap', index: i, bgColor: ac.bg, borderColor: ac.border, textColor: ac.color, nodeWidth } });
     });
 
     return elements;
@@ -2766,6 +2774,7 @@ function initCyGraph() {
         container,
         elements,
         style: [
+            // ── Base node ──
             { selector: 'node', style: {
                 'label': 'data(label)', 'text-wrap': 'wrap', 'text-max-width': '140px',
                 'font-size': '10px', 'text-valign': 'center', 'text-halign': 'center',
@@ -2777,24 +2786,52 @@ function initCyGraph() {
                 'transition-duration': '0.2s',
             }},
             { selector: 'node[nodeType="paper"]', style: {
-                'shape': 'round-rectangle', 'background-color': '#f0f2f8', 'border-color': '#dfe3ed',
+                'shape': 'round-rectangle', 'background-color': '#3b5998', 'border-color': '#2d4373',
+                'color': '#fff',
             }},
             { selector: 'node[nodeType="lim"]', style: {
-                'shape': 'ellipse', 'background-color': '#fef8ec', 'border-color': '#f0d8a0',
-                'width': '140px',
+                'shape': 'ellipse', 'background-color': '#fffbeb', 'border-color': '#f59e0b',
+                'border-width': 2, 'color': '#92400e', 'width': '140px',
             }},
             { selector: 'node[nodeType="gap"]', style: {
                 'shape': 'round-rectangle',
                 'background-color': 'data(bgColor)', 'border-color': 'data(borderColor)',
-                'border-width': 2, 'color': 'data(textColor)', 'font-weight': '600',
+                'border-width': 3, 'color': 'data(textColor)', 'font-weight': '600',
+                'width': 'data(nodeWidth)',
             }},
+            // ── Edge types ──
             { selector: 'edge', style: {
-                'width': 1.5, 'line-color': '#dfe3ed', 'target-arrow-color': '#dfe3ed',
-                'target-arrow-shape': 'triangle', 'curve-style': 'bezier', 'opacity': 0.5,
+                'target-arrow-shape': 'triangle', 'curve-style': 'bezier',
                 'arrow-scale': 0.8,
                 'transition-property': 'opacity, line-color, width',
                 'transition-duration': '0.2s',
             }},
+            { selector: 'edge[edgeType="paper-lim"]', style: {
+                'width': 1.5, 'line-color': '#93a3c8', 'target-arrow-color': '#93a3c8',
+                'line-style': 'solid', 'opacity': 0.5,
+            }},
+            { selector: 'edge[edgeType="lim-gap"]', style: {
+                'width': 2, 'line-color': '#f59e0b', 'target-arrow-color': '#ef4444',
+                'line-style': 'dashed', 'opacity': 0.6,
+            }},
+            // ── Semantic zoom (dot mode) ──
+            { selector: 'node.zoom-dot', style: {
+                'width': 20, 'height': 20, 'font-size': '7px', 'shape': 'ellipse',
+                'text-valign': 'bottom', 'padding': '2px',
+            }},
+            { selector: 'node.zoom-dot[nodeType="paper"]', style: {
+                'background-color': '#3b5998', 'color': '#fff',
+            }},
+            { selector: 'node.zoom-dot[nodeType="lim"]', style: {
+                'width': 16, 'height': 16, 'background-color': '#f59e0b',
+            }},
+            { selector: 'node.zoom-dot[nodeType="gap"]', style: {
+                'width': 24, 'height': 24,
+            }},
+            { selector: 'edge.zoom-dot', style: {
+                'width': 1, 'arrow-scale': 0.5,
+            }},
+            // ── Highlight/dim (after zoom-dot for priority) ──
             { selector: '.highlighted', style: {
                 'border-color': '#5469d4', 'border-width': 2.5, 'opacity': 1,
                 'z-index': 10,
@@ -2809,8 +2846,8 @@ function initCyGraph() {
         layout: {
             name: 'dagre',
             rankDir: 'LR',
-            nodeSep: 30,
-            rankSep: 80,
+            nodeSep: 40,
+            rankSep: 100,
             edgeSep: 15,
             animate: false,
         },
@@ -2880,6 +2917,31 @@ function setupCyInteractions(cy) {
             lockedNode = null;
             clearHighlight();
         }
+    });
+
+    // ── 더블클릭 줌인 ──
+    cy.on('dbltap', 'node', function(e) {
+        const node = e.target;
+        const neighborhood = node.closedNeighborhood();
+        cy.animate({ fit: { eles: neighborhood, padding: 50 }, duration: 400 });
+    });
+
+    // ── Semantic zoom ──
+    const ZOOM_THRESHOLD = 0.7;
+    let currentZoomMode = 'card';
+    let _zoomTimer = null;
+    cy.on('zoom', function() {
+        clearTimeout(_zoomTimer);
+        _zoomTimer = setTimeout(function() {
+            const dot = cy.zoom() < ZOOM_THRESHOLD;
+            if (dot && currentZoomMode !== 'dot') {
+                cy.elements().addClass('zoom-dot');
+                currentZoomMode = 'dot';
+            } else if (!dot && currentZoomMode !== 'card') {
+                cy.elements().removeClass('zoom-dot');
+                currentZoomMode = 'card';
+            }
+        }, 50);
     });
 }
 
@@ -3001,12 +3063,14 @@ function renderResults() {
                     </div>
                     <div class="flow-graph-section" id="flowGraphSection">
                         <div class="section-title">관계도 (Papers → Limitations → GAPs)</div>
-                        <div class="cy-container" id="cyContainer"></div>
+                        <div class="cy-container" id="cyContainer">
+                            <button class="cy-fit-btn" onclick="if(window._cyInstance) window._cyInstance.animate({fit:{padding:30},duration:300})" title="전체 보기">⊞</button>
+                        </div>
                         <div class="cy-legend">
-                            <span><span class="cy-legend-dot" style="background:#f0f2f8;border:1px solid #dfe3ed"></span> 논문</span>
-                            <span><span class="cy-legend-dot" style="background:#fef8ec;border:1px solid #e8920b"></span> 한계점</span>
+                            <span><span class="cy-legend-dot" style="background:#3b5998;border:1px solid #2d4373"></span> 논문</span>
+                            <span><span class="cy-legend-dot" style="background:#fffbeb;border:1px solid #f59e0b"></span> 한계점</span>
                             <span><span class="cy-legend-dot" style="background:#eef0fb;border:1px solid #5469d4"></span> GAP</span>
-                            <span style="margin-left:auto;font-style:italic;opacity:0.7">클릭하면 강조 고정, 빈 공간 클릭으로 해제</span>
+                            <span style="margin-left:auto;font-style:italic;opacity:0.7">클릭 강조 · 더블클릭 줌인 · ⊞ 전체보기</span>
                         </div>
                     </div>
                 </div>
