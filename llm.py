@@ -31,6 +31,42 @@ class GeminiVertexChat(BaseChatModel):
         )
         return ChatResult(generations=[ChatGeneration(message=AIMessage(content=response.text))])
 
+    def with_structured_output(self, schema, **kwargs):
+        """structured output 지원 - JSON 파싱 후 Pydantic 모델로 변환"""
+        from langchain_core.output_parsers import JsonOutputParser
+        from langchain_core.prompts import ChatPromptTemplate
+        import re
+
+        llm = self
+
+        class StructuredWrapper(Runnable):
+            def invoke(self, messages, config=None, **kw):
+                # 스키마 정보를 프롬프트에 추가
+                schema_str = json.dumps(schema.model_json_schema(), ensure_ascii=False, indent=2)
+                
+                # 마지막 메시지에 JSON 형식 요청 추가
+                from langchain_core.messages import SystemMessage
+                json_instruction = SystemMessage(
+                    content=f"You MUST respond ONLY with a valid JSON object matching this schema. No explanation, no markdown, just raw JSON:\n{schema_str}"
+                )
+                full_messages = [json_instruction] + list(messages)
+                
+                result = llm._generate(full_messages)
+                text = result.generations[0].message.content
+                
+                # JSON 추출
+                text = text.strip()
+                # 마크다운 코드블록 제거
+                text = re.sub(r'^```json\s*', '', text)
+                text = re.sub(r'^```\s*', '', text)
+                text = re.sub(r'\s*```$', '', text)
+                text = text.strip()
+                
+                parsed = json.loads(text)
+                return schema(**parsed)
+
+        return StructuredWrapper()
+
     @property
     def _llm_type(self) -> str:
         return "gemini-vertex"
