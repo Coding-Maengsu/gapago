@@ -208,6 +208,7 @@ def _save_result(query: str, state_values: dict, user_id: str = "", parent_sessi
         "eval_warnings": state_values.get("eval_warnings", []),
         "gaps": state_values.get("gaps", []),
         "web_results": state_values.get("web_results", []),
+        "paper_extraction_status": state_values.get("paper_extraction_status", []),
         "messages": messages_out,
     }
 
@@ -764,6 +765,9 @@ def _build_node_payload(node: str, values: dict) -> dict:
                 "source_section": lim.get("source_section", ""),
                 "evidence_quote": lim.get("evidence_quote", "")[:200],
             })
+        extraction_status = values.get("paper_extraction_status", [])
+        if extraction_status:
+            payload["paper_extraction_status"] = extraction_status
 
     elif node == "limitation_eval":
         eval_data = values.get("limitation_eval", {})

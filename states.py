@@ -214,6 +214,7 @@ class AgentState(TypedDict):
     # ==================================================================
     # -3- LIMITATION AGENT
     limitations: List[dict]
+    paper_extraction_status: List[dict]  # 논문별 full text 추출 상태 (status/fulltext_source/sections)
 
     # ==================================================================
     # -3.5- LIMITATION EVAL AGENT

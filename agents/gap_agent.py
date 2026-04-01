@@ -670,7 +670,7 @@ def _generate_creative_directions(
     # 최신 웹 동향 요약 (최신성 맥락 제공)
     web_context = ""
     if web_results:
-        recent = [r for r in web_results if r.get("source") == "recency_search"][:6]
+        recent = [r for r in web_results if r.get("source") in ("recency_search", "web")][:6]
         if recent:
             web_context = "\nRecent web developments (use as context, NOT as your answer):\n" + "\n".join(
                 f"  [{r.get('title', 'N/A')}] {r.get('content', '')[:200]}"

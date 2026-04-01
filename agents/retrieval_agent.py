@@ -196,10 +196,11 @@ def _parallel_search(state: AgentState, resolved_year: str, cfg: Configuration, 
             **scienceon_kwargs,
         }))
 
-    # Tavily 웹 검색
+    # Tavily 웹 검색 (최대 3개 쿼리 병렬)
     tavily_tool = TavilySearch(max_results=cfg.tavily_max_results)
-    web_query = web_qs[0] if web_qs else refined_query
-    tasks.append(("web", tavily_tool.search, {"query": web_query}))
+    web_queries_to_run = web_qs[:3] if web_qs else [refined_query]
+    for wq in web_queries_to_run:
+        tasks.append(("web", tavily_tool.search, {"query": wq}))
 
     all_papers: list[dict] = []
     web_results: list[dict] = []
