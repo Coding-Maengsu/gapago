@@ -338,7 +338,9 @@
             border: 1px solid var(--border-light);
             border-bottom-left-radius: 4px;
         }
-        .chat-msg.assistant .chat-msg-bubble p { margin: 4px 0; }
+        .chat-msg.assistant .chat-msg-bubble p { margin: 2px 0; }
+        .chat-msg.assistant .chat-msg-bubble > *:first-child { margin-top: 0; }
+        .chat-msg.assistant .chat-msg-bubble > *:last-child { margin-bottom: 0; }
         .chat-msg.assistant .chat-msg-bubble h1,
         .chat-msg.assistant .chat-msg-bubble h2,
         .chat-msg.assistant .chat-msg-bubble h3,
@@ -483,12 +485,7 @@
             margin: 2px 2px 0 0;
         }
 
-        .timeline-detail .paper-title-mini {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 340px;
-        }
+
 
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(8px); }
@@ -2455,14 +2452,9 @@ function collectData(data) {
     if (node === 'paper_retrieval') {
         if (data.papers) pipelineData.papers = data.papers;
         if (data.total_searched) pipelineData.total_searched = data.total_searched;
-        const totalS = pipelineData.total_searched || '?';
+        const totalS = pipelineData.total_searched || pipelineData.papers.length || '?';
         const count = pipelineData.papers.length;
         let detail = `${totalS}편 중 ${count}편 선별`;
-        // Show top 3 paper titles
-        if (pipelineData.papers.length > 0) {
-            const top3 = pipelineData.papers.slice(0, 3);
-            detail += '<br>' + top3.map(p => `<div class="paper-title-mini">&#x2022; ${esc(p.title || '')}</div>`).join('');
-        }
         timelineDetails['retrieval'] = detail;
     }
 
@@ -2581,7 +2573,7 @@ function updateLivePreview() {
 
     // Papers
     if (hasPapers) {
-        html += `<div class="preview-section"><div class="preview-section-title">검색된 논문 (${pipelineData.papers.length}/${pipelineData.total_searched || '?'})</div>`;
+        html += `<div class="preview-section"><div class="preview-section-title">검색된 논문 (${pipelineData.papers.length}/${pipelineData.total_searched || pipelineData.papers.length || '?'})</div>`;
         html += `<div style="max-height:300px;overflow-y:auto;">`;
         pipelineData.papers.forEach(p => {
             html += `<div class="preview-paper-item">
@@ -2859,7 +2851,7 @@ function renderResults() {
     selectedItem = { type: 'gap', index: 0 };
 
     // Summary stats (used in report toggle)
-    const totalSearched = pipelineData.total_searched || '?';
+    const totalSearched = pipelineData.total_searched || pipelineData.papers.length || '?';
     const papersCount = pipelineData.papers.length;
     const gapsCount = pipelineData.gaps.length;
 
@@ -3332,7 +3324,7 @@ function downloadReport() {
 
     // Summary
     md += `## 요약\n`;
-    md += `- 검색 논문: ${pipelineData.papers.length}/${pipelineData.total_searched || '?'}편\n`;
+    md += `- 검색 논문: ${pipelineData.papers.length}/${pipelineData.total_searched || pipelineData.papers.length || '?'}편\n`;
     md += `- 도출 GAP: ${pipelineData.gaps.length}개\n\n`;
 
     md += '---\n\n';
