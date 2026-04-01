@@ -47,10 +47,10 @@ export const WORKFLOW_STEPS: WorkflowStep[] = [
 export type FeatureItem = { icon: LucideIcon; title: string; description: string }
 
 export const EXTRA_FEATURES: FeatureItem[] = [
+  { icon: MessageSquare, title: '키워드 자동 확장', description: '입력한 연구 주제를 AI가 분석하여 검색 효율을 높이기 위한 관련 키워드를 자동으로 확장합니다.' },
   { icon: Zap, title: '빠른 자동 분석', description: '키워드 입력 후 몇 분 안에 논문 수집부터 연구 GAP 도출까지 전 과정을 자동 수행합니다.' },
   { icon: BarChart3, title: '구조화된 리포트', description: 'AI가 생성한 연구 축별로 GAP을 분류하고, 근거 논문과 함께 체계적인 리포트를 제공합니다.' },
   { icon: Clock, title: '분석 이력 & 대화형 탐색', description: '이전 분석 결과를 저장하고 다시 확인할 수 있으며, 추가 질문으로 심층 탐색이 가능합니다.' },
-  { icon: MessageSquare, title: '키워드 자동 확장', description: '입력한 연구 주제를 AI가 분석하여 검색 효율을 높이기 위한 관련 키워드를 자동으로 확장합니다.' },
 ]
 
 // ── DifferenceSection 비교 데이터 ──
