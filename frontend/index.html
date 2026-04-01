@@ -1190,6 +1190,18 @@
             margin-top: 4px;
         }
 
+        /* ── Limitation Claim Streaming ── */
+        .lim-claim-stream { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
+        .lim-claim-item {
+            font-size: 0.84em; color: var(--text); padding: 8px 12px;
+            background: var(--surface2); border-radius: 8px; border-left: 3px solid #f0d8a0;
+            animation: fadeInUp 0.35s ease both; line-height: 1.45;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         /* ── Query Preview ── */
         .preview-query-box {
             padding: 14px 16px;
@@ -2535,16 +2547,34 @@ function updateLivePreview() {
         if (body) body.classList.remove('center-timeline');
     }
 
-    let html = '';
-
-    // Limitation extraction progress bar (진행 중이면 한계점 데이터와 함께도 표시)
-    const limInProgress = hasProgress && _progressData.progress < 100;
-    if ((limInProgress || (hasProgress && !hasLimitations)) && !hasGaps) {
-        html += `<div class="preview-progress">
-            <div class="preview-progress-bar"><div class="preview-progress-fill" style="width:${_progressData.progress}%"></div></div>
-            <div class="preview-progress-detail">${_progressData.current} / ${_progressData.total} (${_progressData.progress}%)</div>
-        </div>`;
+    // Incremental limitation claim streaming
+    if (hasLimitations && !hasGaps) {
+        const limCount = pipelineData.limitations.length;
+        const limInProgress = hasProgress && _progressData.progress < 100;
+        const titleSuffix = limInProgress ? ` (추출 중... ${_progressData.current}/${_progressData.total})` : '';
+        const existingStream = panel.querySelector('.lim-claim-stream');
+        if (existingStream) {
+            // Update title
+            const titleEl = panel.querySelector('.lim-claim-title');
+            if (titleEl) titleEl.textContent = `한계점 추출 (${limCount}개)${titleSuffix}`;
+            // Append only new items
+            const existingCount = existingStream.children.length;
+            if (existingCount < limCount) {
+                for (let i = existingCount; i < limCount; i++) {
+                    const lim = pipelineData.limitations[i];
+                    const claim = lim.claim || lim.limitation_text || lim.text || lim.content || '(한계점)';
+                    const item = document.createElement('div');
+                    item.className = 'lim-claim-item';
+                    item.textContent = claim;
+                    existingStream.appendChild(item);
+                }
+                existingStream.scrollTop = existingStream.scrollHeight;
+            }
+            return;
+        }
     }
+
+    let html = '';
 
     // GAPs
     if (hasGaps) {
@@ -2560,15 +2590,18 @@ function updateLivePreview() {
         html += '</div>';
     }
 
-    // Limitations — 진행 바 + 개수만 표시
-    if (hasLimitations) {
+    // Limitations — claim 스트리밍
+    if (hasLimitations && !hasGaps) {
         const limCount = pipelineData.limitations.length;
-        const limPct = hasProgress ? _progressData.progress : 100;
-        html += `<div class="preview-section"><div class="preview-section-title">한계점 추출 (${limCount}개)</div>`;
-        html += `<div class="preview-progress" style="margin-top:4px">
-            <div class="preview-progress-bar"><div class="preview-progress-fill" style="width:${limPct}%"></div></div>
-        </div>`;
-        html += '</div>';
+        const limInProgress = hasProgress && _progressData.progress < 100;
+        const titleSuffix = limInProgress ? ` (추출 중... ${_progressData.current}/${_progressData.total})` : '';
+        html += `<div class="preview-section"><div class="preview-section-title lim-claim-title">한계점 추출 (${limCount}개)${titleSuffix}</div>`;
+        html += `<div class="lim-claim-stream">`;
+        pipelineData.limitations.forEach(lim => {
+            const claim = lim.claim || lim.limitation_text || lim.text || lim.content || '(한계점)';
+            html += `<div class="lim-claim-item">${esc(claim)}</div>`;
+        });
+        html += '</div></div>';
     }
 
     // Papers
