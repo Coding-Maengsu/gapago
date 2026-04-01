@@ -13,6 +13,12 @@ from typing_extensions import Annotated
 import operator
 
 
+# ── Orchestrator reducers ──
+def _append_stages(existing: list, new: list) -> list:
+    """completed_stages reducer — append 방식으로 실행 이력 누적"""
+    return (existing or []) + (new or [])
+
+
 # =====================================================================
 # ======================== Data Models(Schema) ========================
 # =====================================================================
@@ -231,3 +237,9 @@ class AgentState(TypedDict):
     critic_loop_count: int
 
     trace: dict
+
+    # ==================================================================
+    # -6- ORCHESTRATOR (GAPAGO_ORCHESTRATOR=1 일 때만 사용)
+    completed_stages: Annotated[List[str], _append_stages]
+    agent_feedback: dict
+    orchestrator_plan: List[str]
