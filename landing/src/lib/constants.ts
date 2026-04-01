@@ -110,28 +110,69 @@ export const COMPARISON_DATA: ComparisonRow[] = [
 ]
 
 // ── ExampleSection 예시 데이터 ──
-export type ExampleCard = { query: string; gaps: string[] }
+export type ExampleGap = {
+  title: string
+  detail: string
+  relatedPapers: number
+}
+
+export type ExampleCard = {
+  query: string
+  paperCount: number
+  axes: string[]
+  gaps: ExampleGap[]
+}
 
 export const EXAMPLES: ExampleCard[] = [
   {
     query: '자율주행 안전성',
+    paperCount: 38,
+    axes: ['센서 퓨전', '시뮬레이션 검증', '엣지 케이스 대응'],
     gaps: [
-      '센서 퓨전 환경에서의 엣지 케이스 처리 연구 부족',
-      '악천후 환경 시뮬레이션 기반 검증 미비',
+      {
+        title: '센서 퓨전 엣지 케이스 처리 부족',
+        detail: '라이다-카메라 퓨전 환경에서 극단적 날씨/조명 조건의 엣지 케이스를 체계적으로 다룬 연구가 부족함',
+        relatedPapers: 7,
+      },
+      {
+        title: '악천후 시뮬레이션 검증 미비',
+        detail: '폭우, 안개 등 악천후 환경에서의 자율주행 안전성을 시뮬레이션 기반으로 검증한 대규모 벤치마크가 없음',
+        relatedPapers: 5,
+      },
     ],
   },
   {
     query: 'LLM 할루시네이션',
+    paperCount: 52,
+    axes: ['탐지 메트릭', '도메인 특화', '멀티모달 검증'],
     gaps: [
-      '도메인 특화 할루시네이션 탐지 메트릭 부재',
-      '멀티모달 환경에서의 사실 검증 방법론 미흡',
+      {
+        title: '도메인 특화 탐지 메트릭 부재',
+        detail: '의료, 법률 등 전문 도메인에서의 할루시네이션을 정량적으로 측정할 수 있는 표준 메트릭이 확립되지 않음',
+        relatedPapers: 12,
+      },
+      {
+        title: '멀티모달 사실 검증 방법론 미흡',
+        detail: '텍스트+이미지 입력에서 발생하는 교차 모달 할루시네이션에 대한 검증 프레임워크가 부족함',
+        relatedPapers: 8,
+      },
     ],
   },
   {
     query: '신약 개발 AI',
+    paperCount: 41,
+    axes: ['데이터 편향', '약물 상호작용', '임상 전환'],
     gaps: [
-      '임상 전 단계 데이터 편향 보정 연구 부족',
-      '다중 타겟 약물 상호작용 예측 모델 한계',
+      {
+        title: '임상 전 데이터 편향 보정 부족',
+        detail: 'in-vitro/in-vivo 데이터의 체계적 편향을 보정하여 AI 예측 정확도를 높이는 연구가 부족함',
+        relatedPapers: 6,
+      },
+      {
+        title: '다중 타겟 약물 상호작용 예측 한계',
+        detail: '2개 이상의 타겟에 동시 작용하는 약물의 상호작용을 예측하는 모델의 성능과 해석성이 부족함',
+        relatedPapers: 9,
+      },
     ],
   },
 ]
