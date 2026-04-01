@@ -1545,12 +1545,7 @@
         .cy-fit-btn:hover { background: var(--surface2); box-shadow: var(--shadow-sm); }
         .cy-legend { display: flex; gap: 14px; padding: 8px 14px; font-size: 0.72em; color: var(--text-light); border: 1px solid var(--border-light); border-top: none; border-radius: 0 0 var(--radius-lg) var(--radius-lg); background: var(--surface2); flex-wrap: wrap; align-items: center; }
         .cy-legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: middle; }
-        .axis-donut-wrap { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-        .axis-donut { width: 80px; height: 80px; border-radius: 50%; position: relative; flex-shrink: 0; }
-        .axis-donut-center { position: absolute; inset: 18px; border-radius: 50%; background: var(--surface); display: flex; align-items: center; justify-content: center; font-size: 0.95em; font-weight: 700; color: var(--text); }
-        .axis-donut-legend { display: flex; flex-direction: column; gap: 3px; font-size: 0.78em; }
-        .axis-donut-legend-item { display: flex; align-items: center; gap: 6px; }
-        .axis-donut-legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
         .eval-chart-wrap { padding: 12px 0; }
         .eval-chart-title { font-weight: 600; font-size: 0.85em; margin-bottom: 8px; color: var(--text); }
         .eval-decision { display: inline-block; font-size: 0.8em; font-weight: 600; padding: 2px 10px; border-radius: 6px; margin-bottom: 8px; }
@@ -3061,33 +3056,6 @@ function renderEvalChart() {
     return html;
 }
 
-function renderAxisDonut() {
-    const gaps = pipelineData.gaps || [];
-    if (!gaps.length) return '';
-    const axisCounts = {};
-    gaps.forEach(g => {
-        const axis = g.axis_label || g.axis || '기타';
-        axisCounts[axis] = (axisCounts[axis] || 0) + 1;
-    });
-    const entries = Object.entries(axisCounts).sort((a, b) => b[1] - a[1]);
-    const total = gaps.length;
-    // Build conic-gradient
-    let gradParts = [], cumPct = 0;
-    const legendItems = [];
-    entries.forEach(([axis, count]) => {
-        const ac = getAxisColor(axis);
-        const pct = (count / total) * 100;
-        gradParts.push(`${ac.border} ${cumPct}% ${cumPct + pct}%`);
-        legendItems.push(`<div class="axis-donut-legend-item"><span class="axis-donut-legend-dot" style="background:${ac.border}"></span>${esc(axis)} <span style="color:var(--text-light)">${count}</span></div>`);
-        cumPct += pct;
-    });
-    return `<div class="axis-donut-wrap">
-        <div class="axis-donut" style="background:conic-gradient(${gradParts.join(',')})">
-            <div class="axis-donut-center">${total}</div>
-        </div>
-        <div class="axis-donut-legend">${legendItems.join('')}</div>
-    </div>`;
-}
 
 function renderResults() {
     destroyCyGraph();
@@ -3106,7 +3074,7 @@ function renderResults() {
 
     // Gaps section
     leftHTML += `<div class="panel-section-header">연구 GAP (${gapsCount})</div>`;
-    leftHTML += renderAxisDonut();
+
     if (pipelineData.gaps.length) {
         pipelineData.gaps.forEach((gap, i) => {
             const isTop = i === 0;
