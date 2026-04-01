@@ -633,9 +633,11 @@ class AgentState(TypedDict):
     year_range: str              # auto/1y/3y/5y
     output_language: str         # auto/ko/en
     session_id: str              # SSE 진행률 리포팅용 세션 ID
+    fast_mode: bool              # True면 빠른 분석 (CrossEncoder 스킵, 상위 3개 축만)
 
     # -3- 한계점 에이전트
     limitations: List[dict]
+    paper_extraction_status: List[dict]  # 논문별 full text 추출 상태 (status/fulltext_source/sections)
 
     # -3.5- 한계점 평가 에이전트
     limitation_eval: dict
@@ -912,6 +914,8 @@ utils/
 ├── progress.py                      # 스레드 안전 진행률 큐 (SSE 중간 업데이트)
 ├── tavily.py                        # Tavily API 래퍼
 ├── logging.py                       # LangSmith 트레이싱
+├── session_store.py                 # SQLite 세션 영속화 (서버 재시작 복구)
+├── cancel.py                        # 파이프라인 취소 레지스트리
 └── vis_graph.py                     # 그래프 시각화
 
 states.py                            # AgentState + Pydantic 모델

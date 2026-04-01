@@ -82,6 +82,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 | `year_range` | string | X | `"auto"` | 연도 범위 (`auto`, `1y`, `3y`, `5y`) |
 | `output_language` | string | X | `"auto"` | 출력 언어 (`auto`, `ko`, `en`) |
 | `user_id` | string | X | `""` | 사용자 식별자 |
+| `fast_mode` | bool | X | `false` | 빠른 분석 모드 (CrossEncoder 스킵, 상위 3개 축만 분석) |
 
 **응답:**
 ```json
@@ -104,12 +105,54 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
     "year_range": year_range,
     "output_language": output_language,
     "session_id": session_id,       # 진행률 리포팅용
+    "fast_mode": fast_mode,         # 빠른 분석 모드
 }
 ```
 
 ---
 
-### 3.5 `GET /api/stream/{session_id}` — SSE 스트림
+### 3.5 `POST /api/chat` — 결과 기반 대화
+
+분석 완료 후 결과에 대한 질문/답변 대화를 수행한다.
+
+**요청 Body (JSON):**
+
+| 필드 | 타입 | 필수 | 설명 |
+|------|------|------|------|
+| `session_id` | string | O | 세션 ID |
+| `message` | string | O | 사용자 질문 |
+| `filename` | string | X | 저장된 결과 파일명 (세션 없이 히스토리에서 로드 시) |
+
+**응답:**
+```json
+{"response": "AI 답변 텍스트"}
+```
+
+**내부 동작:**
+1. 완료된 세션이면 결과 파일에서 state 재구성
+2. `filename`만 제공 시 해당 파일에서 state 로드
+3. `gap_chat_respond(state, message)` 호출
+4. 세션별 대화 히스토리 유지 (최대 100개 메시지)
+
+---
+
+### 3.6 `DELETE /api/history/{filename}` — 히스토리 삭제
+
+저장된 분석 결과를 삭제한다.
+
+**응답:**
+```json
+{"status": "deleted", "filename": "..."}
+```
+
+**내부 동작:**
+1. 파일명 검증 (path traversal 방지)
+2. 파일에서 `session_id` 읽어서 SQLite 세션 레코드도 삭제
+3. 관련 채팅 히스토리도 함께 정리
+
+---
+
+### 3.7 `GET /api/stream/{session_id}` — SSE 스트림
 
 실시간 파이프라인 진행 상황을 SSE로 스트리밍한다.
 
@@ -181,7 +224,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.6 `GET /api/status/{session_id}` — 세션 상태 조회
+### 3.8 `GET /api/status/{session_id}` — 세션 상태 조회
 
 **응답:**
 ```json
@@ -194,7 +237,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.7 `GET /api/stop/{session_id}` — 분석 중지
+### 3.9 `GET /api/stop/{session_id}` — 분석 중지
 
 실행 중인 분석을 중지한다.
 
@@ -205,7 +248,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.8 `GET /api/clarify` — 명확화 응답 제출
+### 3.10 `GET /api/clarify` — 명확화 응답 제출
 
 인터럽트된 파이프라인에 사용자 응답을 전달하고 재개한다.
 
@@ -228,7 +271,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.9 `GET /api/history` — 분석 히스토리 목록
+### 3.11 `GET /api/history` — 분석 히스토리 목록
 
 **쿼리 파라미터:**
 
@@ -257,7 +300,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.10 `GET /api/history/{filename}` — 저장된 결과 상세
+### 3.12 `GET /api/history/{filename}` — 저장된 결과 상세
 
 **응답:** 저장된 JSON 결과 파일 전체 내용
 
@@ -282,10 +325,16 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 ---
 
-### 3.11 `GET /` — 정적 파일 서빙
+### 3.13 `GET /` — 정적 파일 서빙
 
-- `frontend/index.html` 반환
+- 랜딩 페이지(`landing/dist/index.html`) 우선 서빙
+- 랜딩 미빌드 시 `frontend/index.html`로 fallback
 - `/logo.png`, `/new_logo.png`, `/middle_image.png` 정적 이미지 서빙
+
+### 3.14 `GET /app` — 앱 페이지 서빙
+
+- `frontend/index.html` 반환 (메인 분석 SPA)
+- 랜딩 페이지와 분리된 앱 진입점
 
 ---
 
@@ -420,17 +469,22 @@ _sessions[session_id] = {
     "status": str,          # running, interrupted, completed, stopped, error
     "graph": CompiledGraph, # LangGraph 인스턴스
     "config": RunnableConfig,
-    "events": list,         # 버퍼링된 SSE 이벤트
+    "events": list,         # 버퍼링된 SSE 이벤트 (최대 500개, 초과 시 앞쪽 10% 제거)
     "event_signal": Event,  # 새 이벤트 알림용
     "query": str,           # 원본 쿼리
     "user_id": str,         # 사용자 ID
     "started_at": str,      # ISO8601 시작 시간
+    "completed_at": datetime, # 완료 시각 (reaper TTL 기준)
     "filename": str,        # 결과 파일명 (완료 시)
     "cancelled": Event,     # 중지 시그널
     "clarify_prompt": str,  # 명확화 프롬프트 (인터럽트 시)
     "parent_session_id": str,  # 추가 탐색 시 부모 세션 (/api/explore에서만)
 }
 ```
+
+**채팅 히스토리 (별도 관리):**
+- `_chat_histories[session_id]` — 세션별 대화 메시지 리스트 (최대 100개)
+- 세션 또는 filename을 키로 사용
 
 **진행률 큐 (별도 관리):**
 - `utils/progress.py`의 `_queues[session_id]`로 관리
@@ -677,12 +731,16 @@ services:
     name: gapago
     runtime: python
     buildCommand: pip install -r requirements_deploy.txt
-    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT --workers 3
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT --workers 1
     envVars:
       - key: PYTHON_VERSION
         value: "3.10.12"
       - key: LLM_PROVIDER
         value: azure
+      - key: RERANK_MODELS
+        value: light
+      - key: ORT_DISABLE_GPU_DEVICE_ENUMERATION
+        value: "1"
 ```
 
 ### 11.2 주요 의존성
@@ -718,12 +776,21 @@ services:
 - 직접 JSON → 마크다운 코드 블록 → 정규식 추출 순서로 시도
 - 실패 시 빈 dict/list 반환
 
-### 12.2 `utils/tavily.py` — Tavily 검색 래퍼
+### 12.2 `utils/session_store.py` — SQLite 세션 영속화
+- 서버 재시작 시에도 세션 상태 유지
+- `init_db()`: DB 초기화, 기존 running 세션을 interrupted로 마킹
+- `save_session()`, `update_session_status()`, `get_session()`, `delete_session()`
+
+### 12.3 `utils/cancel.py` — 파이프라인 취소 레지스트리
+- 세션별 취소 시그널 관리
+- `register()`, `cancel()`, `is_cancelled()`, `cleanup()`
+
+### 12.4 `utils/tavily.py` — Tavily 검색 래퍼
 - 도메인 필터링 (include/exclude)
 - 파라미터: `search_depth`, `topic`, `max_results`, `days`
 
-### 12.3 `utils/logging.py` — LangSmith 트레이싱
+### 12.5 `utils/logging.py` — LangSmith 트레이싱
 - 환경변수 기반 LangSmith 초기화
 
-### 12.4 `utils/vis_graph.py` — 그래프 시각화
+### 12.6 `utils/vis_graph.py` — 그래프 시각화
 - LangGraph 파이프라인 시각화 유틸리티

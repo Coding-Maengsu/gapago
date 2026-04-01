@@ -131,7 +131,7 @@ class GapCandidate(BaseModel):
 
     axis: str
     axis_label: str = ""
-    axis_type: str = "fixed"
+    axis_type: str = "dynamic"
     gap_statement: str
     elaboration: str = ""
     proposed_topic: str = ""
