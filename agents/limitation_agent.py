@@ -31,16 +31,22 @@ from utils.cancel import is_cancelled
 # =====================================================================
 SECTION_KEYWORDS = {
     # Track 1 - 저자 기술
-    "conclusion":   ["conclusion", "concluding remarks", "summary"],
-    "limitations":  ["limitation", "limitations", "weakness", "weaknesses"],
-    "future_work":  ["future work", "future research", "future direction"],
+    "conclusion":   ["conclusion", "concluding remarks", "summary", "summary and conclusion",
+                     "conclusions and future work", "concluding discussion"],
+    "limitations":  ["limitation", "limitations", "weakness", "weaknesses",
+                     "threats to validity", "caveats", "shortcomings"],
+    "future_work":  ["future work", "future research", "future direction",
+                     "open problems", "open questions", "outlook"],
     # Track 2 - 구조 분석
-    "introduction": ["introduction", "background"],
+    "introduction": ["introduction", "background", "motivation"],
     "method":       ["method", "methods", "methodology", "approach", "proposed method",
-                     "our approach", "our method", "model", "framework", "architecture"],
+                     "our approach", "our method", "model", "framework", "architecture",
+                     "materials and methods"],
     "experiment":   ["experiment", "experiments", "experimental setup", "experimental results",
-                     "evaluation", "results", "empirical evaluation", "benchmarks"],
-    "discussion":   ["discussion", "analysis", "ablation", "ablation study"],
+                     "evaluation", "results", "empirical evaluation", "benchmarks",
+                     "findings", "results and discussion"],
+    "discussion":   ["discussion", "analysis", "ablation", "ablation study",
+                     "findings and implications", "implications"],
 }
 
 TRACK1_KEYS = {"conclusion", "limitations", "future_work"}
@@ -131,6 +137,7 @@ _http_session.headers.update(_REQUEST_HEADERS)
 # ── Full text 캐시 ──
 _CACHE_DIR = Path(".cache/fulltext")
 _CACHE_TTL_DAYS = 7
+_CACHE_FAIL_TTL_HOURS = 6  # 실패(빈 dict) 캐시는 6시간 후 재시도 허용
 
 
 def _cache_key(paper_id: str) -> str:
@@ -138,17 +145,23 @@ def _cache_key(paper_id: str) -> str:
 
 
 def _cache_get(paper_id: str) -> Optional[dict]:
-    """캐시에서 full text 섹션 로드. TTL 초과 시 None."""
+    """캐시에서 full text 섹션 로드. TTL 초과 시 None.
+    실패 캐시(빈 dict)는 _CACHE_FAIL_TTL_HOURS 후 재시도 허용."""
     path = _CACHE_DIR / f"{_cache_key(paper_id)}.json"
     if not path.exists():
         return None
     try:
-        age_days = (time.time() - path.stat().st_mtime) / 86400
-        if age_days > _CACHE_TTL_DAYS:
-            path.unlink(missing_ok=True)
-            return None
+        age_hours = (time.time() - path.stat().st_mtime) / 3600
         data = json.loads(path.read_text(encoding="utf-8"))
         if isinstance(data, dict):
+            # 빈 dict = 이전 실패 → 짧은 TTL 적용
+            if not data and age_hours > _CACHE_FAIL_TTL_HOURS:
+                path.unlink(missing_ok=True)
+                return None
+            # 성공 캐시 → 일반 TTL 적용
+            if data and age_hours > _CACHE_TTL_DAYS * 24:
+                path.unlink(missing_ok=True)
+                return None
             return data
     except Exception:
         pass
@@ -985,34 +998,56 @@ def _load_full_text_sections(paper: Paper) -> dict:
     논문 소스별로 full text를 로드하고 섹션으로 분리.
     캐시 히트 시 네트워크 요청 없이 즉시 반환.
     """
+    sections, _ = _load_full_text_with_source(paper)
+    return sections
+
+
+def _load_full_text_with_source(paper: Paper) -> tuple[dict, str]:
+    """
+    논문 소스별로 full text를 로드하고 (sections, source_tag)를 반환.
+    source_tag: "embedded" | "cache" | "arxiv" | "scienceon_patent" |
+                "scienceon_report" | "scienceon" | "doi" | "none"
+    """
     if paper.full_text_sections and any(
         k in paper.full_text_sections for k in SECTION_KEYWORDS
     ):
-        return paper.full_text_sections
+        return paper.full_text_sections, "embedded"
 
     # ── 캐시 체크 ──
     cached = _cache_get(paper.paper_id or "")
     if cached is not None:
-        print(f"  [fulltext:cache] '{paper.title[:50]}' → cache hit")
-        return cached
+        source = "cache" if cached else "none"
+        print(f"  [fulltext:cache] '{paper.title[:50]}' → cache hit ({'hit' if cached else 'fail-cached'})")
+        return cached, source
 
     pid = (paper.paper_id or "").lower()
     sections: dict = {}
+    source_tag = "none"
 
     if pid.startswith("arxiv:"):
         sections = _load_arxiv_full_text(paper)
+        if sections:
+            source_tag = "arxiv"
     elif pid.startswith("scienceon_patent:"):
         sections = _load_scienceon_patent_full_text(paper)
+        if sections:
+            source_tag = "scienceon_patent"
     elif pid.startswith("scienceon_report:"):
         sections = _load_scienceon_report_full_text(paper)
+        if sections:
+            source_tag = "scienceon_report"
     elif pid.startswith("scienceon:"):
         sections = _load_scienceon_full_text(paper)
+        if sections:
+            source_tag = "scienceon"
     elif pid.startswith(("crossref:", "s2:", "openalex:")):
         sections = _load_doi_full_text(paper)
+        if sections:
+            source_tag = "doi"
 
     # ── 캐시 저장 (빈 dict도 저장하여 반복 실패 방지) ──
     _cache_put(paper.paper_id or "", sections)
-    return sections
+    return sections, source_tag
 
 
 # =====================================================================
@@ -1288,8 +1323,9 @@ def limitation_extract_node(state: AgentState) -> AgentState:
     # ── Step 1: Full text 로드 (병렬, LLM 호출 아님) ──
     print(f"  🔄 {len(papers)}편 논문 full text 로드 중...")
     paper_sections = {}
+    paper_fulltext_sources = {}  # paper_id → fulltext source tag
     with ThreadPoolExecutor(max_workers=min(3, len(papers))) as executor:
-        futures = {executor.submit(_load_full_text_sections, p): p for p in papers}
+        futures = {executor.submit(_load_full_text_with_source, p): p for p in papers}
         for future in as_completed(futures):
             if is_cancelled(session_id):
                 executor.shutdown(wait=False, cancel_futures=True)
@@ -1297,10 +1333,11 @@ def limitation_extract_node(state: AgentState) -> AgentState:
                 return {"messages": [AIMessage(content="Cancelled.", name="limitation_extract")], "limitations": []}
             paper = futures[future]
             try:
-                sections = future.result()
+                sections, source_tag = future.result()
             except Exception:
-                sections = {}
+                sections, source_tag = {}, "none"
             paper_sections[paper.paper_id] = sections
+            paper_fulltext_sources[paper.paper_id] = source_tag
             if not sections:
                 fulltext_fail_count += 1
 
@@ -1466,6 +1503,38 @@ def limitation_extract_node(state: AgentState) -> AgentState:
     if dedup_removed:
         print(f"  [dedup] {before_dedup} → {len(all_limitations)} ({dedup_removed}개 중복 제거)")
 
+    # ── 논문별 추출 상태 집계 ──
+    lim_count_by_paper = {}
+    for lim in all_limitations:
+        pid = lim.get("paper_id", "")
+        lim_count_by_paper[pid] = lim_count_by_paper.get(pid, 0) + 1
+
+    paper_extraction_status = []
+    for paper in papers:
+        pid = paper.paper_id
+        ft_source = paper_fulltext_sources.get(pid, "none")
+        lim_cnt = lim_count_by_paper.get(pid, 0)
+        has_sections = bool(paper_sections.get(pid))
+        if lim_cnt > 0 and has_sections:
+            status = "success"
+        elif lim_cnt > 0 and not has_sections:
+            status = "abstract_fallback"
+        else:
+            status = "failed"
+        paper_extraction_status.append({
+            "paper_id": pid,
+            "status": status,
+            "limitations_count": lim_cnt,
+            "fulltext_source": ft_source,
+            "sections_found": list(paper_sections.get(pid, {}).keys()),
+        })
+
+    # 상태 요약 로그
+    status_summary = {}
+    for ps in paper_extraction_status:
+        status_summary[ps["status"]] = status_summary.get(ps["status"], 0) + 1
+    print(f"  [extraction_status] {status_summary}")
+
     # 최종 summary 메시지
     summary = AIMessage(
         content=f"Extracted {len(all_limitations)} limitations from {len(papers)} papers (deduplicated from {before_dedup}).",
@@ -1478,5 +1547,6 @@ def limitation_extract_node(state: AgentState) -> AgentState:
         "messages": [summary],
         "sender": "limitation_extract",
         "limitations": all_limitations,
+        "paper_extraction_status": paper_extraction_status,
         "errors": errors,
     }
