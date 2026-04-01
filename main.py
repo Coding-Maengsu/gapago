@@ -189,19 +189,13 @@ async def run():
         get_llm(provider=reasoning_provider)
         print(f"  [warmup] GAP 추론 LLM 초기화 완료")
 
-    # --- 연구 도메인 선택 (recency check용) ---
-    print("\n=== 연구 도메인 선택 (최신성 검증 소스 결정) ===")
-    print("  0) auto - LLM이 자동 판단 (기본값)")
-    print("  1) ai_cs - AI / Computer Science")
-    print("  2) biomedical - 바이오 / 의학")
-    print("  3) materials_chemistry - 재료 / 화학")
-    print("  4) physics - 물리")
-    print("  5) general - 범용 (전체 웹)")
-    domain_map = {"0": "auto", "1": "ai_cs", "2": "biomedical",
-                  "3": "materials_chemistry", "4": "physics", "5": "general"}
-    domain_choice = input("\n선택 (기본값: auto) > ").strip()
-    research_domain = domain_map.get(domain_choice, "auto")
-    print(f"  → {research_domain} 선택됨")
+    # --- 분석 모드 선택 ---
+    print("\n=== 분석 모드 선택 ===")
+    print("  0) 일반 모드 - 정밀 분석 (기본값)")
+    print("  1) Fast 모드 - 빠른 분석 (CrossEncoder 스킵, 상위 3개 축만 분석)")
+    mode_choice = input("\n선택 (기본값: 일반) > ").strip()
+    fast_mode = mode_choice == "1"
+    print(f"  → {'⚡ Fast 모드' if fast_mode else '일반 모드'} 선택됨")
 
     # --- 연도 필터 선택 ---
     print("\n=== 검색 연도 범위 선택 ===")
@@ -223,8 +217,9 @@ async def run():
     inputs = {
         "messages": [HumanMessage(content=user_input)],
         "max_iterations": 3,
-        "research_domain": research_domain,
+        "research_domain": "auto",
         "year_range": year_range,
+        "fast_mode": fast_mode,
     }
 
     print_divider("[STEP 1] 초기 실행")
