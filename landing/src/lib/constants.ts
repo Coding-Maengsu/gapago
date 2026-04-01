@@ -38,10 +38,10 @@ export const SERVICE_CARDS: ServiceCard[] = [
 export type WorkflowStep = { step: string; icon: LucideIcon; title: string; description: string }
 
 export const WORKFLOW_STEPS: WorkflowStep[] = [
-  { step: '01', icon: Search, title: '키워드 입력', description: '연구 주제나 관심 분야를 입력합니다' },
-  { step: '02', icon: Database, title: '논문 수집', description: '관련 논문을 자동으로 검색·수집합니다' },
-  { step: '03', icon: Sparkles, title: 'GAP 분석', description: 'AI가 연구 공백을 자동 도출합니다' },
-  { step: '04', icon: FileText, title: '결과 확인', description: '구조화된 GAP 리포트를 제공합니다' },
+  { step: '01', icon: Search, title: '키워드 입력', description: '연구하고 싶은 주제나 관심 분야의 키워드를 입력하세요. 예: "LLM hallucination", "자율주행 안전성"' },
+  { step: '02', icon: Database, title: '논문 자동 수집', description: '입력한 키워드를 기반으로 6개 학술 DB에서 관련 논문을 자동으로 검색하고 랭킹합니다.' },
+  { step: '03', icon: Sparkles, title: 'GAP 분석 수행', description: 'AI가 수집된 논문들의 한계점을 추출하고, 연구 축별로 분류하여 비어 있는 연구 영역을 도출합니다.' },
+  { step: '04', icon: FileText, title: '결과 리포트 확인', description: '도출된 Research Gap과 추천 연구 방향이 담긴 구조화된 리포트를 확인하고 추가 질문할 수 있습니다.' },
 ]
 
 // ── FeaturesSection 기능 데이터 ──
