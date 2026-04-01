@@ -1,14 +1,13 @@
 import {
   FileSearch, Brain, Target, Search, Database, Sparkles, FileText,
-  Layers, Zap, BarChart3, Globe, Clock, MessageSquare,
+  Zap, BarChart3, Clock, MessageSquare,
   type LucideIcon,
 } from 'lucide-react'
 
 // ── 네비게이션 ──
 export const NAV_LINKS = [
-  { label: '하는 일', href: '#service' },
   { label: '사용법', href: '#workflow' },
-  { label: '핵심 기능', href: '#features' },
+  { label: '하는 일', href: '#service' },
   { label: '차별점', href: '#difference' },
   { label: '예시', href: '#examples' },
 ] as const
@@ -47,13 +46,11 @@ export const WORKFLOW_STEPS: WorkflowStep[] = [
 // ── FeaturesSection 기능 데이터 ──
 export type FeatureItem = { icon: LucideIcon; title: string; description: string }
 
-export const FEATURES: FeatureItem[] = [
-  { icon: Globe, title: '글로벌 논문 DB 연동', description: 'arXiv, Semantic Scholar, OpenAlex, Crossref, ScienceON 등 6개 이상의 학술 데이터베이스에서 실시간으로 논문을 검색합니다. 영문/한글 논문 모두 지원합니다.' },
-  { icon: Layers, title: '다중 논문 교차 분석', description: '수십 편의 논문을 동시에 분석하여 개별 논문에서는 보이지 않는 교차 패턴과 공통 한계점을 도출합니다. BM25 + FAISS 하이브리드 랭킹으로 관련성을 보장합니다.' },
-  { icon: Zap, title: '실시간 AI 분석', description: '키워드 입력 후 수 분 내에 논문 수집부터 GAP 도출까지 전 과정을 자동 수행합니다. Multi-Agent 파이프라인이 병렬로 작업을 처리합니다.' },
-  { icon: BarChart3, title: '구조화된 GAP 리포트', description: 'AI가 동적으로 생성한 연구 축(Research Axes)별로 GAP을 분류하고, 각 GAP의 근거 논문과 함께 구조화된 리포트를 제공합니다.' },
-  { icon: Clock, title: '분석 이력 & 대화형 탐색', description: '이전 분석 결과를 저장하고 언제든 재확인할 수 있습니다. 분석 완료 후 GAP에 대해 추가 질문하며 심층 탐색이 가능합니다.' },
-  { icon: MessageSquare, title: '질의 분석 & 키워드 확장', description: '입력한 연구 주제를 AI가 분석하여 모호한 부분을 보완하고, 검색 효율을 높이기 위해 관련 키워드를 자동으로 확장합니다.' },
+export const EXTRA_FEATURES: FeatureItem[] = [
+  { icon: Zap, title: '빠른 자동 분석', description: '키워드 입력 후 몇 분 안에 논문 수집부터 연구 GAP 도출까지 전 과정을 자동 수행합니다.' },
+  { icon: BarChart3, title: '구조화된 리포트', description: 'AI가 생성한 연구 축별로 GAP을 분류하고, 근거 논문과 함께 체계적인 리포트를 제공합니다.' },
+  { icon: Clock, title: '분석 이력 & 대화형 탐색', description: '이전 분석 결과를 저장하고 다시 확인할 수 있으며, 추가 질문으로 심층 탐색이 가능합니다.' },
+  { icon: MessageSquare, title: '키워드 자동 확장', description: '입력한 연구 주제를 AI가 분석하여 검색 효율을 높이기 위한 관련 키워드를 자동으로 확장합니다.' },
 ]
 
 // ── DifferenceSection 비교 데이터 ──

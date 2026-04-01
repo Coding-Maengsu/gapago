@@ -40,7 +40,7 @@ export default function Hero() {
 
       {/* 스크롤 유도 화살표 */}
       <a
-        href="#service"
+        href="#workflow"
         className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 animate-bounce text-foreground/30 hover:text-foreground/60 transition-colors"
         aria-label="아래로 스크롤"
       >
