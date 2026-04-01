@@ -70,8 +70,10 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 | LLM Provider | `azure`, `claude`, `exaone` | `azure` |
 | Year Range | `auto`, `1y`, `3y`, `5y` | `auto` |
 | Output Language | `auto`, `ko`, `en` | `auto` |
+| Fast Mode | 체크박스 (on/off) | off |
 
 > **Note:** 연구 도메인(Domain) 드롭다운은 제거됨 (`auto` 고정)
+> **Fast Mode:** CrossEncoder 리랭킹 스킵, 상위 3개 축만 분석 — 빠른 결과 제공
 
 #### 분석 히스토리
 - 과거 분석 목록 (스크롤)
@@ -186,7 +188,17 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 - "전체 리포트 보기" 클릭 → 마크다운 렌더링 보고서 표시 (`toggleReport`)
 - 클립보드 복사 (`copyReport`) + .md 다운로드 (`downloadReport`) 버튼
 
-#### 상태 5: 저장된 결과 보기
+#### 상태 5: 결과 기반 채팅
+
+분석 완료 후 결과에 대해 AI와 대화할 수 있는 기능:
+
+- 결과 화면 하단 또는 별도 영역에 채팅 입력 UI 표시
+- `POST /api/chat` 엔드포인트로 질문 전송
+- GAP/limitation/papers 컨텍스트를 활용한 답변 생성
+- 세션별 대화 히스토리 유지 (최대 100개 메시지)
+- 저장된 결과에서도 채팅 가능 (`filename` 파라미터 사용)
+
+#### 상태 6: 저장된 결과 보기
 - 히스토리에서 로드 시 표시
 - 쿼리, 정제된 쿼리, 타임스탬프 표시
 - 2패널 구조 + 리포트 접힌 섹션 정상 작동
