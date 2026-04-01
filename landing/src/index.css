@@ -6,15 +6,15 @@
   --color-foreground: hsl(216 28% 12%);
   --color-card: hsl(210 20% 97%);
   --color-card-foreground: hsl(216 28% 12%);
-  --color-primary: hsl(187 80% 42%);
+  --color-primary: hsl(228 62% 58%);
   --color-primary-foreground: hsl(0 0% 100%);
   --color-secondary: hsl(210 20% 94%);
   --color-secondary-foreground: hsl(216 28% 20%);
   --color-muted: hsl(210 15% 95%);
   --color-muted-foreground: hsl(215 15% 45%);
-  --color-accent: hsl(187 80% 42%);
+  --color-accent: hsl(228 62% 58%);
   --color-border: hsl(214 20% 88%);
-  --color-ring: hsl(187 80% 42%);
+  --color-ring: hsl(228 62% 58%);
   --radius: 0.75rem;
 
   /* 애니메이션 */
@@ -24,15 +24,15 @@
 
 /* ─── 커스텀 CSS 변수 (Tailwind 외) ─── */
 :root {
-  --gradient-primary: linear-gradient(135deg, hsl(187 80% 42%), hsl(200 85% 50%));
+  --gradient-primary: linear-gradient(135deg, hsl(228 62% 58%), hsl(245 55% 62%));
   --gradient-surface: linear-gradient(180deg, hsl(210 20% 98%), hsl(0 0% 100%));
-  --shadow-glow: 0 0 40px -10px hsl(187 80% 42% / 0.25);
+  --shadow-glow: 0 0 40px -10px hsl(228 62% 58% / 0.25);
   --brand-indigo: #5469d4;
 }
 
 /* ─── 기본 스타일 ─── */
 body {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Pretendard Variable', 'Pretendard', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   margin: 0;
   background-color: var(--color-background);
   color: var(--color-foreground);

@@ -11,7 +11,10 @@ export default function Header() {
     <header className="fixed top-0 left-0 right-0 z-50 h-16 bg-background/80 backdrop-blur-xl border-b border-border/50">
       <Container className="flex items-center justify-between h-full">
         {/* 로고 */}
-        <a href="/" className="text-xl font-bold text-[#5469d4]">GAPAGO</a>
+        <a href="/" className="flex items-center gap-2">
+          <img src="/new_logo.png" alt="GAPAGO" className="h-8 w-8 rounded-lg object-cover" />
+          <span className="text-xl font-bold text-[#5469d4]">GAPAGO</span>
+        </a>
 
         {/* 데스크톱 네비게이션 */}
         <nav className="hidden md:flex items-center gap-8">
