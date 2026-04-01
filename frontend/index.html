@@ -2762,7 +2762,8 @@ function buildCyElements() {
         const stmt = truncate(fullStmt, 42);
         const edgeCount = gapEdgeCounts[`gap-${i}`] || 1;
         const nodeWidth = Math.round(160 * Math.max(1, Math.min(edgeCount / 2, 2.5)));
-        elements.push({ data: { id: `gap-${i}`, label: stmt, fullLabel: fullStmt, axisLabel, nodeType: 'gap', index: i, bgColor: ac.bg, borderColor: ac.border, textColor: ac.color, nodeWidth } });
+        const dotSize = Math.round(24 * Math.max(1, Math.min(edgeCount / 2, 1.7)));
+        elements.push({ data: { id: `gap-${i}`, label: stmt, fullLabel: fullStmt, axisLabel, nodeType: 'gap', index: i, bgColor: ac.bg, borderColor: ac.border, textColor: ac.color, nodeWidth, dotSize } });
     });
 
     return elements;
@@ -2815,26 +2816,33 @@ function initCyGraph() {
                 'transition-duration': '0.2s',
             }},
             { selector: 'edge[edgeType="paper-lim"]', style: {
-                'width': 1.5, 'line-color': '#93a3c8', 'target-arrow-color': '#93a3c8',
+                'width': 1.5, 'line-fill': 'linear-gradient',
+                'line-gradient-stop-colors': '#3b5998 #f59e0b',
+                'line-gradient-stop-positions': '0% 100%',
+                'target-arrow-color': '#f59e0b',
                 'line-style': 'solid', 'opacity': 0.5,
             }},
             { selector: 'edge[edgeType="lim-gap"]', style: {
-                'width': 2, 'line-color': '#ef4444', 'target-arrow-color': '#ef4444',
+                'width': 2, 'line-fill': 'linear-gradient',
+                'line-gradient-stop-colors': '#f59e0b #ef4444',
+                'line-gradient-stop-positions': '0% 100%',
+                'target-arrow-color': '#ef4444',
                 'line-style': 'dashed', 'opacity': 0.6,
             }},
             // ── Semantic zoom (dot mode) ──
             { selector: 'node.zoom-dot', style: {
-                'width': 20, 'height': 20, 'font-size': '7px', 'shape': 'ellipse',
-                'text-valign': 'bottom', 'padding': '2px',
+                'width': 20, 'height': 20, 'label': '', 'shape': 'ellipse',
+                'padding': '2px',
             }},
             { selector: 'node.zoom-dot[nodeType="paper"]', style: {
-                'background-color': '#3b5998', 'color': '#fff',
+                'background-color': '#3b5998',
             }},
             { selector: 'node.zoom-dot[nodeType="lim"]', style: {
                 'width': 16, 'height': 16, 'background-color': '#f59e0b',
             }},
             { selector: 'node.zoom-dot[nodeType="gap"]', style: {
-                'width': 24, 'height': 24,
+                'width': 'data(dotSize)', 'height': 'data(dotSize)',
+                'background-color': 'data(borderColor)',
             }},
             { selector: 'edge.zoom-dot', style: {
                 'width': 1, 'arrow-scale': 0.5,
@@ -2883,9 +2891,24 @@ function setupCyInteractions(cy) {
     let lockedNode = null;
 
     function highlightNeighborhood(node) {
-        const neighborhood = node.closedNeighborhood();
+        const nodeType = node.data('nodeType');
+        let connected;
+        if (nodeType === 'paper') {
+            // Paper → Lim → GAP (2-hop forward)
+            const hop1 = node.outgoers();
+            const hop2 = hop1.nodes().outgoers();
+            connected = node.union(hop1).union(hop2);
+        } else if (nodeType === 'gap') {
+            // GAP ← Lim ← Paper (2-hop backward)
+            const hop1 = node.incomers();
+            const hop2 = hop1.nodes().incomers();
+            connected = node.union(hop1).union(hop2);
+        } else {
+            // Lim: 1-hop both directions
+            connected = node.closedNeighborhood();
+        }
         cy.elements().addClass('dimmed');
-        neighborhood.removeClass('dimmed').addClass('highlighted');
+        connected.removeClass('dimmed').addClass('highlighted');
     }
 
     function clearHighlight() {
