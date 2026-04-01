@@ -20,17 +20,17 @@ export const SERVICE_CARDS: ServiceCard[] = [
   {
     icon: FileSearch,
     title: '논문 수집 & 분석',
-    description: '키워드 기반으로 관련 논문을 자동 수집하고 핵심 내용을 구조화합니다.',
+    description: 'arXiv, Semantic Scholar, OpenAlex, Crossref, ScienceON 등 6개 이상의 글로벌 학술 DB에서 키워드 기반으로 관련 논문을 자동 수집합니다. BM25 + FAISS 하이브리드 랭킹과 CrossEncoder 리랭킹으로 가장 관련성 높은 논문을 선별합니다.',
   },
   {
     icon: Brain,
-    title: 'AI기반 GAP 도출',
-    description: '단순 요약이 아닌, 연구 흐름 속 비어 있는 영역을 AI가 자동으로 식별합니다.',
+    title: 'AI 기반 Research GAP 도출',
+    description: '수집된 논문들의 한계점(Limitations)을 2-Track으로 추출(저자 명시 + 구조적 분석)한 뒤, AI가 연구 축(Research Axes)을 동적으로 생성하고 축별 장벽 분석을 통해 실질적인 연구 공백을 식별합니다.',
   },
   {
     icon: Target,
     title: '연구 방향 제안',
-    description: '도출된 GAP을 기반으로 새로운 연구 주제와 방향을 제안합니다.',
+    description: '도출된 GAP을 기반으로 새로운 연구 주제와 구체적인 연구 방향을 제안합니다. Critic Agent가 결과를 평가하고, 품질이 부족하면 자동으로 재분석하여 신뢰도 높은 결과를 보장합니다.',
   },
 ]
 
