@@ -123,7 +123,7 @@ export type ExampleCard = {
 
 export const EXAMPLES: ExampleCard[] = [
   {
-    query: '자율주행 안전성',
+    query: '자율주행 센서 퓨전 안전성 검증',
     paperCount: 38,
     axes: ['센서 퓨전', '시뮬레이션 검증', '엣지 케이스 대응'],
     gaps: [
@@ -140,7 +140,7 @@ export const EXAMPLES: ExampleCard[] = [
     ],
   },
   {
-    query: 'LLM 할루시네이션',
+    query: 'LLM 할루시네이션 탐지 및 완화',
     paperCount: 52,
     axes: ['탐지 메트릭', '도메인 특화', '멀티모달 검증'],
     gaps: [
@@ -157,7 +157,7 @@ export const EXAMPLES: ExampleCard[] = [
     ],
   },
   {
-    query: '신약 개발 AI',
+    query: 'AI 기반 신약 후보 물질 발굴',
     paperCount: 41,
     axes: ['데이터 편향', '약물 상호작용', '임상 전환'],
     gaps: [
