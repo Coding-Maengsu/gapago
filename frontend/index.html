@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GAPAGO - Research GAP Analyzer</title>
+    <title>GAPAGO - Research GAP Agent</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">
     <style>
@@ -28,8 +28,6 @@
             --yellow-light: #fef8ec;
             --red: #e54e4e;
             --red-light: #fef0f0;
-            --done: #3d8fd4;
-            --done-light: #eaf3fb;
             --shadow-sm: 0 1px 2px rgba(26,31,54,0.04);
             --shadow: 0 2px 8px rgba(26,31,54,0.06);
             --shadow-md: 0 4px 16px rgba(26,31,54,0.08);
@@ -127,6 +125,27 @@
             transition: border-color 0.15s;
         }
         .settings-section select:focus { border-color: var(--accent); }
+        .settings-section select:invalid { color: var(--text-light); }
+        .settings-section select.shake {
+            animation: optionShake 0.45s ease;
+            border-color: var(--red) !important;
+            box-shadow: 0 0 0 2px var(--red-light);
+        }
+        @keyframes optionShake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-5px); }
+            40% { transform: translateX(5px); }
+            60% { transform: translateX(-3px); }
+            80% { transform: translateX(3px); }
+        }
+        .settings-section.option-highlight {
+            animation: optionPulse 1.5s ease;
+        }
+        @keyframes optionPulse {
+            0% { box-shadow: 0 0 0 0 rgba(84,105,212,0.3); }
+            50% { box-shadow: 0 0 0 6px rgba(84,105,212,0.15), 0 0 16px rgba(84,105,212,0.1); }
+            100% { box-shadow: 0 0 0 0 rgba(84,105,212,0); }
+        }
 
         .history-section {
             flex: 1;
@@ -149,9 +168,18 @@
             cursor: pointer;
             margin-bottom: 1px;
             transition: background 0.12s;
+            position: relative;
         }
 
         .history-item:hover { background: var(--surface2); }
+        .history-item .delete-btn {
+            position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+            display: none; border: none; background: none; cursor: pointer;
+            color: var(--text-light); font-size: 0.82em; padding: 4px 6px; border-radius: 4px;
+            transition: color 0.15s, background 0.15s;
+        }
+        .history-item:hover .delete-btn { display: block; }
+        .history-item .delete-btn:hover { color: #e74c3c; background: rgba(231,76,60,0.1); }
         .history-item .query { font-size: 0.86em; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
         .history-item .meta { font-size: 0.75em; color: var(--text-light); margin-top: 2px; }
         .history-item .meta .running-badge { color: var(--accent); font-weight: 600; animation: pulse-text 1.5s infinite; }
@@ -228,11 +256,8 @@
         .input-area {
             padding: 16px 36px 24px;
             background: var(--surface);
-            border-top: none;
-            box-shadow: 0 -4px 16px rgba(26,31,54,0.06);
+            border-top: 1px solid var(--border-light);
             flex-shrink: 0;
-            max-width: 960px;
-            margin: 0 auto;
             width: 100%;
         }
 
@@ -321,7 +346,22 @@
             border: 1px solid var(--border-light);
             border-bottom-left-radius: 4px;
         }
-        .chat-msg.assistant .chat-msg-bubble p { margin: 4px 0; }
+        .chat-msg.assistant .chat-msg-bubble p { margin: 2px 0; }
+        .chat-msg.assistant .chat-msg-bubble > *:first-child { margin-top: 0; }
+        .chat-msg.assistant .chat-msg-bubble > *:last-child { margin-bottom: 0; }
+        .chat-msg.assistant .chat-msg-bubble h1,
+        .chat-msg.assistant .chat-msg-bubble h2,
+        .chat-msg.assistant .chat-msg-bubble h3,
+        .chat-msg.assistant .chat-msg-bubble h4 { margin: 12px 0 6px; font-size: 0.95em; }
+        .chat-msg.assistant .chat-msg-bubble ul,
+        .chat-msg.assistant .chat-msg-bubble ol { padding-left: 20px; margin: 6px 0; }
+        .chat-msg.assistant .chat-msg-bubble li { margin: 3px 0; line-height: 1.5; }
+        .chat-msg.assistant .chat-msg-bubble code { background: var(--surface2); padding: 1px 5px; border-radius: 4px; font-size: 0.88em; }
+        .chat-msg.assistant .chat-msg-bubble blockquote { border-left: 3px solid var(--border); padding-left: 12px; margin: 8px 0; color: var(--text-dim); }
+        .chat-msg.assistant .chat-msg-bubble table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 0.88em; }
+        .chat-msg.assistant .chat-msg-bubble th,
+        .chat-msg.assistant .chat-msg-bubble td { border: 1px solid var(--border-light); padding: 6px 10px; text-align: left; }
+        .chat-msg.assistant .chat-msg-bubble hr { margin: 10px 0; border: none; border-top: 1px solid var(--border-light); }
         .chat-typing {
             display: inline-flex;
             gap: 4px;
@@ -374,7 +414,7 @@
             transition: background 0.3s;
         }
 
-        .timeline-item.done:not(:last-child)::after { background: var(--done); }
+        .timeline-item.done:not(:last-child)::after { background: var(--accent); }
         .timeline-item.active:not(:last-child)::after { background: linear-gradient(to bottom, var(--accent), var(--border)); }
 
         .timeline-icon {
@@ -394,8 +434,8 @@
         }
 
         .timeline-item.done .timeline-icon {
-            background: var(--done);
-            border-color: var(--done);
+            background: var(--accent);
+            border-color: var(--accent);
             color: #fff;
         }
 
@@ -423,7 +463,7 @@
             transition: color 0.3s;
         }
 
-        .timeline-item.done .timeline-label { color: var(--done); }
+        .timeline-item.done .timeline-label { color: var(--accent); }
         .timeline-item.active .timeline-label { color: var(--accent); }
 
         .timeline-detail {
@@ -453,12 +493,18 @@
             margin: 2px 2px 0 0;
         }
 
-        .timeline-detail .paper-title-mini {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 340px;
+
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+        .fade-in { animation: fadeIn 0.4s ease-out; }
+        .fade-out { animation: fadeOut 0.3s ease-in forwards; }
 
         /* ── Status ── */
         .status-msg {
@@ -472,32 +518,79 @@
         .status-msg .elapsed { font-size: 0.78em; color: var(--text-light); margin-top: 4px; opacity: 0.5; }
 
         /* ── 2-Panel Results ── */
-        .result-summary-header {
+        .result-summary-bar {
             display: flex;
             align-items: center;
-            gap: 16px;
-            padding: 14px 20px;
-            background: var(--accent-bg);
+            gap: 10px;
+            padding: 12px 16px;
+            background: var(--surface2);
             border-radius: var(--radius);
-            margin-bottom: 16px;
+            margin-bottom: 14px;
             flex-wrap: wrap;
         }
-
-        .result-summary-header .summary-item {
-            font-size: 0.86em;
-            color: var(--text-dim);
-            font-weight: 500;
+        .result-summary-bar .summary-query {
+            font-size: 0.88em;
+            font-weight: 600;
+            color: var(--text);
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
-
-        .result-summary-header .summary-item strong {
+        .result-summary-bar .summary-stat {
+            font-size: 0.78em;
+            color: var(--text-light);
+            white-space: nowrap;
+        }
+        .result-summary-bar .summary-stat strong {
             color: var(--accent);
             font-weight: 700;
         }
-
-        .result-summary-header .summary-divider {
+        .result-summary-bar .summary-sep {
             width: 1px;
-            height: 16px;
+            height: 14px;
             background: var(--border);
+        }
+        .result-meta-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .result-meta-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 8px;
+            background: var(--surface2);
+            border: 1px solid var(--border-light);
+            border-radius: 5px;
+            font-size: 0.72em;
+            color: var(--text-light);
+        }
+        .result-report-actions {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .result-report-actions button {
+            padding: 7px 14px;
+            font-size: 0.8em;
+            font-family: inherit;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--text-dim);
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.15s;
+        }
+        .result-report-actions button:hover {
+            background: var(--surface2);
+            color: var(--text);
+            border-color: var(--accent);
         }
 
         .result-panels {
@@ -790,59 +883,47 @@
             color: var(--text-dim);
             line-height: 1.6;
         }
+        .paper-lim-card {
+            padding: 10px 14px;
+            border-left: 3px solid var(--accent);
+            background: var(--surface2);
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 8px;
+        }
+        .paper-lim-claim { font-size: 0.9em; font-weight: 500; line-height: 1.55; color: var(--text); }
+        .paper-lim-quote { font-size: 0.82em; font-style: italic; color: var(--text-dim); margin-top: 6px; padding-left: 10px; line-height: 1.5; }
 
-        /* ── Report Collapse ── */
-        .report-collapse {
-            margin-top: 16px;
+        /* ── Master Report Collapse ── */
+        .report-master-collapse {
             border: 1px solid var(--border-light);
             border-radius: var(--radius-lg);
             background: var(--surface);
-            overflow: hidden;
         }
-
-        .report-collapse-toggle {
+        .report-master-toggle {
             width: 100%;
             padding: 14px 20px;
             background: var(--surface);
             border: none;
+            border-bottom: 1px solid var(--border-light);
             cursor: pointer;
             font-family: inherit;
-            font-size: 0.92em;
+            font-size: 0.95em;
             font-weight: 600;
-            color: var(--text-dim);
+            color: var(--accent);
             display: flex;
             align-items: center;
             justify-content: space-between;
             transition: background 0.15s;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
         }
+        .report-master-toggle:hover { background: var(--surface2); }
 
-        .report-collapse-toggle:hover { background: var(--surface2); }
-
-        .report-collapse-toggle .toggle-arrow {
-            transition: transform 0.2s;
-            font-size: 0.8em;
-        }
-
-        .report-collapse.open .toggle-arrow { transform: rotate(180deg); }
-
-        .report-collapse-body {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
-        }
-
-        .report-collapse.open .report-collapse-body {
-            max-height: 5000px;
-        }
-
-        .report-collapse-inner {
-            padding: 0 20px 20px;
-        }
-
-        .report-actions { display: flex; gap: 8px; margin-bottom: 18px; }
-        .report-actions button {
-            padding: 8px 18px;
-            font-size: 0.84em;
+        .report-download-btn {
+            padding: 6px 14px;
+            font-size: 0.82em;
             font-family: inherit;
             border: 1px solid var(--border);
             border-radius: 8px;
@@ -851,10 +932,34 @@
             cursor: pointer;
             font-weight: 500;
             transition: all 0.15s;
+            white-space: nowrap;
         }
-        .report-actions button:hover { background: var(--surface2); color: var(--text); border-color: var(--accent); }
+        .report-download-btn:hover { background: var(--surface2); color: var(--text); border-color: var(--accent); }
 
-        /* ── Report Content ── */
+        .report-master-toggle .toggle-arrow {
+            transition: transform 0.25s ease;
+            font-size: 0.8em;
+        }
+        .report-master-collapse.open .toggle-arrow {
+            transform: rotate(180deg);
+        }
+        .report-master-body {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease;
+        }
+        .report-master-collapse.open .report-master-body {
+            max-height: calc(100vh - 180px);
+            overflow-y: auto;
+        }
+        .report-master-body-inner {
+            padding: 0 20px 20px;
+        }
+        #chatContainer {
+            margin-top: 24px;
+        }
+
+        /* ── Report Content (download only, not rendered) ── */
         .report-content { font-size: 1.02em; line-height: 1.55; color: var(--text); }
         .report-content h1 { font-size: 1.45em; color: var(--text); margin: 20px 0 8px; padding-bottom: 6px; border-bottom: 2px solid var(--accent); font-weight: 700; }
         .report-content h2 { font-size: 1.25em; color: var(--text); margin: 16px 0 6px; padding: 4px 10px; font-weight: 700; background: linear-gradient(transparent 40%, rgba(99,102,241,0.18) 40%); display: inline-block; border-radius: 3px; }
@@ -1093,6 +1198,18 @@
             margin-top: 4px;
         }
 
+        /* ── Limitation Claim Streaming ── */
+        .lim-claim-stream { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
+        .lim-claim-item {
+            font-size: 0.84em; color: var(--text); padding: 8px 12px;
+            background: var(--surface2); border-radius: 8px; border-left: 3px solid #f0d8a0;
+            animation: fadeInUp 0.35s ease both; line-height: 1.45;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         /* ── Query Preview ── */
         .preview-query-box {
             padding: 14px 16px;
@@ -1223,6 +1340,18 @@
             padding: 20px;
             min-height: 300px;
             box-shadow: var(--shadow-sm);
+            display: none;
+        }
+        .analysis-preview-panel.has-data {
+            display: block;
+            animation: fadeIn 0.4s ease-out;
+        }
+        .analysis-body.center-timeline {
+            justify-content: center;
+        }
+        .analysis-body.center-timeline .analysis-timeline-panel {
+            width: auto;
+            max-width: 520px;
         }
 
         .preview-empty {
@@ -1351,7 +1480,7 @@
             .history-section { display: none; }
 
             .main { height: calc(100vh - 90px); }
-            .input-area { padding: 12px 12px 20px; max-width: 100%; }
+            .input-area { padding: 12px 12px 20px; }
             .input-row { gap: 6px; }
             .input-row textarea { padding: 10px 14px; font-size: 0.86em; }
 
@@ -1386,6 +1515,14 @@
 
             .interrupt-card { padding: 16px; }
             .interrupt-card .prompt { font-size: 0.8em; padding: 10px; }
+
+            .workflow-section { flex-wrap: wrap; gap: 12px; }
+            .workflow-step .wf-icon { width: 42px; height: 42px; font-size: 18px; }
+            .workflow-step .wf-label { font-size: 0.74em; }
+            .workflow-arrow { display: none; }
+
+            .service-cards { grid-template-columns: 1fr; gap: 10px; }
+            .service-card { padding: 16px 14px; }
         }
 
         @media (max-width: 420px) {
@@ -1393,23 +1530,35 @@
             .sidebar-header p { display: none; }
             .new-btn { font-size: 0.74em; padding: 7px 12px; margin: 6px 8px; }
             .settings-section { padding: 6px 10px; }
-            .input-area { padding: 10px 12px 18px; max-width: 100%; }
+            .input-area { padding: 10px 12px 18px; }
             .input-row input { font-size: 0.8em; padding: 9px 10px; }
             .run-btn, .stop-btn { padding: 9px 14px; font-size: 0.8em; }
             .results { padding: 12px; }
         }
+
+        /* ── 관계도 그래프 (Cytoscape) ── */
+        .flow-graph-section { margin-top: 18px; border-top: 1px solid var(--border-light); padding-top: 14px; }
+        .flow-graph-section .section-title { font-weight: 600; font-size: 0.9em; color: var(--text); margin-bottom: 10px; }
+        .cy-container { width: 100%; height: 420px; border: 1px solid var(--border-light); border-radius: var(--radius-lg); background: var(--surface); position: relative; overflow: hidden; }
+        .cy-fit-btn { position: absolute; top: 10px; right: 10px; z-index: 10; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-dim); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s, box-shadow 0.15s; }
+        .cy-fit-btn:hover { background: var(--surface2); box-shadow: var(--shadow-sm); }
+        .cy-legend { display: flex; gap: 14px; padding: 8px 14px; font-size: 0.72em; color: var(--text-light); border: 1px solid var(--border-light); border-top: none; border-radius: 0 0 var(--radius-lg) var(--radius-lg); background: var(--surface2); flex-wrap: wrap; align-items: center; }
+        .cy-legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: middle; }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
 </head>
 <body>
 
 <!-- Sidebar -->
 <aside class="sidebar">
     <div class="sidebar-header">
-        <a href="#" onclick="event.preventDefault();newAnalysis();" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;cursor:pointer;">
+        <a href="/" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;cursor:pointer;">
             <img src="new_logo.png" alt="GAPAGO" style="width:36px;height:36px;border-radius:8px;object-fit:cover;">
             <div style="padding-top:2px;">
                 <h1>GAPAGO</h1>
-                <p>Research GAP Analyzer</p>
+                <p>Research GAP Agent</p>
             </div>
         </a>
     </div>
@@ -1419,6 +1568,7 @@
     <div class="settings-section">
         <label>LLM 프로바이더</label>
         <select id="provider">
+            <option value="" disabled selected>선택해주세요</option>
             <option value="azure">Azure OpenAI (GPT)</option>
             <option value="claude">Claude (Anthropic)</option>
             <option value="gemini">Google Gemini</option>
@@ -1426,6 +1576,7 @@
         </select>
         <label>연도 범위</label>
         <select id="yearRange">
+            <option value="" disabled selected>선택해주세요</option>
             <option value="auto">자동 (AI 추천)</option>
             <option value="1y">최근 1년</option>
             <option value="3y">최근 3년</option>
@@ -1433,10 +1584,16 @@
         </select>
         <label>답변 언어</label>
         <select id="outputLanguage">
+            <option value="" disabled selected>선택해주세요</option>
             <option value="auto">자동 (입력 언어 감지)</option>
             <option value="ko">한국어</option>
             <option value="en">English</option>
         </select>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer">
+            <input type="checkbox" id="fastMode" style="width:16px;height:16px;cursor:pointer">
+            <span>Fast Mode</span>
+            <span style="font-size:0.75em;color:var(--text-light)">(빠른 분석, 품질 트레이드오프)</span>
+        </label>
     </div>
 
     <div class="history-section" id="historySection">
@@ -1460,8 +1617,6 @@
             </button>
         </div>
     </div>
-
-    <div id="chatMessages"></div>
 </div>
 
 <script>
@@ -1485,7 +1640,7 @@ const TIMELINE_NODES = [
     { id: 'query', label: '질문 분석 & 검색어 확장', nodes: ['query_subgraph', 'meaning_expand'] },
     { id: 'retrieval', label: '논문 검색', nodes: ['paper_retrieval'] },
     { id: 'limitation', label: '한계점 추출', nodes: ['limitation_extract'] },
-    { id: 'eval', label: '한계점 품질 평가', nodes: ['limitation_eval'] },
+    { id: 'eval', label: '한계점 평가', nodes: ['limitation_eval'] },
     { id: 'recency', label: '최신성 검증', nodes: ['recency_check'] },
     { id: 'gap', label: '연구 GAP 도출', nodes: ['gap_infer'] },
     { id: 'critic', label: '결과 검증', nodes: ['critic_score'] },
@@ -1536,7 +1691,7 @@ function getAxisColor(axisName) {
 }
 
 // Progress state for live preview
-let _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0 };
+let _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
 
 // Track timeline detail text per node
 let timelineDetails = {};
@@ -1621,7 +1776,7 @@ function getEmptyStateHTML() {
     return `
     <div class="empty-state">
         <h2 style="font-size:1.5em;font-weight:700;color:var(--text);margin-bottom:8px;letter-spacing:-0.3px;">키워드 또는 논문 제목으로 시작해보세요</h2>
-        <p class="subtitle">연구 방향을 입력하면 논문 검색부터 Research GAP 도출까지 자동으로 진행됩니다.</p>
+        <p class="subtitle">연구 방향을 입력하면 논문 검색부터 Research GAP 도출까지 진행됩니다.</p>
 
         <div class="example-queries">
             ${cardsHTML}
@@ -1648,10 +1803,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                 currentSessionId = savedSessionId;
                 reconnectToSession(savedSessionId, statusData.query || '');
             } else {
+                // 세션 소멸 (서버 재시작 등) — 조용히 초기 화면으로
                 localStorage.removeItem('gapago_active_session');
+                newAnalysis();
             }
         } catch (e) {
             localStorage.removeItem('gapago_active_session');
+            newAnalysis();
         }
     }
 });
@@ -1696,6 +1854,15 @@ async function loadHistory() {
                 div.onclick = () => loadResult(item.filename);
                 div.innerHTML = `<div class="query">${esc(item.query)}</div><div class="meta">${ts} &middot; ${item.gaps_count} GAPs</div>`;
             }
+            // Delete button
+            if (item.filename) {
+                const delBtn = document.createElement('button');
+                delBtn.className = 'delete-btn';
+                delBtn.title = '삭제';
+                delBtn.innerHTML = '&#x2715;';
+                delBtn.onclick = (e) => { e.stopPropagation(); deleteHistoryItem(item.filename); };
+                div.appendChild(delBtn);
+            }
             return div;
         }
 
@@ -1735,6 +1902,15 @@ async function loadHistory() {
 
         if (!items.length) section.innerHTML += '<div style="padding:14px;color:var(--text-light);font-size:0.78em">아직 분석 기록이 없습니다.</div>';
     } catch (e) { console.error(e); }
+}
+
+async function deleteHistoryItem(filename) {
+    if (!confirm('이 분석 기록을 삭제하시겠습니까?')) return;
+    try {
+        const resp = await fetch(`api/history/${filename}`, { method: 'DELETE' });
+        if (!resp.ok) throw new Error('삭제 실패');
+        loadHistory();
+    } catch (e) { console.error(e); alert('삭제에 실패했습니다.'); }
 }
 
 async function loadResult(filename) {
@@ -1841,19 +2017,20 @@ async function sendChatMessage() {
     autoResizeTextarea(input);
     toggleSendBtn();
 
-    // Append user message bubble to results
-    const results = document.getElementById('results');
+    // Append user message bubble to chat container
+    const chatContainer = document.getElementById('chatContainer');
+    const scrollContainer = document.getElementById('results');
     const userMsg = document.createElement('div');
     userMsg.className = 'chat-msg user';
     userMsg.innerHTML = `<div class="chat-msg-bubble">${esc(message)}</div>`;
-    results.appendChild(userMsg);
+    chatContainer.appendChild(userMsg);
 
     // Typing indicator
     const typingEl = document.createElement('div');
     typingEl.className = 'chat-msg assistant';
     typingEl.innerHTML = `<div class="chat-msg-bubble"><div class="chat-typing"><span></span><span></span><span></span></div></div>`;
-    results.appendChild(typingEl);
-    results.scrollTop = results.scrollHeight;
+    chatContainer.appendChild(typingEl);
+    scrollContainer.scrollTop = scrollContainer.scrollHeight;
 
     try {
         const resp = await fetch('api/chat', {
@@ -1868,22 +2045,22 @@ async function sendChatMessage() {
             const errEl = document.createElement('div');
             errEl.className = 'chat-msg assistant';
             errEl.innerHTML = `<div class="chat-msg-bubble" style="color:var(--red)">오류: ${esc(errText)}</div>`;
-            results.appendChild(errEl);
+            chatContainer.appendChild(errEl);
         } else {
             const data = await resp.json();
             const aiMsg = document.createElement('div');
             aiMsg.className = 'chat-msg assistant';
             aiMsg.innerHTML = `<div class="chat-msg-bubble">${renderMarkdown(data.response)}</div>`;
-            results.appendChild(aiMsg);
+            chatContainer.appendChild(aiMsg);
         }
     } catch (e) {
         typingEl.remove();
         const errEl = document.createElement('div');
         errEl.className = 'chat-msg assistant';
         errEl.innerHTML = `<div class="chat-msg-bubble" style="color:var(--red)">네트워크 오류: ${esc(e.message)}</div>`;
-        results.appendChild(errEl);
+        chatContainer.appendChild(errEl);
     }
-    results.scrollTop = results.scrollHeight;
+    scrollContainer.scrollTop = scrollContainer.scrollHeight;
 }
 
 function newAnalysis() {
@@ -1899,9 +2076,38 @@ function newAnalysis() {
     setInputEnabled(true);
 }
 
+function validateOptions() {
+    const ids = ['provider', 'yearRange', 'outputLanguage'];
+    let valid = true;
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        el.classList.remove('shake');
+        if (!el.value) {
+            valid = false;
+            // trigger reflow to restart animation if already applied
+            void el.offsetWidth;
+            el.classList.add('shake');
+            el.addEventListener('animationend', () => el.classList.remove('shake'), { once: true });
+        }
+    });
+    if (!valid) {
+        // scroll sidebar to make options visible and add pulse glow
+        const section = document.querySelector('.settings-section');
+        if (section) {
+            section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            section.classList.remove('option-highlight');
+            void section.offsetWidth;
+            section.classList.add('option-highlight');
+            section.addEventListener('animationend', () => section.classList.remove('option-highlight'), { once: true });
+        }
+    }
+    return valid;
+}
+
 async function startAnalysis() {
     const query = document.getElementById('queryInput').value.trim();
     if (!query) { document.getElementById('queryInput').focus(); return; }
+    if (!validateOptions()) return;
 
     const provider = document.getElementById('provider').value;
     const domain = 'auto';
@@ -1912,8 +2118,9 @@ async function startAnalysis() {
     const providerLabels = { azure: 'Azure GPT', claude: 'Claude', gemini: 'Gemini', exaone: 'EXAONE' };
     const yearLabels = { auto: '자동 추천', '1y': '최근 1년', '3y': '최근 3년', '5y': '최근 5년' };
     const langLabels = { auto: '자동 감지', ko: '한국어', en: 'English' };
+    destroyCyGraph();
     pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: { provider: providerLabels[provider] || provider, yearRange: yearLabels[yearRange] || yearRange, outputLanguage: langLabels[outputLanguage] || outputLanguage } };
-    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0 };
+    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
     timelineDetails = {};
     timelineState = {};
     TIMELINE_NODES.forEach(n => { timelineState[n.id] = 'pending'; });
@@ -1924,7 +2131,8 @@ async function startAnalysis() {
     showPipelineUI();
 
     try {
-        const params = new URLSearchParams({ query, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID });
+        const fastMode = document.getElementById('fastMode')?.checked || false;
+        const params = new URLSearchParams({ query, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID, ...(fastMode ? {fast_mode: 'true'} : {}) });
         const resp = await fetch(`api/analyze?${params}`);
         if (!resp.ok) {
             showError(`API 오류 (${resp.status}): ${await resp.text()}`);
@@ -1979,16 +2187,11 @@ function showPipelineUI() {
                 <div class="status-detail" id="statusDetail"></div>
                 <div class="status-elapsed" id="statusElapsed"></div>
             </div>
-            <div class="analysis-body">
+            <div class="analysis-body center-timeline" id="analysisBody">
                 <div class="analysis-timeline-panel">
                     <div class="timeline" id="timeline">${timelineHTML}</div>
                 </div>
-                <div class="analysis-preview-panel" id="livePreview">
-                    <div class="preview-empty">
-                        <div class="preview-icon">&#x1F50D;</div>
-                        <div>분석이 시작되면 결과가 여기에 표시됩니다</div>
-                    </div>
-                </div>
+                <div class="analysis-preview-panel" id="livePreview"></div>
             </div>
         </div>
         <div id="statusMsg" style="display:none"></div>
@@ -2007,12 +2210,25 @@ function showPipelineUI() {
 }
 
 async function reconnectToSession(sessionId, query) {
+    // status 확인 먼저 — 유효하지 않은 세션 재연결 방지
+    try {
+        const statusResp = await fetch(`api/status/${sessionId}`);
+        const statusData = await statusResp.json();
+        if (['not_found', 'stopped', 'error', 'completed'].includes(statusData.status)) {
+            newAnalysis();
+            return;
+        }
+    } catch (e) {
+        showError('서버에 연결할 수 없습니다.');
+        return;
+    }
     currentSessionId = sessionId;
     localStorage.setItem('gapago_active_session', sessionId);
     document.getElementById('queryInput').value = query || '';
     setInputEnabled(false);
+    destroyCyGraph();
     pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: {} };
-    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0 };
+    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
     timelineDetails = {};
     timelineState = {};
     TIMELINE_NODES.forEach(n => { timelineState[n.id] = 'pending'; });
@@ -2031,15 +2247,23 @@ async function reconnectToSession(sessionId, query) {
     }
 }
 
-async function connectToStream(sessionId, fromIdx) {
+async function connectToStream(sessionId, fromIdx, retries = 1) {
     const url = fromIdx ? `api/stream/${sessionId}?from_idx=${fromIdx}` : `api/stream/${sessionId}`;
-    const resp = await fetch(url);
-    if (!resp.ok) {
+    for (let attempt = 0; attempt < retries; attempt++) {
+        const resp = await fetch(url);
+        if (resp.ok) {
+            await processStream(resp);
+            return;
+        }
+        if (resp.status === 404 && attempt < retries - 1) {
+            console.warn(`Stream 404, retrying (${attempt + 1}/${retries})...`);
+            await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+            continue;
+        }
         showError(`스트림 오류 (${resp.status}): ${await resp.text()}`);
         setInputEnabled(true);
         return;
     }
-    await processStream(resp);
 }
 
 function showError(message) {
@@ -2082,8 +2306,30 @@ function findTimelineStep(nodeName) {
 function handleEvent(data) {
     if (data.event === 'keepalive') return;
 
-    if (data.event === 'progress') {
-        _progressData = { node: data.node || '', detail: data.detail || '', current: data.current || 0, total: data.total || 0, progress: data.progress || 0 };
+    if (data.event === 'progress' || data.event === 'partial_limitations' || data.event === 'partial_papers') {
+        _progressData = {
+            node: data.node || '', detail: data.detail || '',
+            current: data.current || 0, total: data.total || 0, progress: data.progress || 0,
+            pipeline_progress_pct: data.pipeline_progress_pct || _progressData.pipeline_progress_pct || 0,
+            elapsed_s: data.elapsed_s || _progressData.elapsed_s || 0,
+            estimated_remaining_s: data.estimated_remaining_s || _progressData.estimated_remaining_s || 0,
+        };
+        // Handle partial results streaming
+        if (data.event === 'partial_limitations' && data.data) {
+            if (!pipelineData.limitations) pipelineData.limitations = [];
+            const existing = new Set(pipelineData.limitations.map(l => l.claim || l.text || ''));
+            (data.data || []).forEach(l => {
+                const key = l.claim || l.text || '';
+                if (!existing.has(key)) { pipelineData.limitations.push(l); existing.add(key); }
+            });
+        }
+        if (data.event === 'partial_papers' && data.data) {
+            if (!pipelineData.papers) pipelineData.papers = [];
+            const existingIds = new Set(pipelineData.papers.map(p => p.paper_id));
+            (data.data || []).forEach(p => {
+                if (!existingIds.has(p.paper_id)) { pipelineData.papers.push(p); existingIds.add(p.paper_id); }
+            });
+        }
         // Update timeline detail for this node
         const tlStep = findTimelineStep(data.node);
         if (tlStep) {
@@ -2096,6 +2342,8 @@ function handleEvent(data) {
     }
 
     if (data.event === 'node') {
+        // Reset progress data on stage transition
+        _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
         const tlStepId = findTimelineStep(data.node);
         if (tlStepId) updateTimeline(tlStepId, data.node);
         collectData(data);
@@ -2112,16 +2360,21 @@ function handleEvent(data) {
             timelineState[n.id] = 'done';
         });
         renderTimelineState();
-        const totalSecs = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
-        const tm = Math.floor(totalSecs / 60), ts = totalSecs % 60;
-        // Remove analysis layout, show results only
+        // Fade out pipeline UI, then show results with fade in
         const results = document.getElementById('results');
-        const completionInfo = `<div style="text-align:center;padding:12px 0 8px;"><span style="color:var(--done);font-weight:600;font-size:1em;">분석 완료</span><span style="color:var(--text-light);font-size:0.82em;margin-left:10px;">${tm > 0 ? tm + '분 ' : ''}${ts}초 소요</span></div>`;
-        results.innerHTML = completionInfo + '<div id="resultArea" style="display:none"></div>';
-        renderResults();
-        setInputEnabled(true);
-        switchToChatMode(currentSessionId);
-        loadHistory();
+        results.classList.add('fade-out');
+        setTimeout(() => {
+            const totalSecs = _startTime ? Math.floor((Date.now() - _startTime) / 1000) : 0;
+            const tm = Math.floor(totalSecs / 60), ts = totalSecs % 60;
+            const completionInfo = `<div style="text-align:center;padding:12px 0 8px;"><span style="color:var(--accent);font-weight:600;font-size:1em;">분석 완료</span><span style="color:var(--text-light);font-size:0.82em;margin-left:10px;">${tm > 0 ? tm + '분 ' : ''}${ts}초 소요</span></div>`;
+            results.innerHTML = completionInfo + '<div id="resultArea" style="display:none"></div><div id="chatContainer"></div>';
+            renderResults();
+            results.classList.remove('fade-out');
+            results.classList.add('fade-in');
+            setInputEnabled(true);
+            switchToChatMode(currentSessionId, data.filename || '');
+            loadHistory();
+        }, 300);
     } else if (data.event === 'stopped') {
         clearInterval(_thinkingInterval);
         clearInterval(_elapsedInterval);
@@ -2132,6 +2385,8 @@ function handleEvent(data) {
         const stoppedDetail = document.getElementById('statusDetail');
         if (stoppedDetail) stoppedDetail.textContent = '';
         setInputEnabled(true);
+    } else if (data.event === 'session_ended') {
+        newAnalysis();
     } else if (data.event === 'error') {
         clearInterval(_thinkingInterval);
         clearInterval(_elapsedInterval);
@@ -2173,7 +2428,7 @@ function updateTimeline(activeStepId, nodeName) {
         statusText.textContent = activeNode.label + '...';
     }
     if (statusDetailEl) {
-        statusDetailEl.textContent = timelineDetails[activeStepId] || '';
+        statusDetailEl.textContent = THINKING_MESSAGES[Math.floor(Math.random() * THINKING_MESSAGES.length)];
     }
 
     // Thinking messages rotation
@@ -2214,11 +2469,10 @@ function collectData(data) {
     if ((node === 'query_subgraph' || node === 'meaning_expand')) {
         if (data.refined_query) pipelineData.refined_query = data.refined_query;
         if (data.keywords) pipelineData.keywords = data.keywords;
-        // Build detail text
+        // Build detail text (쿼리는 우측 패널에 표시하므로 키워드만)
         let detail = '';
-        if (pipelineData.refined_query) detail += esc(pipelineData.refined_query);
         if (pipelineData.keywords && pipelineData.keywords.length) {
-            detail += '<br>' + pipelineData.keywords.slice(0, 6).map(k => `<span class="keyword-tag">${esc(k)}</span>`).join(' ');
+            detail = pipelineData.keywords.slice(0, 6).map(k => `<span class="keyword-tag">${esc(k)}</span>`).join(' ');
         }
         timelineDetails['query'] = detail;
     }
@@ -2226,14 +2480,9 @@ function collectData(data) {
     if (node === 'paper_retrieval') {
         if (data.papers) pipelineData.papers = data.papers;
         if (data.total_searched) pipelineData.total_searched = data.total_searched;
-        const totalS = pipelineData.total_searched || '?';
+        const totalS = pipelineData.total_searched || pipelineData.papers.length || '?';
         const count = pipelineData.papers.length;
         let detail = `${totalS}편 중 ${count}편 선별`;
-        // Show top 3 paper titles
-        if (pipelineData.papers.length > 0) {
-            const top3 = pipelineData.papers.slice(0, 3);
-            detail += '<br>' + top3.map(p => `<div class="paper-title-mini">&#x2022; ${esc(p.title || '')}</div>`).join('');
-        }
         timelineDetails['retrieval'] = detail;
     }
 
@@ -2302,20 +2551,46 @@ function updateLivePreview() {
     const hasPapers = pipelineData.papers.length > 0;
     const hasLimitations = pipelineData.limitations && pipelineData.limitations.length > 0;
     const hasGaps = pipelineData.gaps && pipelineData.gaps.length > 0;
-    const hasProgress = _progressData.total > 0;
+    const isLimitationStage = _progressData.node === 'limitation_extract';
+    const hasProgress = _progressData.total > 0 && isLimitationStage;
 
     if (!hasQuery && !hasPapers && !hasLimitations && !hasGaps && !hasProgress) return;
 
-    let html = '';
-
-    // Progress bar (limitation extraction etc.)
-    if (hasProgress && !hasGaps) {
-        html += `<div class="preview-progress">
-            <div class="preview-progress-label">${esc(_progressData.detail)}</div>
-            <div class="preview-progress-bar"><div class="preview-progress-fill" style="width:${_progressData.progress}%"></div></div>
-            <div class="preview-progress-detail">${_progressData.current} / ${_progressData.total} (${_progressData.progress}%)</div>
-        </div>`;
+    // Show preview panel and remove center-timeline when data arrives
+    if (!panel.classList.contains('has-data')) {
+        panel.classList.add('has-data');
+        const body = document.getElementById('analysisBody');
+        if (body) body.classList.remove('center-timeline');
     }
+
+    // Incremental limitation claim streaming
+    if (hasLimitations && !hasGaps) {
+        const limCount = pipelineData.limitations.length;
+        const limInProgress = hasProgress && _progressData.progress < 100;
+        const titleSuffix = limInProgress ? ` (추출 중... ${_progressData.current}/${_progressData.total})` : '';
+        const existingStream = panel.querySelector('.lim-claim-stream');
+        if (existingStream) {
+            // Update title
+            const titleEl = panel.querySelector('.lim-claim-title');
+            if (titleEl) titleEl.textContent = `한계점 추출 (${limCount}개)${titleSuffix}`;
+            // Append only new items
+            const existingCount = existingStream.children.length;
+            if (existingCount < limCount) {
+                for (let i = existingCount; i < limCount; i++) {
+                    const lim = pipelineData.limitations[i];
+                    const claim = lim.claim || lim.limitation_text || lim.text || lim.content || '(한계점)';
+                    const item = document.createElement('div');
+                    item.className = 'lim-claim-item';
+                    item.textContent = claim;
+                    existingStream.appendChild(item);
+                }
+                existingStream.scrollTop = existingStream.scrollHeight;
+            }
+            return;
+        }
+    }
+
+    let html = '';
 
     // GAPs
     if (hasGaps) {
@@ -2331,30 +2606,31 @@ function updateLivePreview() {
         html += '</div>';
     }
 
-    // Limitations
-    if (hasLimitations) {
+    // Limitations — claim 스트리밍
+    if (hasLimitations && !hasGaps) {
         const limCount = pipelineData.limitations.length;
-        const showLims = pipelineData.limitations.slice(0, 5);
-        html += `<div class="preview-section"><div class="preview-section-title">한계점 (${limCount})</div>`;
-        showLims.forEach(l => {
-            const text = l.limitation_text || l.text || l.content || '';
-            html += `<div class="preview-limitation-item">${esc(truncate(text, 120))}</div>`;
+        const limInProgress = hasProgress && _progressData.progress < 100;
+        const titleSuffix = limInProgress ? ` (추출 중... ${_progressData.current}/${_progressData.total})` : '';
+        html += `<div class="preview-section"><div class="preview-section-title lim-claim-title">한계점 추출 (${limCount}개)${titleSuffix}</div>`;
+        html += `<div class="lim-claim-stream">`;
+        pipelineData.limitations.forEach(lim => {
+            const claim = lim.claim || lim.limitation_text || lim.text || lim.content || '(한계점)';
+            html += `<div class="lim-claim-item">${esc(claim)}</div>`;
         });
-        if (limCount > 5) html += `<div style="text-align:center;color:var(--text-light);font-size:0.78em;padding:4px">외 ${limCount - 5}개...</div>`;
-        html += '</div>';
+        html += '</div></div>';
     }
 
     // Papers
     if (hasPapers) {
-        html += `<div class="preview-section"><div class="preview-section-title">검색된 논문 (${pipelineData.papers.length}/${pipelineData.total_searched || '?'})</div>`;
-        pipelineData.papers.slice(0, 8).forEach(p => {
+        html += `<div class="preview-section"><div class="preview-section-title">검색된 논문 (${pipelineData.papers.length}/${pipelineData.total_searched || pipelineData.papers.length || '?'})</div>`;
+        html += `<div style="max-height:300px;overflow-y:auto;">`;
+        pipelineData.papers.forEach(p => {
             html += `<div class="preview-paper-item">
                 <div class="preview-paper-title">${esc(p.title || '')}</div>
                 <div class="preview-paper-meta">${p.year || ''} ${p.venue ? '· ' + esc(p.venue) : ''}</div>
             </div>`;
         });
-        if (pipelineData.papers.length > 8) html += `<div style="text-align:center;color:var(--text-light);font-size:0.78em;padding:4px">외 ${pipelineData.papers.length - 8}편...</div>`;
-        html += '</div>';
+        html += '</div></div>';
     }
 
     // Query & Keywords (show at bottom as context)
@@ -2378,35 +2654,315 @@ function updateLivePreview() {
     panel.innerHTML = html;
 }
 
+// ── 관계도 그래프 (Cytoscape) ──
+
+function buildCyGraphData() {
+    const papers = pipelineData.papers || [];
+    const limitations = pipelineData.limitations || [];
+    const gaps = pipelineData.gaps || [];
+    const paperIds = new Set(papers.map(p => p.paper_id));
+
+    // 유효한 limitation만 (paper가 존재)
+    const validLimitations = limitations
+        .map((l, i) => ({ ...l, _idx: i }))
+        .filter(l => paperIds.has(l.paper_id));
+
+    // paper → limitation 엣지
+    const paperToLim = [];
+    validLimitations.forEach(l => {
+        paperToLim.push({ from: l.paper_id, to: `lim-${l._idx}` });
+    });
+
+    // limitation → gap 엣지 (supporting_papers 매칭)
+    const limToGap = [];
+    const limToGapSet = new Set();
+    gaps.forEach((gap, gi) => {
+        (gap.supporting_papers || []).forEach(pid => {
+            validLimitations.filter(l => l.paper_id === pid).forEach(l => {
+                const key = `lim-${l._idx}->gap-${gi}`;
+                if (!limToGapSet.has(key)) {
+                    limToGapSet.add(key);
+                    limToGap.push({ from: `lim-${l._idx}`, to: `gap-${gi}` });
+                }
+            });
+        });
+    });
+
+    return { papers, validLimitations, gaps, paperToLim, limToGap };
+}
+
+function buildCyElements() {
+    const data = buildCyGraphData();
+    const { papers, validLimitations, gaps, paperToLim, limToGap } = data;
+    const elements = [];
+
+    if (!papers.length && !gaps.length) return elements;
+
+    // 한계점 그룹핑 (60개 초과 시 논문별 그룹)
+    const groupLimitations = validLimitations.length > 60;
+
+    // 논문 노드
+    papers.forEach((p, i) => {
+        const title = truncate(p.title || p.paper_id || '', 28);
+        const meta = [p.venue, p.year].filter(Boolean).join(', ');
+        elements.push({ data: { id: p.paper_id, label: title, meta, nodeType: 'paper', index: i } });
+    });
+
+    // 한계점 노드
+    if (groupLimitations) {
+        const byPaper = {};
+        validLimitations.forEach(l => {
+            if (!byPaper[l.paper_id]) byPaper[l.paper_id] = [];
+            byPaper[l.paper_id].push(l);
+        });
+        Object.entries(byPaper).forEach(([pid, lims]) => {
+            const paper = papers.find(p => p.paper_id === pid);
+            const label = (paper ? truncate(paper.title || '', 18) : pid.slice(0, 12)) + ` (${lims.length})`;
+            const grpId = `limgrp-${pid}`;
+            elements.push({ data: { id: grpId, label, nodeType: 'lim', paperId: pid } });
+            // paper → limgroup edge
+            elements.push({ data: { source: pid, target: grpId, edgeType: 'paper-lim' } });
+            // limgroup → gap edges
+            const gapTargets = new Set();
+            lims.forEach(l => {
+                limToGap.filter(e => e.from === `lim-${l._idx}`).forEach(e => gapTargets.add(e.to));
+            });
+            gapTargets.forEach(gid => {
+                elements.push({ data: { source: grpId, target: gid, edgeType: 'lim-gap' } });
+            });
+        });
+    } else {
+        validLimitations.forEach(l => {
+            const claim = truncate(l.claim || l.limitation_text || l.text || l.content || '(한계점)', 32);
+            elements.push({ data: { id: `lim-${l._idx}`, label: claim, nodeType: 'lim', paperId: l.paper_id } });
+        });
+        // paper → lim edges
+        paperToLim.forEach(e => {
+            elements.push({ data: { source: e.from, target: e.to, edgeType: 'paper-lim' } });
+        });
+        // lim → gap edges
+        limToGap.forEach(e => {
+            elements.push({ data: { source: e.from, target: e.to, edgeType: 'lim-gap' } });
+        });
+    }
+
+    // GAP 노드 (크기 = 연결된 엣지 수에 비례)
+    const gapEdgeCounts = {};
+    elements.filter(e => e.data.edgeType === 'lim-gap').forEach(e => {
+        gapEdgeCounts[e.data.target] = (gapEdgeCounts[e.data.target] || 0) + 1;
+    });
+    gaps.forEach((g, i) => {
+        const axisLabel = g.axis_label || g.axis || '';
+        const ac = getAxisColor(axisLabel);
+        const stmt = truncate(g.gap_statement || '', 28);
+        const edgeCount = gapEdgeCounts[`gap-${i}`] || 1;
+        const nodeWidth = Math.round(160 * Math.max(1, Math.min(edgeCount / 2, 2.5)));
+        elements.push({ data: { id: `gap-${i}`, label: stmt, axisLabel, nodeType: 'gap', index: i, bgColor: ac.bg, borderColor: ac.border, textColor: ac.color, nodeWidth } });
+    });
+
+    return elements;
+}
+
+function initCyGraph() {
+    const container = document.getElementById('cyContainer');
+    if (!container) return;
+
+    const elements = buildCyElements();
+    if (!elements.length) return;
+
+    const cy = cytoscape({
+        container,
+        elements,
+        style: [
+            // ── Base node ──
+            { selector: 'node', style: {
+                'label': 'data(label)', 'text-wrap': 'wrap', 'text-max-width': '140px',
+                'font-size': '10px', 'text-valign': 'center', 'text-halign': 'center',
+                'width': '160px', 'height': 'label', 'padding': '10px',
+                'shape': 'round-rectangle', 'background-color': '#f0f2f8',
+                'border-width': 1.5, 'border-color': '#dfe3ed',
+                'color': '#1a1f36', 'font-family': 'Pretendard Variable, Inter, sans-serif',
+                'transition-property': 'opacity, border-color, border-width',
+                'transition-duration': '0.2s',
+            }},
+            { selector: 'node[nodeType="paper"]', style: {
+                'shape': 'round-rectangle', 'background-color': '#3b5998', 'border-color': '#2d4373',
+                'color': '#fff',
+            }},
+            { selector: 'node[nodeType="lim"]', style: {
+                'shape': 'ellipse', 'background-color': '#fffbeb', 'border-color': '#f59e0b',
+                'border-width': 2, 'color': '#92400e', 'width': '140px',
+            }},
+            { selector: 'node[nodeType="gap"]', style: {
+                'shape': 'round-rectangle',
+                'background-color': 'data(bgColor)', 'border-color': 'data(borderColor)',
+                'border-width': 3, 'color': 'data(textColor)', 'font-weight': '600',
+                'width': 'data(nodeWidth)',
+            }},
+            // ── Edge types ──
+            { selector: 'edge', style: {
+                'target-arrow-shape': 'triangle', 'curve-style': 'bezier',
+                'arrow-scale': 0.8,
+                'transition-property': 'opacity, line-color, width',
+                'transition-duration': '0.2s',
+            }},
+            { selector: 'edge[edgeType="paper-lim"]', style: {
+                'width': 1.5, 'line-color': '#93a3c8', 'target-arrow-color': '#93a3c8',
+                'line-style': 'solid', 'opacity': 0.5,
+            }},
+            { selector: 'edge[edgeType="lim-gap"]', style: {
+                'width': 2, 'line-color': '#f59e0b', 'target-arrow-color': '#ef4444',
+                'line-style': 'dashed', 'opacity': 0.6,
+            }},
+            // ── Semantic zoom (dot mode) ──
+            { selector: 'node.zoom-dot', style: {
+                'width': 20, 'height': 20, 'font-size': '7px', 'shape': 'ellipse',
+                'text-valign': 'bottom', 'padding': '2px',
+            }},
+            { selector: 'node.zoom-dot[nodeType="paper"]', style: {
+                'background-color': '#3b5998', 'color': '#fff',
+            }},
+            { selector: 'node.zoom-dot[nodeType="lim"]', style: {
+                'width': 16, 'height': 16, 'background-color': '#f59e0b',
+            }},
+            { selector: 'node.zoom-dot[nodeType="gap"]', style: {
+                'width': 24, 'height': 24,
+            }},
+            { selector: 'edge.zoom-dot', style: {
+                'width': 1, 'arrow-scale': 0.5,
+            }},
+            // ── Highlight/dim (after zoom-dot for priority) ──
+            { selector: '.highlighted', style: {
+                'border-color': '#5469d4', 'border-width': 2.5, 'opacity': 1,
+                'z-index': 10,
+            }},
+            { selector: 'edge.highlighted', style: {
+                'line-color': '#5469d4', 'target-arrow-color': '#5469d4', 'width': 2.5, 'opacity': 1,
+                'z-index': 10,
+            }},
+            { selector: '.dimmed', style: { 'opacity': 0.12 }},
+            { selector: 'edge.dimmed', style: { 'opacity': 0.06 }},
+        ],
+        layout: {
+            name: 'dagre',
+            rankDir: 'LR',
+            nodeSep: 40,
+            rankSep: 100,
+            edgeSep: 15,
+            animate: false,
+        },
+        minZoom: 0.3,
+        maxZoom: 3,
+        wheelSensitivity: 0.3,
+        boxSelectionEnabled: false,
+    });
+
+    setupCyInteractions(cy);
+    window._cyInstance = cy;
+}
+
+function setupCyInteractions(cy) {
+    let lockedNode = null;
+
+    function highlightNeighborhood(node) {
+        const neighborhood = node.closedNeighborhood();
+        cy.elements().addClass('dimmed');
+        neighborhood.removeClass('dimmed').addClass('highlighted');
+    }
+
+    function clearHighlight() {
+        cy.elements().removeClass('highlighted dimmed');
+    }
+
+    cy.on('mouseover', 'node', function(e) {
+        if (lockedNode) return;
+        highlightNeighborhood(e.target);
+    });
+
+    cy.on('mouseout', 'node', function() {
+        if (lockedNode) return;
+        clearHighlight();
+    });
+
+    cy.on('tap', 'node', function(e) {
+        const node = e.target;
+        const nodeType = node.data('nodeType');
+        const index = node.data('index');
+
+        // Toggle lock
+        if (lockedNode && lockedNode.id() === node.id()) {
+            lockedNode = null;
+            clearHighlight();
+            return;
+        }
+
+        lockedNode = node;
+        clearHighlight();
+        highlightNeighborhood(node);
+
+        // Dispatch to detail panel
+        if (nodeType === 'gap' && index !== undefined) {
+            selectGap(index);
+        } else if (nodeType === 'paper' && index !== undefined) {
+            selectPaper(index);
+        } else if (nodeType === 'lim') {
+            const paperId = node.data('paperId');
+            const pIdx = (pipelineData.papers || []).findIndex(p => p.paper_id === paperId);
+            if (pIdx >= 0) selectPaper(pIdx);
+        }
+    });
+
+    cy.on('tap', function(e) {
+        if (e.target === cy) {
+            lockedNode = null;
+            clearHighlight();
+        }
+    });
+
+    // ── 더블클릭 줌인 ──
+    cy.on('dbltap', 'node', function(e) {
+        const node = e.target;
+        const neighborhood = node.closedNeighborhood();
+        cy.animate({ fit: { eles: neighborhood, padding: 50 }, duration: 400 });
+    });
+
+    // ── Semantic zoom ──
+    const ZOOM_THRESHOLD = 0.7;
+    let currentZoomMode = 'card';
+    let _zoomTimer = null;
+    cy.on('zoom', function() {
+        clearTimeout(_zoomTimer);
+        _zoomTimer = setTimeout(function() {
+            const dot = cy.zoom() < ZOOM_THRESHOLD;
+            if (dot && currentZoomMode !== 'dot') {
+                cy.elements().addClass('zoom-dot');
+                currentZoomMode = 'dot';
+            } else if (!dot && currentZoomMode !== 'card') {
+                cy.elements().removeClass('zoom-dot');
+                currentZoomMode = 'card';
+            }
+        }, 50);
+    });
+}
+
+function destroyCyGraph() {
+    if (window._cyInstance) {
+        window._cyInstance.destroy();
+        window._cyInstance = null;
+    }
+}
+
 function renderResults() {
+    destroyCyGraph();
     const area = document.getElementById('resultArea');
     area.style.display = 'block';
 
     selectedItem = { type: 'gap', index: 0 };
 
-    // Analysis options bar
-    let optionsHTML = '';
-    const opts = pipelineData.analysisOptions || {};
-    if (opts.provider || opts.yearRange || opts.outputLanguage) {
-        optionsHTML = `<div class="analysis-options-bar">`;
-        if (opts.provider) optionsHTML += `<span class="opt-chip"><span class="opt-label">LLM</span> ${esc(opts.provider)}</span>`;
-        if (opts.yearRange) optionsHTML += `<span class="opt-chip"><span class="opt-label">연도</span> ${esc(opts.yearRange)}</span>`;
-        if (opts.outputLanguage) optionsHTML += `<span class="opt-chip"><span class="opt-label">언어</span> ${esc(opts.outputLanguage)}</span>`;
-        optionsHTML += `</div>`;
-    }
-
-    // Summary header
-    const totalSearched = pipelineData.total_searched || '?';
+    // Summary stats (used in report toggle)
+    const totalSearched = pipelineData.total_searched || pipelineData.papers.length || '?';
     const papersCount = pipelineData.papers.length;
     const gapsCount = pipelineData.gaps.length;
-    const refinedQ = pipelineData.refined_query || '';
-
-    let summaryHTML = `<div class="result-summary-header">`;
-    if (refinedQ) summaryHTML += `<span class="summary-item">정제된 쿼리: <strong>${esc(refinedQ)}</strong></span><span class="summary-divider"></span>`;
-    summaryHTML += `<span class="summary-item">논문 <strong>${papersCount}/${totalSearched}편</strong></span>`;
-    summaryHTML += `<span class="summary-divider"></span>`;
-    summaryHTML += `<span class="summary-item">GAP <strong>${gapsCount}개</strong></span>`;
-    summaryHTML += `</div>`;
 
     // Left panel: gaps + papers
     let leftHTML = '';
@@ -2451,38 +3007,79 @@ function renderResults() {
     // Right panel: detail (default: first gap)
     let rightHTML = getGapDetailHTML(0);
 
-    // Report collapse
-    let reportHTML = '';
+    // Summary bar: query + stats + meta chips in one compact row
+    let summaryBarHTML = '';
+    const opts2 = pipelineData.analysisOptions || {};
+    const metaChips = [];
+    if (opts2.provider) metaChips.push(esc(opts2.provider));
+    if (opts2.yearRange) metaChips.push(esc(opts2.yearRange));
+    if (opts2.outputLanguage) metaChips.push(esc(opts2.outputLanguage));
+
+    summaryBarHTML += `<div class="result-summary-bar">`;
+    summaryBarHTML += `<span class="summary-query" title="${esc(pipelineData.refined_query || '')}">${esc(pipelineData.refined_query || '')}</span>`;
+    summaryBarHTML += `<span class="summary-sep"></span>`;
+    summaryBarHTML += `<span class="summary-stat">논문 <strong>${papersCount}/${totalSearched}</strong></span>`;
+    summaryBarHTML += `<span class="summary-sep"></span>`;
+    summaryBarHTML += `<span class="summary-stat">GAP <strong>${gapsCount}</strong></span>`;
+    if (metaChips.length) {
+        summaryBarHTML += `<span class="summary-sep"></span>`;
+        summaryBarHTML += metaChips.map(c => `<span class="result-meta-chip">${c}</span>`).join('');
+    }
+    summaryBarHTML += `</div>`;
+
+    // Keywords row (compact)
+    let keywordsHTML = '';
+    if (pipelineData.keywords && pipelineData.keywords.length) {
+        keywordsHTML = `<div class="result-meta-row">`;
+        keywordsHTML += pipelineData.keywords.map(k => `<span class="preview-keyword-tag">${esc(k)}</span>`).join(' ');
+        keywordsHTML += `</div>`;
+    }
+
+    // Report actions (copy/download)
+    let reportActionsHTML = '';
     if (pipelineData.report) {
-        reportHTML = `
-        <div class="report-collapse" id="reportCollapse">
-            <button class="report-collapse-toggle" onclick="toggleReport()">
-                <span>전체 리포트 보기</span>
-                <span class="toggle-arrow">&#x25BC;</span>
-            </button>
-            <div class="report-collapse-body">
-                <div class="report-collapse-inner">
-                    <div class="report-actions">
-                        <button onclick="copyReport()">클립보드에 복사</button>
-                        <button onclick="downloadReport()">다운로드 (.md)</button>
-                    </div>
-                    <div class="report-content">${renderMarkdown(pipelineData.report)}</div>
-                </div>
-            </div>
+        reportActionsHTML = `<div class="result-report-actions">
+            <button onclick="copyReport()">클립보드에 복사</button>
+            <button onclick="downloadReport()">다운로드 .md</button>
         </div>`;
     }
 
     area.innerHTML = `
-        ${optionsHTML}
-        ${summaryHTML}
-        <div class="result-panels">
-            <div class="panel-left" id="panelLeft">${leftHTML}</div>
-            <div class="panel-right" id="panelRight">
-                <div class="detail-panel" id="detailPanel">${rightHTML}</div>
+        <div class="report-master-collapse open" id="reportMasterCollapse">
+            <button class="report-master-toggle" onclick="toggleMasterReport()">
+                <span>분석 결과</span>
+                <span class="toggle-arrow">&#x25BC;</span>
+            </button>
+            <div class="report-master-body">
+                <div class="report-master-body-inner">
+                    ${summaryBarHTML}
+                    ${keywordsHTML}
+                    ${reportActionsHTML}
+                    <div class="result-panels">
+                        <div class="panel-left" id="panelLeft">${leftHTML}</div>
+                        <div class="panel-right" id="panelRight">
+                            <div class="detail-panel" id="detailPanel">${rightHTML}</div>
+                        </div>
+                    </div>
+                    <div class="flow-graph-section" id="flowGraphSection">
+                        <div class="section-title">관계도 (Papers → Limitations → GAPs)</div>
+                        <div class="cy-container" id="cyContainer">
+                            <button class="cy-fit-btn" onclick="if(window._cyInstance) window._cyInstance.animate({fit:{padding:30},duration:300})" title="전체 보기">⊞</button>
+                        </div>
+                        <div class="cy-legend">
+                            <span><span class="cy-legend-dot" style="background:#3b5998;border:1px solid #2d4373"></span> 논문</span>
+                            <span><span class="cy-legend-dot" style="background:#fffbeb;border:1px solid #f59e0b"></span> 한계점</span>
+                            <span><span class="cy-legend-dot" style="background:#eef0fb;border:1px solid #5469d4"></span> GAP</span>
+                            <span style="margin-left:auto;font-style:italic;opacity:0.7">클릭 강조 · 더블클릭 줌인 · ⊞ 전체보기</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
-        ${reportHTML}
     `;
+
+    // 관계도 Cytoscape 초기화
+    requestAnimationFrame(() => initCyGraph());
 }
 
 function getGapDetailHTML(index) {
@@ -2559,8 +3156,13 @@ function getPaperDetailHTML(index) {
         const paperLimitations = pipelineData.limitations.filter(l => l.paper_id === p.paper_id);
         if (paperLimitations.length) {
             html += `<div class="detail-section-title">이 논문의 한계점 (${paperLimitations.length})</div>`;
-            paperLimitations.forEach(l => {
-                html += `<div class="paper-limitation-item">${esc(l.limitation_text || l.text || l.content || JSON.stringify(l))}</div>`;
+            paperLimitations.forEach((l, idx) => {
+                const claim = l.claim || l.limitation_text || l.text || l.content || '';
+                const quote = l.evidence_quote || '';
+                html += `<div class="paper-lim-card">
+                    <div class="paper-lim-claim">${esc(claim)}</div>
+                    ${quote ? `<div class="paper-lim-quote">"${esc(truncate(quote, 200))}"</div>` : ''}
+                </div>`;
             });
         }
     }
@@ -2593,12 +3195,24 @@ function selectPaper(index) {
     if (dp) dp.innerHTML = getPaperDetailHTML(index);
 }
 
-function toggleReport() {
-    const rc = document.getElementById('reportCollapse');
-    if (rc) rc.classList.toggle('open');
+function toggleMasterReport() {
+    const mc = document.getElementById('reportMasterCollapse');
+    const body = mc.querySelector('.report-master-body');
+    if (mc.classList.contains('open')) {
+        body.style.maxHeight = body.scrollHeight + 'px';
+        requestAnimationFrame(() => { body.style.maxHeight = '0'; });
+        mc.classList.remove('open');
+    } else {
+        mc.classList.add('open');
+        body.style.maxHeight = body.scrollHeight + 'px';
+        body.addEventListener('transitionend', () => {
+            if (mc.classList.contains('open')) body.style.maxHeight = 'calc(100vh - 180px)';
+        }, { once: true });
+    }
 }
 
 async function exploreDirection(topic) {
+    if (!validateOptions()) return;
     // Fill query input and start new analysis
     document.getElementById('queryInput').value = topic;
 
@@ -2608,8 +3222,9 @@ async function exploreDirection(topic) {
     const outputLanguage = document.getElementById('outputLanguage').value;
 
     setInputEnabled(false);
+    destroyCyGraph();
     pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: {} };
-    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0 };
+    _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
     timelineDetails = {};
     timelineState = {};
     TIMELINE_NODES.forEach(n => { timelineState[n.id] = 'pending'; });
@@ -2627,7 +3242,8 @@ async function exploreDirection(topic) {
             resp = await fetch(`api/explore?${exploreParams}`);
             if (!resp.ok) throw new Error('explore not available');
         } catch (e) {
-            const params = new URLSearchParams({ query: topic, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID });
+            const fastMode2 = document.getElementById('fastMode')?.checked || false;
+            const params = new URLSearchParams({ query: topic, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID, ...(fastMode2 ? {fast_mode: 'true'} : {}) });
             resp = await fetch(`api/analyze?${params}`);
         }
 
@@ -2716,6 +3332,7 @@ function renderSavedResult(data) {
             <p style="color:var(--text-light);font-size:0.7em;margin-top:3px">${data.timestamp || ''}</p>
         </div>
         <div id="resultArea" style="display:block"></div>
+        <div id="chatContainer"></div>
     `;
 
     // Need to set area reference before renderResults
@@ -2766,20 +3383,80 @@ function renderMarkdown(text) {
 }
 
 function copyReport() {
-    navigator.clipboard.writeText(pipelineData.report).then(() => {
+    const report = pipelineData.report || '';
+    if (!report) return;
+    navigator.clipboard.writeText(report).then(() => {
         const btn = document.querySelector('.report-actions button');
-        if (!btn) return;
-        const orig = btn.textContent;
-        btn.textContent = '복사 완료!';
-        setTimeout(() => btn.textContent = orig, 1500);
+        if (btn) {
+            const orig = btn.textContent;
+            btn.textContent = '복사됨!';
+            setTimeout(() => { btn.textContent = orig; }, 1500);
+        }
+    }).catch(() => {
+        // fallback for non-HTTPS or older browsers
+        const ta = document.createElement('textarea');
+        ta.value = report;
+        ta.style.cssText = 'position:fixed;left:-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        const btn = document.querySelector('.report-actions button');
+        if (btn) {
+            const orig = btn.textContent;
+            btn.textContent = '복사됨!';
+            setTimeout(() => { btn.textContent = orig; }, 1500);
+        }
     });
 }
 
 function downloadReport() {
-    const blob = new Blob([pipelineData.report], { type: 'text/markdown' });
+    const opts = pipelineData.analysisOptions || {};
+    let md = '# 분석 리포트\n\n';
+
+    // Analysis options
+    if (opts.provider || opts.yearRange || opts.outputLanguage) {
+        md += '## 분석 옵션\n';
+        if (opts.provider) md += `- LLM: ${opts.provider}\n`;
+        if (opts.yearRange) md += `- 연도 범위: ${opts.yearRange}\n`;
+        if (opts.outputLanguage) md += `- 출력 언어: ${opts.outputLanguage}\n`;
+        md += '\n';
+    }
+
+    // Refined query
+    if (pipelineData.refined_query) {
+        md += `## 정제된 쿼리\n${pipelineData.refined_query}\n\n`;
+    }
+
+    // Keywords
+    if (pipelineData.keywords && pipelineData.keywords.length) {
+        md += `## 확장 키워드\n${pipelineData.keywords.join(', ')}\n\n`;
+    }
+
+    // Summary
+    md += `## 요약\n`;
+    md += `- 검색 논문: ${pipelineData.papers.length}/${pipelineData.total_searched || pipelineData.papers.length || '?'}편\n`;
+    md += `- 도출 GAP: ${pipelineData.gaps.length}개\n\n`;
+
+    md += '---\n\n';
+
+    // Full report
+    if (pipelineData.report) {
+        md += pipelineData.report;
+    }
+
+    const now = new Date();
+    const ts = now.getFullYear().toString()
+        + String(now.getMonth() + 1).padStart(2, '0')
+        + String(now.getDate()).padStart(2, '0')
+        + '_' + String(now.getHours()).padStart(2, '0')
+        + String(now.getMinutes()).padStart(2, '0')
+        + String(now.getSeconds()).padStart(2, '0');
+
+    const blob = new Blob([md], { type: 'text/markdown' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'gapago_report.md';
+    a.download = `finalreport_${ts}.md`;
     a.click();
     URL.revokeObjectURL(a.href);
 }

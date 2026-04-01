@@ -24,22 +24,29 @@ from states import AgentState, Paper, LimitationItem
 from llm import get_llm
 from utils.parse_json import parse_json
 from utils.progress import report_progress
+from utils.cancel import is_cancelled
 
 # =====================================================================
 # 섹션 키워드 정의
 # =====================================================================
 SECTION_KEYWORDS = {
     # Track 1 - 저자 기술
-    "conclusion":   ["conclusion", "concluding remarks", "summary"],
-    "limitations":  ["limitation", "limitations", "weakness", "weaknesses"],
-    "future_work":  ["future work", "future research", "future direction"],
+    "conclusion":   ["conclusion", "concluding remarks", "summary", "summary and conclusion",
+                     "conclusions and future work", "concluding discussion"],
+    "limitations":  ["limitation", "limitations", "weakness", "weaknesses",
+                     "threats to validity", "caveats", "shortcomings"],
+    "future_work":  ["future work", "future research", "future direction",
+                     "open problems", "open questions", "outlook"],
     # Track 2 - 구조 분석
-    "introduction": ["introduction", "background"],
+    "introduction": ["introduction", "background", "motivation"],
     "method":       ["method", "methods", "methodology", "approach", "proposed method",
-                     "our approach", "our method", "model", "framework", "architecture"],
+                     "our approach", "our method", "model", "framework", "architecture",
+                     "materials and methods"],
     "experiment":   ["experiment", "experiments", "experimental setup", "experimental results",
-                     "evaluation", "results", "empirical evaluation", "benchmarks"],
-    "discussion":   ["discussion", "analysis", "ablation", "ablation study"],
+                     "evaluation", "results", "empirical evaluation", "benchmarks",
+                     "findings", "results and discussion"],
+    "discussion":   ["discussion", "analysis", "ablation", "ablation study",
+                     "findings and implications", "implications"],
 }
 
 TRACK1_KEYS = {"conclusion", "limitations", "future_work"}
@@ -123,9 +130,14 @@ _REQUEST_HEADERS = {
     "Referer": "https://scholar.google.com/",
 }
 
+# ── HTTP 연결 풀 (TCP 재사용) ──
+_http_session = requests.Session()
+_http_session.headers.update(_REQUEST_HEADERS)
+
 # ── Full text 캐시 ──
 _CACHE_DIR = Path(".cache/fulltext")
 _CACHE_TTL_DAYS = 7
+_CACHE_FAIL_TTL_HOURS = 6  # 실패(빈 dict) 캐시는 6시간 후 재시도 허용
 
 
 def _cache_key(paper_id: str) -> str:
@@ -133,17 +145,23 @@ def _cache_key(paper_id: str) -> str:
 
 
 def _cache_get(paper_id: str) -> Optional[dict]:
-    """캐시에서 full text 섹션 로드. TTL 초과 시 None."""
+    """캐시에서 full text 섹션 로드. TTL 초과 시 None.
+    실패 캐시(빈 dict)는 _CACHE_FAIL_TTL_HOURS 후 재시도 허용."""
     path = _CACHE_DIR / f"{_cache_key(paper_id)}.json"
     if not path.exists():
         return None
     try:
-        age_days = (time.time() - path.stat().st_mtime) / 86400
-        if age_days > _CACHE_TTL_DAYS:
-            path.unlink(missing_ok=True)
-            return None
+        age_hours = (time.time() - path.stat().st_mtime) / 3600
         data = json.loads(path.read_text(encoding="utf-8"))
         if isinstance(data, dict):
+            # 빈 dict = 이전 실패 → 짧은 TTL 적용
+            if not data and age_hours > _CACHE_FAIL_TTL_HOURS:
+                path.unlink(missing_ok=True)
+                return None
+            # 성공 캐시 → 일반 TTL 적용
+            if data and age_hours > _CACHE_TTL_DAYS * 24:
+                path.unlink(missing_ok=True)
+                return None
             return data
     except Exception:
         pass
@@ -184,7 +202,7 @@ def _load_arxiv_html(paper: Paper) -> dict:
     try:
         from bs4 import BeautifulSoup
 
-        resp = requests.get(url, headers=_REQUEST_HEADERS, timeout=8)
+        resp = _http_session.get(url, timeout=8)
         resp.raise_for_status()
 
         soup = BeautifulSoup(resp.text, "html.parser")
@@ -240,8 +258,13 @@ def _load_arxiv_full_text(paper: Paper) -> dict:
     return _load_arxiv_pdf(paper)
 
 
+_MAX_PDF_BYTES = 10 * 1024 * 1024  # 10MB
+
 def _extract_text_from_pdf_bytes(pdf_bytes: bytes) -> str:
     """pymupdf4llm으로 PDF 바이트에서 Markdown 텍스트 추출 (섹션 헤딩 보존)."""
+    if len(pdf_bytes) > _MAX_PDF_BYTES:
+        print(f"  [fulltext] PDF too large ({len(pdf_bytes) // 1024 // 1024}MB), skipping")
+        return ""
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     try:
         text = pymupdf4llm.to_markdown(doc)
@@ -286,7 +309,7 @@ def _find_pdf_url_from_doi(doi: str) -> Optional[str]:
     """DOI 페이지에 접근하여 PDF 다운로드 링크를 찾는다."""
     doi_url = doi if doi.startswith("http") else f"https://doi.org/{doi}"
     try:
-        resp = requests.get(doi_url, headers=_REQUEST_HEADERS, timeout=8, allow_redirects=True)
+        resp = _http_session.get(doi_url, timeout=8, allow_redirects=True)
         resp.raise_for_status()
 
         # 리다이렉트된 최종 URL이 PDF인 경우
@@ -394,7 +417,7 @@ def _unpaywall_find_accessible_url(doi: str) -> Optional[str]:
         return None
     clean_doi = doi.replace("https://doi.org/", "").replace("http://doi.org/", "")
     try:
-        r = requests.get(
+        r = _http_session.get(
             f"https://api.unpaywall.org/v2/{clean_doi}",
             params={"email": _UNPAYWALL_EMAIL},
             timeout=5,
@@ -482,7 +505,7 @@ def _try_doi_landing_html(doi: str, title: str) -> dict:
         return {}
     doi_url = doi if doi.startswith("http") else f"https://doi.org/{doi}"
     try:
-        resp = requests.get(doi_url, headers=_REQUEST_HEADERS, timeout=10, allow_redirects=True)
+        resp = _http_session.get(doi_url, timeout=10, allow_redirects=True)
         resp.raise_for_status()
         ct = (resp.headers.get("content-type") or "").lower()
 
@@ -520,7 +543,7 @@ def _s2_discover_alt_ids(doi: str) -> dict:
             time.sleep(1.1 - elapsed)
         _S2_LAST_CALL = time.time()
     try:
-        resp = requests.post(
+        resp = _http_session.post(
             "https://api.semanticscholar.org/graph/v1/paper/batch",
             params={"fields": "externalIds,openAccessPdf"},
             json={"ids": [f"DOI:{_clean_doi(doi)}"]},
@@ -550,7 +573,7 @@ def _doi_to_pmcid(doi: str) -> Optional[str]:
     if not doi:
         return None
     try:
-        resp = requests.get(
+        resp = _http_session.get(
             "https://www.ncbi.nlm.nih.gov/pmc/utils/idconv/v1.0/",
             params={"ids": _clean_doi(doi), "format": "json"},
             timeout=5,
@@ -571,7 +594,7 @@ def _load_pmc_bioc_full_text(pmcid: str, title: str = "") -> dict:
     if not pmcid.startswith("PMC"):
         pmcid = f"PMC{pmcid}"
     try:
-        resp = requests.get(
+        resp = _http_session.get(
             f"https://www.ncbi.nlm.nih.gov/research/bionlp/RESTful/pmcoa.cgi/BioC_json/{pmcid}/unicode",
             timeout=15,
         )
@@ -629,7 +652,7 @@ def _load_europepmc_full_text(doi: str, title: str = "") -> dict:
     clean = _clean_doi(doi)
     try:
         # Step 1: PMCID 검색
-        resp = requests.get(
+        resp = _http_session.get(
             "https://www.ebi.ac.uk/europepmc/webservices/rest/search",
             params={"query": f"DOI:{clean}", "format": "json", "resultType": "core"},
             timeout=8,
@@ -645,7 +668,7 @@ def _load_europepmc_full_text(doi: str, title: str = "") -> dict:
             return {}
 
         # Step 2: Full text XML
-        xml_resp = requests.get(
+        xml_resp = _http_session.get(
             f"https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML",
             timeout=15,
         )
@@ -725,7 +748,7 @@ def _load_doi_full_text(paper: Paper) -> dict:
     # PDF URL이 있으면 다운로드 시도
     if pdf_url:
         try:
-            resp = requests.get(pdf_url, headers=_REQUEST_HEADERS, timeout=15)
+            resp = _http_session.get(pdf_url, timeout=15)
             resp.raise_for_status()
 
             content_type = (resp.headers.get("content-type") or "").lower()
@@ -748,7 +771,7 @@ def _load_doi_full_text(paper: Paper) -> dict:
                 real_pdf = _find_pdf_link_in_html(resp.text, resp.url)
                 if real_pdf and _is_usable_pdf_url(real_pdf):
                     try:
-                        pdf_resp = requests.get(real_pdf, headers=_REQUEST_HEADERS, timeout=15)
+                        pdf_resp = _http_session.get(real_pdf, timeout=15)
                         pdf_resp.raise_for_status()
                         if pdf_resp.content[:4] == b"%PDF":
                             full_text = _extract_text_from_pdf_bytes(pdf_resp.content)
@@ -772,7 +795,7 @@ def _load_doi_full_text(paper: Paper) -> dict:
         oa_url = _unpaywall_find_accessible_url(doi)
         if oa_url:
             try:
-                resp = requests.get(oa_url, headers=_REQUEST_HEADERS, timeout=15, allow_redirects=True)
+                resp = _http_session.get(oa_url, timeout=15, allow_redirects=True)
                 resp.raise_for_status()
                 if resp.content[:4] == b"%PDF":
                     full_text = _extract_text_from_pdf_bytes(resp.content)
@@ -800,7 +823,7 @@ def _load_doi_full_text(paper: Paper) -> dict:
                 from langchain_community.document_loaders import ArxivLoader
                 ar5iv_url = f"https://ar5iv.labs.arxiv.org/html/{arxiv_id}"
                 try:
-                    r = requests.get(ar5iv_url, timeout=15)
+                    r = _http_session.get(ar5iv_url, timeout=15)
                     r.raise_for_status()
                     if "html" in (r.headers.get("content-type") or ""):
                         sections = _extract_fulltext_from_html(r.text, paper.title)
@@ -820,7 +843,7 @@ def _load_doi_full_text(paper: Paper) -> dict:
             s2_pdf = alt.get("oa_pdf_url")
             if s2_pdf and _is_usable_pdf_url(s2_pdf):
                 try:
-                    resp = requests.get(s2_pdf, headers=_REQUEST_HEADERS, timeout=15)
+                    resp = _http_session.get(s2_pdf, timeout=15)
                     resp.raise_for_status()
                     if resp.content[:4] == b"%PDF":
                         full_text = _extract_text_from_pdf_bytes(resp.content)
@@ -879,7 +902,7 @@ def _load_scienceon_pdf_from_url(paper: Paper, url: str, label: str) -> dict:
     if not url:
         return {}
     try:
-        resp = requests.get(url, headers=_REQUEST_HEADERS, timeout=15, allow_redirects=True)
+        resp = _http_session.get(url, timeout=15, allow_redirects=True)
         resp.raise_for_status()
 
         # 직접 PDF인 경우
@@ -905,7 +928,7 @@ def _load_scienceon_pdf_from_url(paper: Paper, url: str, label: str) -> dict:
                         from urllib.parse import urljoin
                         pdf_url = urljoin(resp.url, pdf_url)
                     try:
-                        pdf_resp = requests.get(pdf_url, headers=_REQUEST_HEADERS, timeout=15)
+                        pdf_resp = _http_session.get(pdf_url, timeout=15)
                         pdf_resp.raise_for_status()
                         if pdf_resp.content[:4] == b"%PDF":
                             full_text = _extract_text_from_pdf_bytes(pdf_resp.content)
@@ -975,34 +998,56 @@ def _load_full_text_sections(paper: Paper) -> dict:
     논문 소스별로 full text를 로드하고 섹션으로 분리.
     캐시 히트 시 네트워크 요청 없이 즉시 반환.
     """
+    sections, _ = _load_full_text_with_source(paper)
+    return sections
+
+
+def _load_full_text_with_source(paper: Paper) -> tuple[dict, str]:
+    """
+    논문 소스별로 full text를 로드하고 (sections, source_tag)를 반환.
+    source_tag: "embedded" | "cache" | "arxiv" | "scienceon_patent" |
+                "scienceon_report" | "scienceon" | "doi" | "none"
+    """
     if paper.full_text_sections and any(
         k in paper.full_text_sections for k in SECTION_KEYWORDS
     ):
-        return paper.full_text_sections
+        return paper.full_text_sections, "embedded"
 
     # ── 캐시 체크 ──
     cached = _cache_get(paper.paper_id or "")
     if cached is not None:
-        print(f"  [fulltext:cache] '{paper.title[:50]}' → cache hit")
-        return cached
+        source = "cache" if cached else "none"
+        print(f"  [fulltext:cache] '{paper.title[:50]}' → cache hit ({'hit' if cached else 'fail-cached'})")
+        return cached, source
 
     pid = (paper.paper_id or "").lower()
     sections: dict = {}
+    source_tag = "none"
 
     if pid.startswith("arxiv:"):
         sections = _load_arxiv_full_text(paper)
+        if sections:
+            source_tag = "arxiv"
     elif pid.startswith("scienceon_patent:"):
         sections = _load_scienceon_patent_full_text(paper)
+        if sections:
+            source_tag = "scienceon_patent"
     elif pid.startswith("scienceon_report:"):
         sections = _load_scienceon_report_full_text(paper)
+        if sections:
+            source_tag = "scienceon_report"
     elif pid.startswith("scienceon:"):
         sections = _load_scienceon_full_text(paper)
+        if sections:
+            source_tag = "scienceon"
     elif pid.startswith(("crossref:", "s2:", "openalex:")):
         sections = _load_doi_full_text(paper)
+        if sections:
+            source_tag = "doi"
 
     # ── 캐시 저장 (빈 dict도 저장하여 반복 실패 방지) ──
     _cache_put(paper.paper_id or "", sections)
-    return sections
+    return sections, source_tag
 
 
 # =====================================================================
@@ -1067,12 +1112,13 @@ Sections: introduction, method, experiment, discussion
 ## Rules
 1. Extract 1-3 limitations per paper. Prioritize Track 2 structural findings.
 2. Each limitation MUST include:
-   - claim: concise limitation statement (1-2 sentences)
+   - claim: concise limitation statement (1-2 sentences). MUST be a complete, self-contained sentence. Never leave a claim unfinished or truncated.
    - evidence_quote: exact short quote from the provided text
    - track: "author_stated" or "structural"
    - source_section: section name (e.g., "conclusion", "method", "experiment")
 3. Do NOT infer gaps. Only extract limitations from the provided text.
 4. If only abstract is provided (FALLBACK), extract 1 limitation maximum.
+5. If input text appears truncated, summarize and complete the limitation based on available context. Never output incomplete sentences.
 
 ## Output Format (strictly JSON list)
 [
@@ -1277,15 +1323,21 @@ def limitation_extract_node(state: AgentState) -> AgentState:
     # ── Step 1: Full text 로드 (병렬, LLM 호출 아님) ──
     print(f"  🔄 {len(papers)}편 논문 full text 로드 중...")
     paper_sections = {}
-    with ThreadPoolExecutor(max_workers=min(8, len(papers))) as executor:
-        futures = {executor.submit(_load_full_text_sections, p): p for p in papers}
+    paper_fulltext_sources = {}  # paper_id → fulltext source tag
+    with ThreadPoolExecutor(max_workers=min(3, len(papers))) as executor:
+        futures = {executor.submit(_load_full_text_with_source, p): p for p in papers}
         for future in as_completed(futures):
+            if is_cancelled(session_id):
+                executor.shutdown(wait=False, cancel_futures=True)
+                print(f"  [limitation] 취소됨 — full text 로드 중단")
+                return {"messages": [AIMessage(content="Cancelled.", name="limitation_extract")], "limitations": []}
             paper = futures[future]
             try:
-                sections = future.result()
+                sections, source_tag = future.result()
             except Exception:
-                sections = {}
+                sections, source_tag = {}, "none"
             paper_sections[paper.paper_id] = sections
+            paper_fulltext_sources[paper.paper_id] = source_tag
             if not sections:
                 fulltext_fail_count += 1
 
@@ -1294,17 +1346,16 @@ def limitation_extract_node(state: AgentState) -> AgentState:
         backup_raw = state.get("backup_papers") or []
         if backup_raw:
             failed_ids = {pid for pid, sec in paper_sections.items() if not sec}
-            # backup 중 arXiv(guaranteed) 우선으로 대체
+            # backup 중 full text 로드 가능한 논문으로 대체 (arXiv 우선, 그 외도 시도)
             replacements = []
             used_backup_ids = set()
-            for bp in backup_raw:
+            # arXiv 우선 정렬: arXiv가 앞으로
+            sorted_backup = sorted(backup_raw, key=lambda bp: (0 if bp.get("paper_id", "").lower().startswith("arxiv:") else 1))
+            for bp in sorted_backup:
                 if len(replacements) >= fulltext_fail_count:
                     break
                 bp_id = bp.get("paper_id", "")
-                if bp_id in used_backup_ids:
-                    continue
-                # arXiv 논문만 대체 후보 (guaranteed full text)
-                if not bp_id.lower().startswith("arxiv:"):
+                if bp_id in used_backup_ids or bp_id in failed_ids:
                     continue
                 try:
                     replacement = Paper(**bp) if isinstance(bp, dict) else bp
@@ -1350,9 +1401,9 @@ def limitation_extract_node(state: AgentState) -> AgentState:
         for paper in batch:
             sections = paper_sections.get(paper.paper_id, {})
             paper_prompt = _build_prompt(paper, sections)
-            # 배치 시 각 논문 텍스트를 2000자로 제한
-            if len(paper_prompt) > 2000:
-                paper_prompt = paper_prompt[:2000] + "\n... (truncated)"
+            # 배치 시 각 논문 텍스트를 4000자로 제한
+            if len(paper_prompt) > 4000:
+                paper_prompt = paper_prompt[:4000] + "\n... (truncated)"
             batch_prompt_parts.append(f"=== PAPER: {paper.paper_id} ===\n{paper_prompt}")
 
         combined_prompt = "\n\n".join(batch_prompt_parts)
@@ -1414,6 +1465,10 @@ def limitation_extract_node(state: AgentState) -> AgentState:
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(_process_batch, batch): batch for batch in batches}
         for future in as_completed(futures):
+            if is_cancelled(session_id):
+                executor.shutdown(wait=False, cancel_futures=True)
+                print(f"  [limitation] 취소됨 — LLM 배치 처리 중단")
+                return {"messages": [AIMessage(content="Cancelled.", name="limitation_extract")], "limitations": all_limitations}
             result = future.result()
             all_limitations.extend(result["limitations"])
             errors.extend(result["errors"])
@@ -1425,6 +1480,15 @@ def limitation_extract_node(state: AgentState) -> AgentState:
                 f"Analyzing papers... ({processed_papers}/{len(papers)}) — {len(all_limitations)} limitations found",
                 current=processed_papers, total=len(papers),
             )
+            # Stream partial limitations to frontend
+            if result["limitations"]:
+                partial = [lim if isinstance(lim, dict) else lim.model_dump() if hasattr(lim, 'model_dump') else vars(lim)
+                           for lim in result["limitations"]]
+                report_progress(
+                    session_id, "limitation_extract",
+                    f"현재까지 {len(all_limitations)}개 한계점 추출",
+                    type="partial_limitations", data=partial,
+                )
 
     # fulltext/LLM 실패 요약을 errors에 기록
     if fulltext_fail_count:
@@ -1439,6 +1503,38 @@ def limitation_extract_node(state: AgentState) -> AgentState:
     if dedup_removed:
         print(f"  [dedup] {before_dedup} → {len(all_limitations)} ({dedup_removed}개 중복 제거)")
 
+    # ── 논문별 추출 상태 집계 ──
+    lim_count_by_paper = {}
+    for lim in all_limitations:
+        pid = lim.get("paper_id", "")
+        lim_count_by_paper[pid] = lim_count_by_paper.get(pid, 0) + 1
+
+    paper_extraction_status = []
+    for paper in papers:
+        pid = paper.paper_id
+        ft_source = paper_fulltext_sources.get(pid, "none")
+        lim_cnt = lim_count_by_paper.get(pid, 0)
+        has_sections = bool(paper_sections.get(pid))
+        if lim_cnt > 0 and has_sections:
+            status = "success"
+        elif lim_cnt > 0 and not has_sections:
+            status = "abstract_fallback"
+        else:
+            status = "failed"
+        paper_extraction_status.append({
+            "paper_id": pid,
+            "status": status,
+            "limitations_count": lim_cnt,
+            "fulltext_source": ft_source,
+            "sections_found": list(paper_sections.get(pid, {}).keys()),
+        })
+
+    # 상태 요약 로그
+    status_summary = {}
+    for ps in paper_extraction_status:
+        status_summary[ps["status"]] = status_summary.get(ps["status"], 0) + 1
+    print(f"  [extraction_status] {status_summary}")
+
     # 최종 summary 메시지
     summary = AIMessage(
         content=f"Extracted {len(all_limitations)} limitations from {len(papers)} papers (deduplicated from {before_dedup}).",
@@ -1451,5 +1547,6 @@ def limitation_extract_node(state: AgentState) -> AgentState:
         "messages": [summary],
         "sender": "limitation_extract",
         "limitations": all_limitations,
+        "paper_extraction_status": paper_extraction_status,
         "errors": errors,
     }

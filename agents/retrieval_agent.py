@@ -1,11 +1,13 @@
 # 3-3) Paper Retrieval Agent (parallel search, no ReAct)
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import numpy as np
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from utils.cancel import is_cancelled
 
 from states import AgentState, Paper
 from langchain_core.messages import AIMessage, HumanMessage
@@ -73,7 +75,7 @@ def _get_specter_model(model_tier: str = "light"):
                 _specter_model = SentenceTransformer(
                     model_name,
                     backend="onnx",
-                    model_kwargs={"provider": "CPUExecutionProvider"},
+                    model_kwargs={"provider": "CPUExecutionProvider", "file_name": "onnx/model.onnx"},
                 )
                 print(f"  [Embedding] {model_name} ONNX Runtime 로딩 완료 (CPU 최적화)")
             except Exception as onnx_err:
@@ -108,7 +110,7 @@ def _get_cross_encoder(model_tier: str = "light"):
                 _cross_encoder = CrossEncoder(
                     model_name,
                     backend="onnx",
-                    model_kwargs={"provider": "CPUExecutionProvider"},
+                    model_kwargs={"provider": "CPUExecutionProvider", "file_name": "onnx/model.onnx"},
                 )
                 print(f"  [CrossEncoder] {model_name} ONNX Runtime 로딩 완료 (CPU 최적화)")
             except Exception as onnx_err:
@@ -135,7 +137,7 @@ def _extract_meaning_expand_data(state: AgentState) -> dict:
     return {}
 
 
-def _parallel_search(state: AgentState, resolved_year: str, cfg: Configuration) -> tuple[list, list]:
+def _parallel_search(state: AgentState, resolved_year: str, cfg: Configuration, session_id: str = "") -> tuple[list, list]:
     """8개 검색 도구를 ThreadPoolExecutor로 병렬 호출."""
 
     me_data = _extract_meaning_expand_data(state)
@@ -194,10 +196,11 @@ def _parallel_search(state: AgentState, resolved_year: str, cfg: Configuration) 
             **scienceon_kwargs,
         }))
 
-    # Tavily 웹 검색
+    # Tavily 웹 검색 (최대 3개 쿼리 병렬)
     tavily_tool = TavilySearch(max_results=cfg.tavily_max_results)
-    web_query = web_qs[0] if web_qs else refined_query
-    tasks.append(("web", tavily_tool.search, {"query": web_query}))
+    web_queries_to_run = web_qs[:3] if web_qs else [refined_query]
+    for wq in web_queries_to_run:
+        tasks.append(("web", tavily_tool.search, {"query": wq}))
 
     all_papers: list[dict] = []
     web_results: list[dict] = []
@@ -208,6 +211,10 @@ def _parallel_search(state: AgentState, resolved_year: str, cfg: Configuration) 
             futures[executor.submit(fn, **kw)] = name
 
         for future in as_completed(futures):
+            if is_cancelled(session_id):
+                executor.shutdown(wait=False, cancel_futures=True)
+                print(f"  [retrieval] 취소됨 — 병렬 검색 중단")
+                return all_papers, web_results
             name = futures[future]
             try:
                 result = future.result(timeout=60)
@@ -282,6 +289,9 @@ _REQUEST_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,application/pdf;q=0.8,*/*;q=0.7",
 }
 
+_http_session = requests.Session()
+_http_session.headers.update(_REQUEST_HEADERS)
+
 
 def _extract_arxiv_id(paper: dict) -> str:
     """paper_id에서 arXiv ID 추출."""
@@ -299,7 +309,7 @@ def _find_pdf_url_from_doi(doi: str) -> str:
     """DOI 페이지에서 PDF URL 찾기 (다운로드 없음)."""
     doi_url = doi if doi.startswith("http") else f"https://doi.org/{doi}"
     try:
-        resp = requests.get(doi_url, headers=_REQUEST_HEADERS, timeout=10, allow_redirects=True)
+        resp = _http_session.get(doi_url, timeout=10, allow_redirects=True)
         resp.raise_for_status()
 
         if resp.headers.get("content-type", "").startswith("application/pdf"):
@@ -464,13 +474,18 @@ def _faiss_filter(papers: list[dict], query: str, top_k: int, model_tier: str = 
         return papers
 
 
+_CE_DYNAMIC_SCORE_RATIO = 0.65   # top score 대비 이 비율 이상만 유지
+_CE_DYNAMIC_MIN_K      = 15      # 최소 선별 수
+_CE_DYNAMIC_MAX_K      = 25      # 최대 선별 수
+
+
 def _cross_encoder_rerank(papers: list[dict], query: str, top_k: int, model_tier: str = "light") -> list[dict]:
     """
-    CrossEncoder 기반 3차 reranking.
+    CrossEncoder 기반 3차 reranking (동적 k).
+    top score × 0.65 이상인 논문을 유지하되, 최소 15 ~ 최대 25편 범위.
     로딩 실패 시 LLM Reranker로 fallback (None 반환).
-    Returns top_k papers sorted by cross-encoder score (desc).
     """
-    if len(papers) <= top_k:
+    if len(papers) <= _CE_DYNAMIC_MIN_K:
         return papers
 
     reranker = _get_cross_encoder(model_tier)
@@ -481,10 +496,31 @@ def _cross_encoder_rerank(papers: list[dict], query: str, top_k: int, model_tier
         pairs  = [(query, f"{p.get('title', '')} {p.get('abstract', '')}") for p in papers]
         scores = reranker.predict(pairs, show_progress_bar=False)
 
-        # 점수 내림차순 정렬 후 top_k 선택
+        # 점수 내림차순 정렬
         ranked = sorted(zip(scores, papers), key=lambda x: x[0], reverse=True)
-        selected = [p for _, p in ranked[:top_k]]
-        print(f"  [CrossEncoder] {len(papers)}편 → {len(selected)}편 reranking 완료")
+        sorted_scores = [s for s, _ in ranked]
+
+        # 동적 k: top score 대비 비율 기반
+        max_score = sorted_scores[0]
+        threshold = max_score * _CE_DYNAMIC_SCORE_RATIO
+        dynamic_k = sum(1 for s in sorted_scores if s >= threshold)
+
+        # score gap 감지: 점수 급락 지점에서 추가 컷
+        for i in range(1, len(sorted_scores)):
+            gap = sorted_scores[i - 1] - sorted_scores[i]
+            # 상위 점수 범위의 30% 이상 급락 시 컷
+            score_range = sorted_scores[0] - sorted_scores[-1]
+            if score_range > 0 and gap / score_range > 0.3 and i >= _CE_DYNAMIC_MIN_K:
+                dynamic_k = min(dynamic_k, i)
+                print(f"  [CrossEncoder] score gap 감지: {i}번째에서 급락 ({sorted_scores[i-1]:.3f} → {sorted_scores[i]:.3f})")
+                break
+
+        # 범위 제한
+        dynamic_k = max(_CE_DYNAMIC_MIN_K, min(dynamic_k, _CE_DYNAMIC_MAX_K))
+
+        selected = [p for _, p in ranked[:dynamic_k]]
+        print(f"  [CrossEncoder] {len(papers)}편 → {len(selected)}편 reranking 완료 "
+              f"(dynamic_k={dynamic_k}, threshold={threshold:.3f}, max_score={max_score:.3f})")
         return selected
 
     except Exception as e:
@@ -588,7 +624,29 @@ def _resolve_year_range(year_range: str) -> str:
     return ""
 
 
-def paper_retrieval_node(state: AgentState) -> AgentState:
+# ── 모델 사전 로딩 (프로세스 시작 시 1회만 실행) ─────────────────────────────
+def preload_models(model_tier: str = "light") -> None:
+    """
+    Embedding + CrossEncoder 모델을 프로세스 시작 시점에 미리 로딩.
+    workers=1 환경에서 단일 프로세스가 모델을 캐시하므로
+    첫 요청에서 모델 로딩 지연이 없고, 메모리도 1번만 사용됨.
+    """
+    print(f"[preload] Embedding 모델 로딩 시작 (tier={model_tier})")
+    _get_specter_model(model_tier)
+    print(f"[preload] CrossEncoder 모델 로딩 시작 (tier={model_tier})")
+    _get_cross_encoder(model_tier)
+    print("[preload] 모델 로딩 완료 — 이후 요청은 캐시 사용")
+
+
+# ── Executor (모듈 레벨 공유 — 프로세스당 1개) ───────────────────────────────
+# CPU-bound 작업(BM25, FAISS, CrossEncoder)을 event loop 밖 스레드에서 실행.
+# workers=1 + run_in_executor 조합으로 세션 in-memory 공유를 유지하면서
+# CPU-bound 블로킹을 해소.
+_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="retrieval")
+
+
+def _paper_retrieval_sync(state: AgentState) -> AgentState:
+    """동기 retrieval 로직 — _EXECUTOR 스레드에서 실행됨."""
     provider = state.get("llm_provider")
     session_id = state.get("session_id", "")
 
@@ -606,7 +664,7 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
     print(f"  [retrieval] rerank_models tier={model_tier}")
 
     # ✅ 병렬 검색 (ReAct 에이전트 대신 ThreadPoolExecutor)
-    raw_papers, web_results = _parallel_search(state, resolved_year, cfg)
+    raw_papers, web_results = _parallel_search(state, resolved_year, cfg, session_id=session_id)
 
     raw_papers = _dedupe_papers(raw_papers)
     total_candidates_count = len(raw_papers)  # BM25 전 전체 후보 수
@@ -673,9 +731,13 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
     print(f"  [fulltext_filter] after filter: {len(stage1_papers)} papers")
 
     # ✅ 3단계: CrossEncoder reranking → 실패 시 LLM Reranker fallback
-    # 선별되지 않은 논문은 backup으로 보관 (full text 실패 시 대체용)
+    # fast_mode: CrossEncoder 스킵, BM25+FAISS만 사용
+    fast_mode = state.get("fast_mode", False)
     backup_raw = []
-    if stage1_papers and query and len(stage1_papers) > cfg.reranker_top_k:
+    if fast_mode:
+        print("  [fast_mode] CrossEncoder 스킵 — BM25+FAISS 결과만 사용")
+        raw_papers = stage1_papers[:_CE_DYNAMIC_MIN_K]
+    elif stage1_papers and query and len(stage1_papers) > _CE_DYNAMIC_MIN_K:
         ce_result = _cross_encoder_rerank(stage1_papers, query, top_k=cfg.reranker_top_k, model_tier=model_tier)
         if ce_result is not None:
             raw_papers = ce_result
@@ -770,6 +832,18 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
     print(f"  ✓ Retrieved {len(papers)}/{total_candidates_count} papers + {len(web_results)} web results")
     print(f"  ✓ Backup pool: {len(backup_papers)} papers ({arxiv_backup} arXiv)")
 
+    # Stream partial papers to frontend
+    if papers:
+        partial_papers = [
+            {"paper_id": p.paper_id, "title": p.title, "year": p.year, "url": p.url, "venue": p.venue}
+            for p in papers[:15]
+        ]
+        report_progress(
+            session_id, "paper_retrieval",
+            f"{len(papers)}편 논문 검색 완료",
+            type="partial_papers", data=partial_papers,
+        )
+
     last_content = json.dumps({
         "total_candidates": total_candidates_count,
         "selected": len(papers),
@@ -785,3 +859,19 @@ def paper_retrieval_node(state: AgentState) -> AgentState:
         "total_candidates_count": total_candidates_count,
         "web_results": web_results,
     }
+
+# ── Public async entry point ──────────────────────────────────────────────────
+async def paper_retrieval_node(state: AgentState) -> AgentState:
+    """
+    LangGraph 노드 진입점 (async).
+
+    CPU-bound 작업(BM25, FAISS embedding, CrossEncoder)을 모듈 레벨
+    ThreadPoolExecutor(_EXECUTOR)로 offload하여 event loop를 블로킹하지 않음.
+
+    workers=1 + run_in_executor 구조:
+    - 단일 프로세스 → _sessions dict가 /api/analyze 와 /api/stream 간 공유됨
+    - 모델(_specter_model, _cross_encoder)도 프로세스당 1회 로딩, 메모리 절약
+    - CPU-bound 구간은 별도 스레드에서 처리 → SSE keepalive 등 async IO 유지
+    """
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(_EXECUTOR, _paper_retrieval_sync, state)

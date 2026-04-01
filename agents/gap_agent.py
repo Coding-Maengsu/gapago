@@ -28,6 +28,7 @@ LLM 라우팅:
 import os
 import re
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from states import AgentState, GapCandidate, LimitationItem
 from llm import get_llm
 from utils.parse_json import parse_json
@@ -669,7 +670,7 @@ def _generate_creative_directions(
     # 최신 웹 동향 요약 (최신성 맥락 제공)
     web_context = ""
     if web_results:
-        recent = [r for r in web_results if r.get("source") == "recency_search"][:6]
+        recent = [r for r in web_results if r.get("source") in ("recency_search", "web")][:6]
         if recent:
             web_context = "\nRecent web developments (use as context, NOT as your answer):\n" + "\n".join(
                 f"  [{r.get('title', 'N/A')}] {r.get('content', '')[:200]}"
@@ -820,6 +821,77 @@ Output JSON only:
         return None
 
 
+# ── Gap 중복 제거 (시맨틱 유사도) ──────────────────────────────────────────────
+
+DEDUP_SIMILARITY_THRESHOLD = 0.85
+
+def _deduplicate_gaps(gaps: list[dict]) -> list[dict]:
+    """
+    시맨틱 유사도 기반 중복 gap 제거.
+    cosine similarity > DEDUP_SIMILARITY_THRESHOLD 쌍 → urgency 높은 쪽에 병합.
+    임베딩 불가 시 Jaccard 토큰 오버랩 fallback.
+    """
+    if len(gaps) <= 1:
+        return gaps
+
+    statements = [g["gap_statement"] for g in gaps]
+
+    # 임베딩 시도
+    embeddings = None
+    try:
+        from agents.retrieval_agent import _get_specter_model
+        model = _get_specter_model()
+        if model is not None:
+            embeddings = model.encode(statements, normalize_embeddings=True)
+    except Exception as e:
+        print(f"  ⚠️ 임베딩 로드 실패, Jaccard fallback 사용: {e}")
+
+    def _jaccard(a: str, b: str) -> float:
+        ta = set(a.lower().split())
+        tb = set(b.lower().split())
+        if not ta or not tb:
+            return 0.0
+        return len(ta & tb) / len(ta | tb)
+
+    def _similarity(i: int, j: int) -> float:
+        if embeddings is not None:
+            import numpy as np
+            return float(np.dot(embeddings[i], embeddings[j]))
+        return _jaccard(statements[i], statements[j])
+
+    # Find pairs to merge
+    merged_into: dict[int, int] = {}  # victim_idx → survivor_idx
+    for i in range(len(gaps)):
+        if i in merged_into:
+            continue
+        for j in range(i + 1, len(gaps)):
+            if j in merged_into:
+                continue
+            sim = _similarity(i, j)
+            if sim > DEDUP_SIMILARITY_THRESHOLD:
+                # Keep the one with higher urgency
+                score_i = gaps[i].get("urgency_score", 0)
+                score_j = gaps[j].get("urgency_score", 0)
+                if score_i >= score_j:
+                    survivor, victim = i, j
+                else:
+                    survivor, victim = j, i
+                merged_into[victim] = survivor
+                # Absorb supporting_papers
+                existing = set(gaps[survivor].get("supporting_papers", []))
+                for p in gaps[victim].get("supporting_papers", []):
+                    if p not in existing:
+                        gaps[survivor]["supporting_papers"].append(p)
+                        existing.add(p)
+                print(f"  🔗 Gap 병합: [{gaps[victim]['axis']}] → [{gaps[survivor]['axis']}] (sim={sim:.2f})")
+
+    if merged_into:
+        result = [g for idx, g in enumerate(gaps) if idx not in merged_into]
+        print(f"  ✓ Gap 중복 제거: {len(gaps)}개 → {len(result)}개")
+        return result
+    return gaps
+
+
 # ── 메인 노드 ────────────────────────────────────────────────────────────────
 
 def gap_infer_node(state: AgentState) -> AgentState:
@@ -923,34 +995,39 @@ def gap_infer_node(state: AgentState) -> AgentState:
         print("  ⚠️ 모든 limitation이 resolved → gaps 없음")
         return {**state, "gaps": []}
 
+    fast_mode = state.get("fast_mode", False)
+
     print(f"\n  🔄 Step 4a: {len(active_groups)}개 축 긴급도 점수화...")
     scored_axes = _score_axis_urgency(
         active_groups, final_axes, research_question, lang_instruction
     )
+
+    # fast_mode: 상위 3개 축만 분석
+    if fast_mode and len(scored_axes) > 3:
+        print(f"  ⚡ fast_mode: {len(scored_axes)}개 → 상위 3개 축만 분석")
+        scored_axes = scored_axes[:3]
 
     # ── Step 4b + 4c. 축별 장벽 분석 → 창의적 방향 제안 ────────────────────
     gaps = []
     total_axes = len(scored_axes)
     print(f"\n  🔄 Step 4b+4c: 장벽 분석 → 창의적 방향 제안...")
 
-    for ax_idx, (ax_key, urgency_score, cascade_impact, urgency_rationale) in enumerate(scored_axes):
+    # ── 축별 처리를 병렬로 실행 (ThreadPoolExecutor) ──────────────────────
+    completed_count = [0]  # mutable counter for thread-safe progress
+
+    def _process_single_axis(ax_idx, ax_key, urgency_score, cascade_impact, urgency_rationale):
+        """단일 축의 4b(장벽 분석) + 4c(창의적 방향 제안)를 처리."""
         grp     = active_groups[ax_key]
         ax_info = final_axes.get(ax_key, {"label": ax_key, "description": "", "type": "dynamic"})
         unresolved_lims = grp["unresolved_lims"]
 
         if not unresolved_lims:
-            continue
+            return None
 
-        # 진행 상황 리포트 (UI 프로그레스바용)
-        report_progress(
-            session_id, "gap_infer",
-            f"Analyzing research axis {ax_idx + 1}/{total_axes}: {ax_info.get('label', ax_key)}",
-            current=ax_idx + 1, total=total_axes,
-        )
         print(f"\n  ── [{ax_key}] urgency={urgency_score:.2f} ──")
 
         # Step 4b
-        print("  🔍 4b 장벽 분석...")
+        print(f"  🔍 4b 장벽 분석 ({ax_key})...")
         barrier = _analyze_barriers(
             ax_key, ax_info, unresolved_lims, grp["lims"],
             research_question, lang_instruction,
@@ -961,7 +1038,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
             print(f"     - {b[:80]}")
 
         # Step 4c
-        print(f"  💡 4c 창의적 방향 제안 (web_results={len(web_results)}개 활용)...")
+        print(f"  💡 4c 창의적 방향 제안 ({ax_key}, web_results={len(web_results)}개 활용)...")
         direction = _generate_creative_directions(
             ax_key=ax_key,
             ax_info=ax_info,
@@ -977,7 +1054,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
         )
 
         if direction is None:
-            continue
+            return None
 
         gap_dict = GapCandidate(
             axis=ax_key,
@@ -993,7 +1070,6 @@ def gap_infer_node(state: AgentState) -> AgentState:
             ][:5],
         ).model_dump()
 
-        # GapCandidate 스키마 외 상세 필드 병합 (리포트 상세 섹션용)
         gap_dict.update({
             "detail":            direction.get("detail", ""),
             "barriers":          direction.get("barriers", []),
@@ -1004,13 +1080,43 @@ def gap_infer_node(state: AgentState) -> AgentState:
             "urgency_score":     urgency_score,
             "urgency_rationale": urgency_rationale,
         })
-        gaps.append(gap_dict)
+
+        # 완료 시 진행률 리포트
+        completed_count[0] += 1
+        report_progress(
+            session_id, "gap_infer",
+            f"Analyzed research axis {completed_count[0]}/{total_axes}: {ax_info.get('label', ax_key)}",
+            current=completed_count[0], total=total_axes,
+        )
+
+        return gap_dict
+
+    max_workers = min(5, total_axes)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(
+                _process_single_axis,
+                ax_idx, ax_key, urgency_score, cascade_impact, urgency_rationale,
+            ): ax_key
+            for ax_idx, (ax_key, urgency_score, cascade_impact, urgency_rationale) in enumerate(scored_axes)
+        }
+        for future in as_completed(futures):
+            try:
+                result = future.result()
+                if result is not None:
+                    gaps.append(result)
+            except Exception as e:
+                ax_key = futures[future]
+                print(f"  ⚠️ 축 [{ax_key}] 처리 중 오류: {e}")
+
+    # ── Gap 중복 제거 (시맨틱 유사도) ──────────────────────────────────
+    gaps = _deduplicate_gaps(gaps)
 
     # urgency 점수 기준 정렬
     urgency_map = {ax: score for ax, score, _, _ in scored_axes}
     gaps.sort(key=lambda g: urgency_map.get(g["axis"], 0), reverse=True)
 
-    print(f"\n  ✅ GAP {len(gaps)}개 생성 완료")
+    print(f"\n  ✅ GAP {len(gaps)}개 생성 완료 (중복 제거 후)")
 
     trace = dict(state.get("trace", {}))
     trace["gaps_generated"]    = len(gaps)
