@@ -1490,6 +1490,44 @@ def limitation_extract_node(state: AgentState) -> AgentState:
                     type="partial_limitations", data=partial,
                 )
 
+    # ── Step 3: 0건 논문 abstract fallback 재시도 ──
+    extracted_pids = {lim.get("paper_id", "") for lim in all_limitations}
+    zero_papers = [p for p in papers if p.paper_id not in extracted_pids]
+    if zero_papers:
+        print(f"  🔄 {len(zero_papers)}편 한계점 0건 → abstract fallback 재시도")
+        for paper in zero_papers:
+            fallback_prompt = _build_prompt(paper, {})  # 빈 sections → abstract fallback
+            messages = [
+                {"role": "system", "content": SYSTEM_PROMPT + lang_instruction},
+                {"role": "user", "content": fallback_prompt},
+            ]
+            try:
+                llm = get_llm(provider=provider)
+                response = llm.invoke(messages)
+                content = response.content if hasattr(response, "content") else str(response)
+                parsed = parse_json(content)
+                if not isinstance(parsed, list):
+                    parsed = []
+                retry_count = 0
+                for item in parsed:
+                    try:
+                        lim = LimitationItem(
+                            paper_id=paper.paper_id,
+                            claim=item.get("claim", ""),
+                            evidence_quote=item.get("evidence_quote", ""),
+                            track=item.get("track", "structural"),
+                            source_section=item.get("source_section", "abstract_fallback"),
+                        )
+                        if lim.claim:
+                            all_limitations.append(lim.model_dump())
+                            retry_count += 1
+                    except Exception:
+                        pass
+                print(f"    ✓ {paper.paper_id}: abstract fallback → {retry_count}건 추출")
+            except Exception as e:
+                print(f"    ⚠️ {paper.paper_id}: abstract fallback 실패 ({e})")
+                errors.append(f"[limitation_extract] Abstract fallback failed for {paper.paper_id}: {e}")
+
     # fulltext/LLM 실패 요약을 errors에 기록
     if fulltext_fail_count:
         errors.append(f"[limitation_extract] Full text load failed for {fulltext_fail_count}/{len(papers)} papers (abstract fallback used)")
