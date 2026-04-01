@@ -1336,6 +1336,12 @@ def limitation_extract_node(state: AgentState) -> AgentState:
                 sections, source_tag = future.result()
             except Exception:
                 sections, source_tag = {}, "none"
+            # 섹션 합산 길이가 500자 미만이면 파싱 실패로 간주 (쓰레기 데이터 필터링)
+            _MIN_FULLTEXT_CHARS = 500
+            if sections and sum(len(v) for v in sections.values()) < _MIN_FULLTEXT_CHARS:
+                print(f"  ⚠️ {paper.paper_id}: full text 합산 {sum(len(v) for v in sections.values())}자 < {_MIN_FULLTEXT_CHARS}자 → 실패 처리")
+                sections = {}
+                source_tag = "none"
             paper_sections[paper.paper_id] = sections
             paper_fulltext_sources[paper.paper_id] = source_tag
             if not sections:
