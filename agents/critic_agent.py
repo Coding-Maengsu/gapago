@@ -68,8 +68,14 @@ def critic_score_node(state: AgentState) -> AgentState:
     for msg in state.get("messages", []):
         name = getattr(msg, "name", "") or ""
         content = getattr(msg, "content", "") or ""
-        if name in ("query_analysis", "paper_retrieval", "limitation_extract", "gap_infer"):
+        if name in ("query_analysis", "paper_retrieval", "limitation_extract"):
             context_parts.append(f"[{name}]\n{content[:2000]}")
+        elif name == "gap_infer":
+            # gap_infer는 근거(supporting_quotes, barriers)가 포함되므로
+            # GAP당 ~500자 기준으로 슬라이스를 동적으로 확장
+            gaps_count = len(state.get("gaps", []))
+            gap_slice = max(2000, gaps_count * 600)
+            context_parts.append(f"[{name}]\n{content[:gap_slice]}")
 
     # state에 저장된 구조화 데이터도 컨텍스트에 포함
     limitations = state.get("limitations", [])
@@ -111,8 +117,16 @@ def critic_score_node(state: AgentState) -> AgentState:
 
     print(f"  [critic] loop={loop_count + 1}/{MAX_CRITIC_LOOPS} | {result_content[-30:]}")
 
+    # REFINE_QUERY / REDO_RETRIEVAL 결정 시 critic_loop_count를 리셋.
+    # query_subgraph나 meaning_expand로 돌아간 뒤 새로운 사이클이 시작되므로
+    # 이전 사이클의 loop_count가 누적되어 강제 ACCEPT가 조기에 발동하는 것을 방지.
+    next_loop_count = loop_count + 1
+    if "DECISION: REFINE_QUERY" in result_content or "DECISION: REDO_RETRIEVAL" in result_content:
+        next_loop_count = 0
+        print("  [critic] 재시도 결정 → critic_loop_count 리셋")
+
     return {
         "messages": [AIMessage(content=result_content, name="critic_score")],
         "sender": "critic_score",
-        "critic_loop_count": loop_count + 1,
+        "critic_loop_count": next_loop_count,
     }

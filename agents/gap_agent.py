@@ -84,7 +84,13 @@ def _llm_invoke(messages: list[dict], use_reasoning: bool = False) -> str:
             lc_messages.append(HumanMessage(content=content_text))
         elif role == "assistant":
             lc_messages.append(AIMessage(content=content_text))
-    return llm.invoke(lc_messages).content
+
+    raw = llm.invoke(lc_messages).content
+
+    # Groq Qwen3 / QwQ 추론 모델은 <think>...</think> CoT 블록을 포함할 수 있음.
+    # parse_json()에서도 처리하지만, raw 텍스트를 직접 쓰는 호출자를 위해 여기서도 제거.
+    from utils.parse_json import _strip_thinking_tags
+    return _strip_thinking_tags(raw)
 
 
 # ── limitation_extract 메시지 텍스트 파싱 ────────────────────────────────────
@@ -1125,8 +1131,38 @@ def gap_infer_node(state: AgentState) -> AgentState:
     trace["axis_distribution"] = {k: v["total_count"] for k, v in axis_groups.items()}
     trace["urgency_scores"]    = {ax: score for ax, score, _, _ in scored_axes}
 
+    # critic_score_node가 name="gap_infer" 메시지를 컨텍스트로 읽음.
+    # gap_infer가 messages에 아무것도 추가하지 않으면 critic은
+    # gap_statement + axis 요약만 보게 되어 groundedness를 낮게 평가하고
+    # REFINE_QUERY / REDO_RETRIEVAL 루프가 반복됨.
+    # → supporting_quotes, barrier_type, elaboration 등 근거를 포함해 전달.
+    import json as _json
+
+    gap_message_payload = []
+    for g in gaps:
+        gap_message_payload.append({
+            "axis":              g.get("axis", ""),
+            "axis_label":        g.get("axis_label", ""),
+            "gap_statement":     g.get("gap_statement", ""),
+            "elaboration":       g.get("elaboration", ""),
+            "barrier_type":      g.get("barrier_type", ""),
+            "barriers":          g.get("barriers", []),
+            "proposed_topic":    g.get("proposed_topic", ""),
+            "repeat_count":      g.get("repeat_count", 0),
+            "urgency_score":     g.get("urgency_score", 0),
+            "novelty_score":     g.get("novelty_score", 0),
+            "supporting_papers": g.get("supporting_papers", []),
+            "supporting_quotes": g.get("supporting_quotes", []),
+        })
+
+    gap_infer_message = AIMessage(
+        content=_json.dumps(gap_message_payload, ensure_ascii=False),
+        name="gap_infer",
+    )
+
     return {
         **state,
-        "gaps":  gaps,
-        "trace": trace,
+        "gaps":     gaps,
+        "trace":    trace,
+        "messages": [gap_infer_message],
     }

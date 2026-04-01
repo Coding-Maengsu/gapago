@@ -55,7 +55,24 @@ def print_message(msg):
             print(f"🛠️ [Tool: {msg.name}] (Content too long to display)")
         return
 
-    # 그 외 Human, AI Message는 깔끔하게 출력
+    # 내부 파이프라인 전달용 메시지 — 터미널에 raw JSON 전체 출력 불필요
+    # 최종 리포트(final_response)에서 정제된 형태로 출력됨
+    _INTERNAL_AGENTS = {
+        "gap_infer",
+        "limitation_extract",
+        "paper_retrieval",
+        "meaning_expand",
+        "recency_check",
+        "limitation_eval",
+    }
+    msg_name = getattr(msg, "name", "") or ""
+    if msg_name in _INTERNAL_AGENTS:
+        content = getattr(msg, "content", "") or ""
+        preview = content.replace("\n", " ")[:80]
+        print(f"  [{msg_name}] {preview}{'...' if len(content) > 80 else ''}")
+        return
+
+    # Human, AI Message (query_analysis, clarify_prompt, critic_score, final_response 등)
     msg.pretty_print()
 
 
