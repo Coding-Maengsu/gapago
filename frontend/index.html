@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GAPAGO - Research GAP Agent</title>
+    <title>GAPAGO - 연구 GAP Agent</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">
     <style>
@@ -1575,7 +1575,7 @@
             <img src="new_logo.png" alt="GAPAGO" style="width:36px;height:36px;border-radius:8px;object-fit:cover;">
             <div style="padding-top:2px;">
                 <h1>GAPAGO</h1>
-                <p>Research GAP Agent</p>
+                <p>연구 GAP Agent</p>
             </div>
         </a>
     </div>
@@ -1654,7 +1654,7 @@ window.onerror = function(msg, url, line) {
 
 // ── Timeline configuration ──
 const TIMELINE_NODES = [
-    { id: 'query', label: '질문 분석 & 검색어 확장', nodes: ['query_subgraph', 'meaning_expand'] },
+    { id: 'query', label: '질문 분석 & 확장', nodes: ['query_subgraph', 'meaning_expand'] },
     { id: 'retrieval', label: '논문 검색', nodes: ['paper_retrieval'] },
     { id: 'limitation', label: '한계점 추출', nodes: ['limitation_extract'] },
     { id: 'eval', label: '한계점 평가', nodes: ['limitation_eval'] },
@@ -1793,7 +1793,7 @@ function getEmptyStateHTML() {
     return `
     <div class="empty-state">
         <h2 style="font-size:1.5em;font-weight:700;color:var(--text);margin-bottom:8px;letter-spacing:-0.3px;">키워드 또는 논문 제목으로 시작해보세요</h2>
-        <p class="subtitle">연구 방향을 입력하면 논문 검색부터 Research GAP 도출까지 진행됩니다.</p>
+        <p class="subtitle">연구 방향을 입력하면 논문 검색부터 연구 GAP 도출까지 진행됩니다.</p>
 
         <div class="example-queries">
             ${cardsHTML}
@@ -2486,7 +2486,7 @@ function collectData(data) {
     if ((node === 'query_subgraph' || node === 'meaning_expand')) {
         if (data.refined_query) pipelineData.refined_query = data.refined_query;
         if (data.keywords) pipelineData.keywords = data.keywords;
-        // Build detail text (쿼리는 우측 패널에 표시하므로 키워드만)
+        // Build detail text (질문은 우측 패널에 표시하므로 키워드만)
         let detail = '';
         if (pipelineData.keywords && pipelineData.keywords.length) {
             detail = pipelineData.keywords.slice(0, 6).map(k => `<span class="keyword-tag">${esc(k)}</span>`).join(' ');
@@ -2655,7 +2655,7 @@ function updateLivePreview() {
         html += `<div class="preview-section">`;
         if (pipelineData.refined_query) {
             html += `<div class="preview-query-box">
-                <div class="preview-query-label">정제된 쿼리</div>
+                <div class="preview-query-label">정제된 질문</div>
                 <div class="preview-query-text">${esc(pipelineData.refined_query)}</div>
             </div>`;
         }
@@ -3467,7 +3467,7 @@ function renderSavedResult(data) {
     results.innerHTML = `
         <div style="margin-bottom:20px">
             <h3 style="font-size:1em;font-weight:600;margin-bottom:4px;color:var(--text)">${esc(data.query || '')}</h3>
-            ${data.refined_query ? `<p style="color:var(--text-dim);font-size:0.8em">정제된 쿼리: ${esc(data.refined_query)}</p>` : ''}
+            ${data.refined_query ? `<p style="color:var(--text-dim);font-size:0.8em">정제된 질문: ${esc(data.refined_query)}</p>` : ''}
             <p style="color:var(--text-light);font-size:0.7em;margin-top:3px">${data.timestamp || ''}</p>
         </div>
         <div id="resultArea" style="display:block"></div>
@@ -3564,7 +3564,7 @@ function downloadReport() {
 
     // Refined query
     if (pipelineData.refined_query) {
-        md += `## 정제된 쿼리\n${pipelineData.refined_query}\n\n`;
+        md += `## 정제된 질문\n${pipelineData.refined_query}\n\n`;
     }
 
     // Keywords
