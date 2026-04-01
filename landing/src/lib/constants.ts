@@ -1,6 +1,6 @@
 import {
   FileSearch, Brain, Target, Search, Database, Sparkles, FileText,
-  Layers, Zap, BarChart3, Globe, Lock, Clock,
+  Layers, Zap, BarChart3, Globe, Clock,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -48,12 +48,11 @@ export const WORKFLOW_STEPS: WorkflowStep[] = [
 export type FeatureItem = { icon: LucideIcon; title: string; description: string }
 
 export const FEATURES: FeatureItem[] = [
-  { icon: Layers, title: '다중 논문 동시 분석', description: '여러 논문을 한 번에 분석하여 교차 검증된 GAP을 도출합니다.' },
-  { icon: Zap, title: '실시간 처리', description: '키워드 입력 후 수 분 내에 분석 결과를 확인할 수 있습니다.' },
-  { icon: BarChart3, title: '시각적 리포트', description: 'GAP 분석 결과를 직관적인 차트와 구조로 시각화합니다.' },
-  { icon: Globe, title: '글로벌 논문 DB', description: '주요 학술 데이터베이스에서 최신 논문을 검색합니다.' },
-  { icon: Lock, title: '데이터 보안', description: '분석 데이터는 안전하게 암호화되어 보호됩니다.' },
-  { icon: Clock, title: '분석 이력 관리', description: '이전 분석 결과를 저장하고 언제든 다시 확인합니다.' },
+  { icon: Globe, title: '글로벌 논문 DB 연동', description: 'arXiv, Semantic Scholar, OpenAlex, Crossref, ScienceON 등 6개 이상의 학술 데이터베이스에서 실시간으로 논문을 검색합니다. 영문/한글 논문 모두 지원합니다.' },
+  { icon: Layers, title: '다중 논문 교차 분석', description: '수십 편의 논문을 동시에 분석하여 개별 논문에서는 보이지 않는 교차 패턴과 공통 한계점을 도출합니다. BM25 + FAISS 하이브리드 랭킹으로 관련성을 보장합니다.' },
+  { icon: Zap, title: '실시간 AI 분석', description: '키워드 입력 후 수 분 내에 논문 수집부터 GAP 도출까지 전 과정을 자동 수행합니다. Multi-Agent 파이프라인이 병렬로 작업을 처리합니다.' },
+  { icon: BarChart3, title: '구조화된 GAP 리포트', description: 'AI가 동적으로 생성한 연구 축(Research Axes)별로 GAP을 분류하고, 각 GAP의 근거 논문과 함께 구조화된 리포트를 제공합니다.' },
+  { icon: Clock, title: '분석 이력 & 대화형 탐색', description: '이전 분석 결과를 저장하고 언제든 재확인할 수 있습니다. 분석 완료 후 GAP에 대해 추가 질문하며 심층 탐색이 가능합니다.' },
 ]
 
 // ── DifferenceSection 비교 데이터 ──
