@@ -9,7 +9,7 @@ export default function Service() {
         <SectionHeading
           title="GAPAGO가 하는 일"
           highlightText="GAPAGO"
-          subtitle="연구자가 가장 오래 걸리는 문헌 분석 과정을 AI로 혁신합니다."
+          subtitle="연구자가 가장 많은 시간을 사용하는 문헌 분석 과정, GAPAGO가 대신 합니다"
         />
         {/* 핵심 서비스 (큰 카드 3개) */}
         <div className="grid md:grid-cols-3 gap-8 mb-12">
