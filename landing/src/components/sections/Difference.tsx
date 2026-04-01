@@ -26,10 +26,10 @@ export default function Difference() {
                 <span className="text-base font-medium">{row.feature}</span>
                 <p className="text-sm text-muted-foreground mt-1">{row.gapagoDetail}</p>
               </div>
-              <div className="flex justify-center items-start pt-1">
+              <div className="flex justify-center items-center">
                 <CheckCircle2 className="h-5 w-5 text-primary" />
               </div>
-              <div className="flex flex-col items-center pt-1">
+              <div className="flex flex-col items-center justify-center">
                 {row.existing ? (
                   <CheckCircle2 className="h-5 w-5 text-primary" />
                 ) : (

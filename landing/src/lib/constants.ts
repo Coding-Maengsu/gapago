@@ -39,7 +39,7 @@ export type WorkflowStep = { step: string; icon: LucideIcon; title: string; desc
 export const WORKFLOW_STEPS: WorkflowStep[] = [
   { step: '01', icon: Search, title: '키워드 입력', description: '연구하고 싶은 주제나 관심 분야의 키워드를 입력하세요. 예: "LLM 할루시네이션 탐지", "자율주행 안전성"' },
   { step: '02', icon: Database, title: '논문 자동 수집', description: '입력한 키워드를 기반으로 여러 학술 DB에서 관련 논문을 자동으로 검색하고 관련성 순으로 정리합니다.' },
-  { step: '03', icon: Sparkles, title: '연구 GAP 분석', description: 'AI가 수집된 논문들의 한계점을 분석하고, 연구 주제별로 비어 있는 영역을 찾아냅니다.' },
+  { step: '03', icon: Sparkles, title: '연구 GAP 분석', description: 'AI가 수집된 논문들의 한계점을 분석하고, 연구 주제별 미해결 영역을 찾아냅니다.' },
   { step: '04', icon: FileText, title: '결과 리포트 확인', description: '도출된 연구 GAP과 추천 연구 방향이 담긴 리포트를 확인하고 추가 질문할 수 있습니다.' },
 ]
 

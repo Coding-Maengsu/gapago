@@ -255,10 +255,16 @@ query_analysis
 - `report_progress(session_id, "limitation_extract", ...)` 호출
 - Full text 로드 완료 후, 배치 처리 진행 시 SSE progress 이벤트 발행
 
+**Full text 품질 검증:**
+- 섹션 합산 문자 수가 `_MIN_FULLTEXT_CHARS = 500`자 미만이면 파싱 실패로 간주 (쓰레기 데이터 필터링)
+- 실패 처리된 논문은 `sections = {}`, `source_tag = "none"`으로 리셋
+- 기존 "Step 1.5: 백업 논문 대체" 로직이 자동 발동 — arXiv 논문 우선으로 대체 후보 선정 및 full text 재로드
+
 **배치 처리:**
 1. 병렬 전체 텍스트 로딩 (`ThreadPoolExecutor`, `min(8, len(papers))` 워커)
-2. 배치 LLM 호출 (3 논문/배치, 2 워커)
-3. 배치 실패 시 개별 논문 재시도
+2. Full text 품질 검증 (500자 미만 필터링 → 백업 논문 자동 교체)
+3. 배치 LLM 호출 (3 논문/배치, 2 워커)
+4. 배치 실패 시 개별 논문 재시도
 
 **중복 제거:**
 - Jaccard 유사도 (토큰화된 claim) — 임계값 0.55

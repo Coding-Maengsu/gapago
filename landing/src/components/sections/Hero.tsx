@@ -22,18 +22,15 @@ export default function Hero() {
 
         {/* 부제목 */}
         <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
-          키워드 하나로 관련 논문을 분석하고, 연구 GAP을 도출합니다.
+          키워드로 관련 논문들을 분석하고, 연구 GAP을 도출합니다.
           <br className="hidden sm:block" />
-          단순 요약이 아닌, 진짜 GAP을 발견하세요.
+          단순 요약이 아닌, 진짜 빈틈을 발견하고 연구를 시작하세요.
         </p>
 
         {/* CTA 버튼 */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <Button size="lg" glow href="/app">
             무료로 분석 시작 <ArrowRight className="h-5 w-5" />
-          </Button>
-          <Button variant="outline" size="lg" href="#workflow">
-            사용법 보기
           </Button>
         </div>
       </div>
