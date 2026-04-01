@@ -2763,7 +2763,8 @@ function buildCyElements() {
         const edgeCount = gapEdgeCounts[`gap-${i}`] || 1;
         const nodeWidth = Math.round(160 * Math.max(1, Math.min(edgeCount / 2, 2.5)));
         const dotSize = Math.round(24 * Math.max(1, Math.min(edgeCount / 2, 1.7)));
-        elements.push({ data: { id: `gap-${i}`, label: stmt, fullLabel: fullStmt, axisLabel, nodeType: 'gap', index: i, bgColor: ac.bg, borderColor: ac.border, textColor: ac.color, nodeWidth, dotSize } });
+        const badgeLabel = stmt + `\n[한계점 ${edgeCount}개 연결]`;
+        elements.push({ data: { id: `gap-${i}`, label: stmt, badgeLabel, fullLabel: fullStmt, axisLabel, nodeType: 'gap', index: i, bgColor: ac.bg, borderColor: ac.border, textColor: ac.color, nodeWidth, dotSize, limCount: edgeCount } });
     });
 
     return elements;
@@ -2807,6 +2808,12 @@ function initCyGraph() {
                 'background-color': 'data(bgColor)', 'border-color': 'data(borderColor)',
                 'border-width': 3, 'color': 'data(textColor)', 'font-weight': '600',
                 'width': 'data(nodeWidth)',
+                'shadow-blur': 12, 'shadow-color': 'data(borderColor)',
+                'shadow-offset-x': 0, 'shadow-offset-y': 4, 'shadow-opacity': 0.25,
+            }},
+            // ── Collapse/Expand ──
+            { selector: '.cy-collapsed', style: {
+                'display': 'none',
             }},
             // ── Edge types ──
             { selector: 'edge', style: {
@@ -2829,7 +2836,7 @@ function initCyGraph() {
                 'target-arrow-color': '#ef4444',
                 'line-style': 'dashed', 'opacity': 0.6,
             }},
-            // ── Semantic zoom (dot mode) ──
+            // ── Semantic zoom: dot mode (zoom < 0.4) ──
             { selector: 'node.zoom-dot', style: {
                 'width': 20, 'height': 20, 'label': '', 'shape': 'ellipse',
                 'padding': '2px',
@@ -2843,9 +2850,21 @@ function initCyGraph() {
             { selector: 'node.zoom-dot[nodeType="gap"]', style: {
                 'width': 'data(dotSize)', 'height': 'data(dotSize)',
                 'background-color': 'data(borderColor)',
+                'label': 'data(label)', 'font-size': '8px', 'text-valign': 'bottom',
+                'text-margin-y': 6, 'text-max-width': '120px',
             }},
             { selector: 'edge.zoom-dot', style: {
                 'width': 1, 'arrow-scale': 0.5,
+            }},
+            // ── Semantic zoom: mid mode (0.4 ~ 0.8) ──
+            { selector: 'node.zoom-mid', style: {
+                'font-size': '8px', 'text-max-width': '120px',
+            }},
+            { selector: 'node.zoom-mid[nodeType="paper"]', style: {
+                'width': '120px',
+            }},
+            { selector: 'node.zoom-mid[nodeType="lim"]', style: {
+                'width': '100px',
             }},
             // ── Highlight/dim (after zoom-dot for priority) ──
             { selector: '.highlighted', style: {
@@ -2889,26 +2908,92 @@ function initCyGraph() {
 
 function setupCyInteractions(cy) {
     let lockedNode = null;
+    const expandedGaps = new Set();
+    const expandedLims = new Set();
+
+    // ── Collapse/Expand helpers ──
+    function collapseAll() {
+        cy.nodes('[nodeType="paper"]').addClass('cy-collapsed');
+        cy.nodes('[nodeType="lim"]').addClass('cy-collapsed');
+        cy.edges().addClass('cy-collapsed');
+        // GAP 뱃지 라벨 표시
+        cy.nodes('[nodeType="gap"]').forEach(n => n.data('label', n.data('badgeLabel')));
+        expandedGaps.clear();
+        expandedLims.clear();
+    }
+
+    function expandGap(gapNode) {
+        const gapId = gapNode.id();
+        if (expandedGaps.has(gapId)) return;
+        expandedGaps.add(gapId);
+        // GAP 라벨 → 일반 라벨 복원
+        gapNode.data('label', truncate(gapNode.data('fullLabel'), 42));
+        // 연결된 Lim 노드 + lim-gap 엣지 표시
+        const incomingEdges = gapNode.incomers('edge[edgeType="lim-gap"]');
+        const limNodes = incomingEdges.sources();
+        limNodes.removeClass('cy-collapsed');
+        incomingEdges.removeClass('cy-collapsed');
+    }
+
+    function expandLim(limNode) {
+        const limId = limNode.id();
+        if (expandedLims.has(limId)) return;
+        expandedLims.add(limId);
+        // 연결된 Paper 노드 + paper-lim 엣지 표시
+        const incomingEdges = limNode.incomers('edge[edgeType="paper-lim"]');
+        const paperNodes = incomingEdges.sources();
+        paperNodes.removeClass('cy-collapsed');
+        incomingEdges.removeClass('cy-collapsed');
+    }
+
+    function collapseGap(gapNode) {
+        const gapId = gapNode.id();
+        if (!expandedGaps.has(gapId)) return;
+        expandedGaps.delete(gapId);
+        gapNode.data('label', gapNode.data('badgeLabel'));
+        // 연결된 Lim 숨김 (다른 GAP에 연결되지 않은 것만)
+        const incomingEdges = gapNode.incomers('edge[edgeType="lim-gap"]');
+        const limNodes = incomingEdges.sources();
+        incomingEdges.addClass('cy-collapsed');
+        limNodes.forEach(lim => {
+            const otherGapEdges = lim.outgoers('edge[edgeType="lim-gap"]').filter(e => expandedGaps.has(e.target().id()));
+            if (otherGapEdges.length === 0) {
+                collapseLim(lim);
+                lim.addClass('cy-collapsed');
+            }
+        });
+    }
+
+    function collapseLim(limNode) {
+        const limId = limNode.id();
+        expandedLims.delete(limId);
+        const incomingEdges = limNode.incomers('edge[edgeType="paper-lim"]');
+        const paperNodes = incomingEdges.sources();
+        incomingEdges.addClass('cy-collapsed');
+        paperNodes.forEach(p => {
+            const otherLimEdges = p.outgoers('edge[edgeType="paper-lim"]').filter(e => !e.target().hasClass('cy-collapsed'));
+            if (otherLimEdges.length === 0) p.addClass('cy-collapsed');
+        });
+    }
 
     function highlightNeighborhood(node) {
         const nodeType = node.data('nodeType');
         let connected;
         if (nodeType === 'paper') {
-            // Paper → Lim → GAP (2-hop forward)
             const hop1 = node.outgoers();
             const hop2 = hop1.nodes().outgoers();
             connected = node.union(hop1).union(hop2);
         } else if (nodeType === 'gap') {
-            // GAP ← Lim ← Paper (2-hop backward)
             const hop1 = node.incomers();
             const hop2 = hop1.nodes().incomers();
             connected = node.union(hop1).union(hop2);
         } else {
-            // Lim: 1-hop both directions
             connected = node.closedNeighborhood();
         }
-        cy.elements().addClass('dimmed');
-        connected.removeClass('dimmed').addClass('highlighted');
+        // 보이는 요소 중에서만 dim
+        const visible = cy.elements().filter(e => !e.hasClass('cy-collapsed'));
+        visible.addClass('dimmed');
+        connected.filter(e => !e.hasClass('cy-collapsed')).removeClass('dimmed').addClass('highlighted');
     }
 
     function clearHighlight() {
@@ -2918,7 +3003,6 @@ function setupCyInteractions(cy) {
     cy.on('mouseover', 'node', function(e) {
         if (lockedNode) return;
         highlightNeighborhood(e.target);
-        // Native tooltip with full label
         const fullLabel = e.target.data('fullLabel');
         if (fullLabel) cy.container().setAttribute('title', fullLabel);
     });
@@ -2945,15 +3029,25 @@ function setupCyInteractions(cy) {
         clearHighlight();
         highlightNeighborhood(node);
 
-        // Dispatch to detail panel
-        if (nodeType === 'gap' && index !== undefined) {
-            selectGap(index);
-        } else if (nodeType === 'paper' && index !== undefined) {
-            selectPaper(index);
+        // Collapse/Expand + detail panel
+        if (nodeType === 'gap') {
+            if (expandedGaps.has(node.id())) {
+                collapseGap(node);
+            } else {
+                expandGap(node);
+            }
+            if (index !== undefined) selectGap(index);
         } else if (nodeType === 'lim') {
+            if (expandedLims.has(node.id())) {
+                collapseLim(node);
+            } else {
+                expandLim(node);
+            }
             const paperId = node.data('paperId');
             const pIdx = (pipelineData.papers || []).findIndex(p => p.paper_id === paperId);
             if (pIdx >= 0) selectPaper(pIdx);
+        } else if (nodeType === 'paper' && index !== undefined) {
+            selectPaper(index);
         }
     });
 
@@ -2971,22 +3065,59 @@ function setupCyInteractions(cy) {
         cy.animate({ fit: { eles: neighborhood, padding: 50 }, duration: 400 });
     });
 
-    // ── Semantic zoom ──
-    const ZOOM_THRESHOLD = 0.7;
+    // ── Semantic zoom (3단계) ──
+    const ZOOM_DOT = 0.4;
+    const ZOOM_MID = 0.8;
     let currentZoomMode = 'card';
     let _zoomTimer = null;
     cy.on('zoom', function() {
         clearTimeout(_zoomTimer);
         _zoomTimer = setTimeout(function() {
-            const dot = cy.zoom() < ZOOM_THRESHOLD;
-            if (dot && currentZoomMode !== 'dot') {
+            const z = cy.zoom();
+            let mode;
+            if (z < ZOOM_DOT) mode = 'dot';
+            else if (z < ZOOM_MID) mode = 'mid';
+            else mode = 'card';
+            if (mode === currentZoomMode) return;
+            // 이전 모드 클래스 제거
+            cy.elements().removeClass('zoom-dot zoom-mid');
+            if (mode === 'dot') {
                 cy.elements().addClass('zoom-dot');
-                currentZoomMode = 'dot';
-            } else if (!dot && currentZoomMode !== 'card') {
-                cy.elements().removeClass('zoom-dot');
-                currentZoomMode = 'card';
+            } else if (mode === 'mid') {
+                cy.elements().addClass('zoom-mid');
             }
+            currentZoomMode = mode;
         }, 50);
+    });
+
+    // ── 초기 collapse + 진입 애니메이션 ──
+    cy.one('layoutstop', function() {
+        // 모든 요소 숨김
+        cy.elements().style('opacity', 0);
+        collapseAll();
+
+        // 1단계: GAP 노드 fade-in (0~400ms)
+        const gapNodes = cy.nodes('[nodeType="gap"]');
+        gapNodes.removeClass('cy-collapsed');
+        gapNodes.forEach((n, i) => {
+            setTimeout(() => {
+                n.animate({ style: { opacity: 1 } }, { duration: 400 });
+            }, i * 80);
+        });
+
+        // 2단계: lim-gap 엣지 라인 (400ms~)
+        const limGapEdges = cy.edges('[edgeType="lim-gap"]');
+        setTimeout(() => {
+            limGapEdges.forEach(e => {
+                e.animate({ style: { opacity: 0.6 } }, { duration: 350 });
+            });
+        }, gapNodes.length * 80 + 200);
+
+        // collapsed 된 노드들은 opacity 초기화 (display:none이므로 안 보임)
+        setTimeout(() => {
+            cy.nodes('.cy-collapsed').style('opacity', 1);
+            cy.edges('.cy-collapsed').style('opacity', 1);
+        }, gapNodes.length * 80 + 600);
     });
 }
 
