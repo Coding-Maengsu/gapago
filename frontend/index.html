@@ -138,6 +138,14 @@
             60% { transform: translateX(-3px); }
             80% { transform: translateX(3px); }
         }
+        .settings-section.option-highlight {
+            animation: optionPulse 1.5s ease;
+        }
+        @keyframes optionPulse {
+            0% { box-shadow: 0 0 0 0 rgba(84,105,212,0.3); }
+            50% { box-shadow: 0 0 0 6px rgba(84,105,212,0.15), 0 0 16px rgba(84,105,212,0.1); }
+            100% { box-shadow: 0 0 0 0 rgba(84,105,212,0); }
+        }
 
         .history-section {
             flex: 1;
@@ -2081,9 +2089,15 @@ function validateOptions() {
         }
     });
     if (!valid) {
-        // scroll sidebar to make options visible
+        // scroll sidebar to make options visible and add pulse glow
         const section = document.querySelector('.settings-section');
-        if (section) section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (section) {
+            section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            section.classList.remove('option-highlight');
+            void section.offsetWidth;
+            section.classList.add('option-highlight');
+            section.addEventListener('animationend', () => section.classList.remove('option-highlight'), { once: true });
+        }
     }
     return valid;
 }
