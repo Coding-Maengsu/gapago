@@ -4,7 +4,7 @@ import { EXAMPLES } from '@/lib/constants'
 
 export default function Example() {
   return (
-    <section className="py-24 md:py-32">
+    <section id="examples" className="py-16 md:py-20">
       <Container>
         <SectionHeading
           title="이런 GAP을 찾아냅니다"

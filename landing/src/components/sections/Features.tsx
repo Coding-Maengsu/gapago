@@ -4,7 +4,7 @@ import { FEATURES } from '@/lib/constants'
 
 export default function Features() {
   return (
-    <section id="features" className="py-24 md:py-32">
+    <section id="features" className="py-16 md:py-20">
       <Container>
         <SectionHeading
           title="핵심 기능"

@@ -5,7 +5,7 @@ import { COMPARISON_DATA } from '@/lib/constants'
 
 export default function Difference() {
   return (
-    <section id="difference" className="py-24 md:py-32 bg-card/50">
+    <section id="difference" className="py-16 md:py-20 bg-card/50">
       <Container className="max-w-3xl">
         <SectionHeading
           title="왜 GAPAGO인가요?"

@@ -4,7 +4,7 @@ import { WORKFLOW_STEPS } from '@/lib/constants'
 
 export default function Workflow() {
   return (
-    <section id="workflow" className="py-24 md:py-32 bg-card/50">
+    <section id="workflow" className="py-16 md:py-20 bg-card/50">
       <Container>
         <SectionHeading
           title="4단계로 끝나는 GAP 분석"

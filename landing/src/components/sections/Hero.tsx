@@ -3,7 +3,7 @@ import Button from '@/components/ui/Button'
 
 export default function Hero() {
   return (
-    <section className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden">
+    <section className="relative min-h-[85vh] flex items-center justify-center pt-16 overflow-hidden">
       {/* 그라디언트 오버레이 (배경 이미지 대신) */}
       <div className="absolute inset-0 bg-gradient-to-b from-background/60 via-background/80 to-background" />
 
