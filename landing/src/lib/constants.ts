@@ -19,17 +19,17 @@ export const SERVICE_CARDS: ServiceCard[] = [
   {
     icon: FileSearch,
     title: '논문 수집 & 분석',
-    description: 'arXiv, Semantic Scholar, OpenAlex, Crossref, ScienceON 등 6개 이상의 글로벌 학술 DB에서 키워드 기반으로 관련 논문을 자동 수집합니다. BM25 + FAISS 하이브리드 랭킹과 CrossEncoder 리랭킹으로 가장 관련성 높은 논문을 선별합니다.',
+    description: '관심 분야 키워드를 입력하면, 여러 글로벌 학술 데이터베이스에서 관련 논문을 자동으로 수집하고 관련성 순으로 정리합니다.',
   },
   {
     icon: Brain,
-    title: 'AI 기반 연구 공백(GAP) 도출',
-    description: '수집된 논문들에서 한계점을 자동으로 추출한 뒤, AI가 연구 주제별 분석 축을 생성하고 각 축에서 빠져 있는 연구 영역을 찾아냅니다. 단순 요약이 아닌, 논문 간 교차 분석을 통해 실질적인 연구 공백을 도출합니다.',
+    title: 'AI 기반 연구 GAP 도출',
+    description: '수집된 논문들의 한계점을 분석하고, 논문 간 교차 비교를 통해 아직 연구되지 않은 빈 영역을 찾아냅니다.',
   },
   {
     icon: Target,
     title: '연구 방향 제안',
-    description: '도출된 GAP을 기반으로 새로운 연구 주제와 구체적인 연구 방향을 제안합니다. Critic Agent가 결과를 평가하고, 품질이 부족하면 자동으로 재분석하여 신뢰도 높은 결과를 보장합니다.',
+    description: '도출된 연구 GAP을 바탕으로 새로운 연구 주제와 방향을 제안하고, 결과 검증을 통해 신뢰도 높은 결과를 보장합니다.',
   },
 ]
 
@@ -37,10 +37,10 @@ export const SERVICE_CARDS: ServiceCard[] = [
 export type WorkflowStep = { step: string; icon: LucideIcon; title: string; description: string }
 
 export const WORKFLOW_STEPS: WorkflowStep[] = [
-  { step: '01', icon: Search, title: '키워드 입력', description: '연구하고 싶은 주제나 관심 분야의 키워드를 입력하세요. 예: "LLM hallucination", "자율주행 안전성"' },
-  { step: '02', icon: Database, title: '논문 자동 수집', description: '입력한 키워드를 기반으로 6개 학술 DB에서 관련 논문을 자동으로 검색하고 랭킹합니다.' },
-  { step: '03', icon: Sparkles, title: 'GAP 분석 수행', description: 'AI가 수집된 논문들의 한계점을 추출하고, 연구 축별로 분류하여 비어 있는 연구 영역을 도출합니다.' },
-  { step: '04', icon: FileText, title: '결과 리포트 확인', description: '도출된 Research Gap과 추천 연구 방향이 담긴 구조화된 리포트를 확인하고 추가 질문할 수 있습니다.' },
+  { step: '01', icon: Search, title: '키워드 입력', description: '연구하고 싶은 주제나 관심 분야의 키워드를 입력하세요. 예: "LLM 할루시네이션 탐지", "자율주행 안전성"' },
+  { step: '02', icon: Database, title: '논문 자동 수집', description: '입력한 키워드를 기반으로 여러 학술 DB에서 관련 논문을 자동으로 검색하고 관련성 순으로 정리합니다.' },
+  { step: '03', icon: Sparkles, title: '연구 GAP 분석', description: 'AI가 수집된 논문들의 한계점을 분석하고, 연구 주제별로 비어 있는 영역을 찾아냅니다.' },
+  { step: '04', icon: FileText, title: '결과 리포트 확인', description: '도출된 연구 GAP과 추천 연구 방향이 담긴 리포트를 확인하고 추가 질문할 수 있습니다.' },
 ]
 
 // ── FeaturesSection 기능 데이터 ──
@@ -64,11 +64,11 @@ export type ComparisonRow = {
 
 export const COMPARISON_DATA: ComparisonRow[] = [
   {
-    feature: '논문 GAP 도출',
+    feature: '논문 연구 GAP 도출',
     gapago: true,
-    gapagoDetail: 'Multi-Agent 파이프라인이 한계점 추출 → 연구 축 생성 → 장벽 분석을 자동 수행',
+    gapagoDetail: 'AI가 한계점 추출부터 연구 GAP 분석까지 자동 수행',
     existing: false,
-    existingDetail: 'GAP 도출 기능 없음 (요약만 제공)',
+    existingDetail: '연구 GAP 도출 기능 없음 (요약만 제공)',
   },
   {
     feature: '다중 논문 교차 분석',
@@ -80,30 +80,30 @@ export const COMPARISON_DATA: ComparisonRow[] = [
   {
     feature: '연구 방향 제안',
     gapago: true,
-    gapagoDetail: 'GAP 기반 구체적 연구 주제 및 방법론 제안 + Critic 검증',
+    gapagoDetail: '연구 GAP 기반 구체적 연구 주제 및 방향 제안 + 결과 검증',
     existing: false,
     existingDetail: '연구 방향 제안 기능 없음',
   },
   {
     feature: '구조화된 리포트',
     gapago: true,
-    gapagoDetail: '연구 축별 GAP 분류 + 근거 논문 + 연구 방향이 포함된 체계적 리포트',
+    gapagoDetail: '연구 축별 GAP 분류 + 근거 논문 + 연구 방향 포함 리포트',
     existing: false,
     existingDetail: '단순 텍스트 요약만 제공',
   },
   {
     feature: '논문 수집 자동화',
     gapago: true,
-    gapagoDetail: '6개 학술 DB 병렬 검색 + BM25/FAISS/CrossEncoder 3단계 랭킹',
+    gapagoDetail: '여러 학술 DB에서 병렬 검색 후 관련성 기반 다단계 선별',
     existing: true,
-    existingDetail: '키워드 기반 검색은 가능하나 랭킹 정밀도 낮음',
+    existingDetail: '키워드 기반 검색 가능하나 정밀도 낮음',
   },
   {
     feature: '대화형 후속 탐색',
     gapago: true,
     gapagoDetail: '분석 결과에 대해 자연어로 추가 질문 및 심층 탐색 가능',
-    existing: false,
-    existingDetail: '정적 결과만 제공',
+    existing: true,
+    existingDetail: '기본적인 대화형 탐색 지원',
   },
 ]
 
