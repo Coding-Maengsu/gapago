@@ -225,6 +225,9 @@ def _stream_and_render(app, stream_input, config_dict, progress_bar,
                 continue
             if node.startswith("__"):
                 continue
+            # orchestrator 노드는 내부 라우팅 전용 — UI에 노출하지 않음
+            if node == "orchestrator":
+                continue
 
             completed_nodes.append(node)
             node_results[node] = values

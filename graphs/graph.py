@@ -1,3 +1,4 @@
+import os
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
@@ -72,6 +73,11 @@ def route_after_critic(state: AgentState) -> str:
 
 
 def build_graph():
+    if os.getenv("GAPAGO_ORCHESTRATOR", "0") == "1":
+        from .orchestrator_graph import build_orchestrator_graph
+        return build_orchestrator_graph()
+
+    # ── 기존 고정 파이프라인 ──
     query_subgraph = build_subgraph()
 
     workflow = StateGraph(AgentState)

@@ -282,6 +282,9 @@ async def _run_pipeline(session_id: str, graph, config_dict: dict, inputs: dict 
                     continue
                 if node.startswith("__"):
                     continue
+                # orchestrator 노드는 내부 라우팅 전용 — 프론트에 노출하지 않음
+                if node == "orchestrator":
+                    continue
 
                 # Track pipeline stage completion for ETA
                 mark_stage_done(session_id, node)
