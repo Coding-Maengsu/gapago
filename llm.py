@@ -8,7 +8,6 @@ from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.runnables import Runnable
 from google import genai
 from google.genai.types import HttpOptions
-from pydantic import BaseModel
 import json
 
 load_dotenv()
