@@ -49,6 +49,12 @@ RECENCY_WEIGHT = {
     "resolved":   0.0,   # 이미 해결된 것은 GAP 후보에서 제외
 }
 
+# eval 품질 가중치: strong limitation이 GAP에 더 크게 기여
+EVAL_QUALITY_WEIGHT = {
+    "strong": 1.0,
+    "weak":   0.3,
+}
+
 
 # ── LLM 헬퍼 ─────────────────────────────────────────────────────────────────
 
@@ -409,6 +415,7 @@ def _build_axis_groups_with_recency(
     for ax_key, lims in raw_groups.items():
         weighted = sum(
             RECENCY_WEIGHT.get(getattr(lim, "recency_status", None) or "unresolved", 1.0)
+            * EVAL_QUALITY_WEIGHT.get(getattr(lim, "eval_quality", None) or "strong", 1.0)
             for lim in lims
         )
         unresolved = [
