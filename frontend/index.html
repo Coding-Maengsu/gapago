@@ -328,7 +328,7 @@
             flex-direction: row-reverse;
         }
         .chat-msg-bubble {
-            padding: 12px 16px;
+            padding: 14px 20px;
             border-radius: 16px;
             font-size: 0.92em;
             line-height: 1.6;
@@ -360,7 +360,7 @@
         .chat-msg.assistant .chat-msg-bubble blockquote { border-left: 3px solid var(--border); padding-left: 12px; margin: 8px 0; color: var(--text-dim); }
         .chat-msg.assistant .chat-msg-bubble table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 0.88em; }
         .chat-msg.assistant .chat-msg-bubble th,
-        .chat-msg.assistant .chat-msg-bubble td { border: 1px solid var(--border-light); padding: 6px 10px; text-align: left; }
+        .chat-msg.assistant .chat-msg-bubble td { border: 1px solid var(--border-light); padding: 8px 12px; text-align: left; }
         .chat-msg.assistant .chat-msg-bubble hr { margin: 10px 0; border: none; border-top: 1px solid var(--border-light); }
         .chat-typing {
             display: inline-flex;
@@ -3302,24 +3302,28 @@ function renderSavedResult(data) {
 function renderMarkdown(text) {
     text = text.replace(/FINAL\s*ANSWER\s*/gi, '');
     text = text.replace(/^[─━═┄┅┈┉╌╍]+$/gm, '---');
-    text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-    // Parse tables
+    // Parse tables BEFORE HTML escaping so separator detection is not affected by &amp; etc.
+    const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     text = text.replace(/(^\|.+\|$\n?)+/gm, function(tableBlock) {
         const rows = tableBlock.trim().split('\n').filter(r => r.trim());
-        if (rows.length < 2) return tableBlock;
+        if (rows.length < 2) return esc(tableBlock);
         let html = '<table>';
         let headerDone = false;
         rows.forEach((row) => {
             const cells = row.split('|').filter((c, j, a) => j > 0 && j < a.length).map(c => c.trim());
-            if (cells.every(c => /^[-:\s]+$/.test(c))) { headerDone = true; return; }
+            if (cells.every(c => /^[-:\s]*$/.test(c) || c === '')) { headerDone = true; return; }
             const tag = !headerDone ? 'th' : 'td';
-            html += '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
+            html += '<tr>' + cells.map(c => `<${tag}>${esc(c)}</${tag}>`).join('') + '</tr>';
             if (!headerDone) headerDone = true;
         });
         html += '</table>';
         return html;
     });
+
+    text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // Restore table HTML that was already escaped above
+    text = text.replace(/&lt;(\/?(table|tr|th|td))&gt;/g, '<$1>');
 
     return text
         .replace(/^---$/gm, '<hr>')
