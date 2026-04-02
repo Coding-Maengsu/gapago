@@ -1688,47 +1688,16 @@
             .results { padding: 12px; }
         }
 
-        /* ── 관계도 그래프 (Vanilla JS/SVG) ── */
+        /* ── 관계도 그래프 (Cytoscape) ── */
         .flow-graph-section { margin-top: 18px; border-top: 1.5px solid var(--border-light); padding-top: 18px; overflow: hidden; }
         .flow-graph-section .section-title { font-weight: 700; font-size: 0.92em; color: var(--text); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
 
-        .flow-graph-container { display: flex; gap: 0; position: relative; min-height: 360px; max-height: 600px; border: 1.5px solid var(--border-light); border-radius: var(--radius-lg); background: #fafbfe; overflow: hidden; box-shadow: 0 2px 12px rgba(80, 90, 140, 0.06); }
-        .flow-graph-empty { display: flex; align-items: center; justify-content: center; height: 200px; color: var(--text-light); font-size: 0.88em; }
+        .cy-container { width: 100%; height: 420px; border: 1.5px solid var(--border-light); border-radius: var(--radius-lg); background: #fafbfe; overflow: hidden; box-shadow: 0 2px 12px rgba(80, 90, 140, 0.06); position: relative; }
+        .cy-fit-btn { position: absolute; top: 10px; right: 10px; z-index: 10; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 1.1em; opacity: 0.7; transition: opacity 0.2s; }
+        .cy-fit-btn:hover { opacity: 1; }
 
-        .flow-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-        .flow-col-header { padding: 12px 16px; font-size: 0.82em; font-weight: 700; color: #4a5073; border-bottom: 1.5px solid var(--border-light); background: linear-gradient(180deg, #f4f5fb 0%, #edeef6 100%); flex-shrink: 0; display: flex; align-items: center; gap: 7px; letter-spacing: -0.01em; }
-        .flow-col-header .flow-col-icon { font-size: 1.1em; }
-        .flow-col-body { flex: 1; overflow-y: auto; padding: 10px; position: relative; z-index: 2; }
-        .flow-col-body::-webkit-scrollbar { width: 4px; }
-        .flow-col-body::-webkit-scrollbar-thumb { background: #d0d4e4; border-radius: 4px; }
-        .flow-col + .flow-col { border-left: 1.5px solid var(--border-light); }
-
-        .flow-node { padding: 10px 13px; border-radius: 10px; font-size: 0.82em; margin-bottom: 7px; cursor: pointer; border: 1.5px solid transparent; transition: all 0.2s ease; position: relative; line-height: 1.45; word-break: keep-all; overflow-wrap: break-word; }
-        .flow-node:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(80, 90, 140, 0.12); }
-        .flow-node.highlighted { border-color: #4f6ef7; box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.15); z-index: 3; transform: translateY(-1px); }
-        .flow-node.dimmed { opacity: 0.12; transform: none; }
-
-        .flow-node-paper { background: #ffffff; border-color: #d8dce8; }
-        .flow-node-paper:hover { border-color: #b0b8d0; }
-        .flow-node-paper .flow-node-title { font-weight: 600; line-height: 1.45; color: #2d3250; }
-        .flow-node-paper .flow-node-meta { font-size: 0.82em; color: #8891ad; margin-top: 4px; }
-
-        .flow-node-lim { background: #fff7ed; border-color: #f5d9a8; }
-        .flow-node-lim:hover { border-color: #e8b560; }
-        .flow-node-lim .flow-node-claim { line-height: 1.45; color: #5c4a1e; }
-
-        .flow-node-gap { border-width: 2px; padding: 12px 14px; }
-        .flow-node-gap .flow-node-axis { font-size: 0.78em; font-weight: 700; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
-        .flow-node-gap .flow-node-statement { line-height: 1.5; font-weight: 500; color: #1e2235; }
-        .flow-node-gap .flow-node-count { font-size: 0.78em; color: #8891ad; margin-top: 5px; display: flex; align-items: center; gap: 4px; }
-
-        .flow-svg-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
-        .flow-edge { stroke-width: 1.8; fill: none; opacity: 0.35; transition: opacity 0.25s, stroke-width 0.25s; }
-        .flow-edge.highlighted { opacity: 1; stroke-width: 2.5; }
-        .flow-edge.dimmed { opacity: 0.04; }
-
-        .flow-legend { display: flex; gap: 18px; padding: 10px 16px; font-size: 0.78em; color: #6b7294; border-top: 1.5px solid var(--border-light); background: linear-gradient(180deg, #f4f5fb 0%, #edeef6 100%); flex-wrap: wrap; align-items: center; }
-        .flow-legend-dot { display: inline-block; width: 11px; height: 11px; border-radius: 4px; margin-right: 5px; vertical-align: middle; }
+        .cy-legend { display: flex; gap: 18px; padding: 10px 16px; font-size: 0.78em; color: #6b7294; border-top: 1.5px solid var(--border-light); background: linear-gradient(180deg, #f4f5fb 0%, #edeef6 100%); flex-wrap: wrap; align-items: center; }
+        .cy-legend-dot { display: inline-block; width: 11px; height: 11px; border-radius: 4px; margin-right: 5px; vertical-align: middle; }
 
     </style>
     <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
@@ -2963,87 +2932,98 @@ function buildCyElements() {
         });
     }
 
-    // GAP 노드 (크기 = 연결된 엣지 수에 비례)
+    // GAP 노드
     const gapEdgeCounts = {};
-    elements.filter(e => e.data.edgeType === 'lim-gap').forEach(e => {
+    elements.filter(e => e.data && e.data.edgeType === 'lim-gap').forEach(e => {
         gapEdgeCounts[e.data.target] = (gapEdgeCounts[e.data.target] || 0) + 1;
     });
     gaps.forEach((g, i) => {
         const axisLabel = g.axis_label || g.axis || '';
         const ac = getAxisColor(axisLabel);
-        const stmt = g.gap_statement || '';
-        const limCount = edges.filter(e => e.to === `gap-${i}`).length;
-        return `<div class="flow-node flow-node-gap" data-id="gap-${i}" data-idx="${i}" style="background:${ac.bg};border-color:${ac.border}">
-            <div class="flow-node-axis" style="color:${ac.color}">${esc(axisLabel)}</div>
-            <div class="flow-node-statement">${esc(stmt)}</div>
-            ${limCount ? `<div class="flow-node-count"><span style="color:${ac.color}">&#9679;</span> ${limCount} papers</div>` : ''}
-        </div>`;
-    }).join('');
-
-    // Draw SVG edges
-    function drawEdges() {
-        const cRect = container.getBoundingClientRect();
-        svg.setAttribute('viewBox', `0 0 ${cRect.width} ${cRect.height}`);
-        svg.innerHTML = '';
-
-        const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-        // 클리핑 영역: SVG 선이 container 밖으로 삐져나가지 않도록 제한
-        const clipPath = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
-        clipPath.id = 'flowClip';
-        const clipRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        clipRect.setAttribute('x', '0'); clipRect.setAttribute('y', '0');
-        clipRect.setAttribute('width', cRect.width); clipRect.setAttribute('height', cRect.height);
-        clipPath.appendChild(clipRect);
-        defs.appendChild(clipPath);
-        ['PL','LG','HL'].forEach((k, i) => {
-            const colors = [
-                [EDGE_COLORS.paperToLim.start, EDGE_COLORS.paperToLim.end],
-                [EDGE_COLORS.limToGap.start, EDGE_COLORS.limToGap.end],
-                ['#4f6ef7', '#a78bfa'],
-            ];
-            const grad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
-            grad.id = `edgeGrad${k}`; grad.setAttribute('x1','0%'); grad.setAttribute('x2','100%');
-            grad.innerHTML = `<stop offset="0%" stop-color="${colors[i][0]}"/><stop offset="100%" stop-color="${colors[i][1]}"/>`;
-            defs.appendChild(grad);
+        const fullStmt = g.gap_statement || '';
+        const stmt = truncate(fullStmt, 40);
+        const edgeCount = gapEdgeCounts[`gap-${i}`] || 0;
+        const badgeLabel = `GAP#${i+1} ${truncate(axisLabel, 12)} (${edgeCount})`;
+        elements.push({
+            data: {
+                id: `gap-${i}`, label: stmt, fullLabel: fullStmt, badgeLabel,
+                nodeType: 'gap', index: i, edgeCount,
+                bgColor: ac.bg, borderColor: ac.border, textColor: ac.color
+            }
         });
-        svg.appendChild(defs);
-        // 모든 엣지를 클리핑 그룹 안에 그리기
-        const edgeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        edgeGroup.setAttribute('clip-path', 'url(#flowClip)');
+    });
 
-        edges.forEach(e => {
-            const fromEl = container.querySelector(`[data-id="${e.from}"]`);
-            const toEl = container.querySelector(`[data-id="${e.to}"]`);
-            if (!fromEl || !toEl) return;
-            const fr = fromEl.getBoundingClientRect();
-            const tr = toEl.getBoundingClientRect();
-            if (fr.bottom < cRect.top || fr.top > cRect.bottom) return;
-            if (tr.bottom < cRect.top || tr.top > cRect.bottom) return;
+    return elements;
+}
 
-            const x1 = fr.right - cRect.left, y1 = (fr.top + fr.bottom) / 2 - cRect.top;
-            const x2 = tr.left - cRect.left,  y2 = (tr.top + tr.bottom) / 2 - cRect.top;
-            const dx = Math.abs(x2 - x1) * 0.45;
 
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            path.setAttribute('d', `M${x1},${y1} C${x1+dx},${y1} ${x2-dx},${y2} ${x2},${y2}`);
-            path.setAttribute('class', 'flow-edge');
-            path.setAttribute('stroke', `url(#${e.grad})`);
-            path.setAttribute('data-from', e.from);
-            path.setAttribute('data-to', e.to);
-            path.setAttribute('data-grad', e.grad);
-            edgeGroup.appendChild(path);
-        });
-        svg.appendChild(edgeGroup);
+// ── Cytoscape 관계도 초기화 ──
+
+function initCyGraph() {
+    const container = document.getElementById('cyContainer');
+    if (!container || typeof cytoscape === 'undefined') return;
+
+    const elements = buildCyElements();
+    if (!elements.length) {
+        container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:200px;color:var(--text-light);font-size:0.88em">관계도를 표시할 데이터가 없습니다</div>';
+        return;
     }
 
-    function expandLim(limNode) {
-        const limId = limNode.id();
-        if (expandedLims.has(limId)) return;
-        expandedLims.add(limId);
-        // 연결된 Paper 노드 + paper-lim 엣지 표시
-        const incomingEdges = limNode.incomers('edge[edgeType="paper-lim"]');
-        const paperNodes = incomingEdges.sources();
-        paperNodes.removeClass('cy-collapsed');
+    const cy = cytoscape({
+        container,
+        elements,
+        style: [
+            { selector: 'node[nodeType="paper"]', style: {
+                'label': 'data(label)', 'shape': 'round-rectangle', 'width': 180, 'height': 50,
+                'background-color': '#ffffff', 'border-width': 1.5, 'border-color': '#d8dce8',
+                'font-size': 10, 'text-wrap': 'wrap', 'text-max-width': 160,
+                'text-valign': 'center', 'text-halign': 'center', 'color': '#2d3250',
+            }},
+            { selector: 'node[nodeType="lim"]', style: {
+                'label': 'data(label)', 'shape': 'round-rectangle', 'width': 160, 'height': 40,
+                'background-color': '#fff7ed', 'border-width': 1.5, 'border-color': '#f5d9a8',
+                'font-size': 9, 'text-wrap': 'wrap', 'text-max-width': 140,
+                'text-valign': 'center', 'text-halign': 'center', 'color': '#5c4a1e',
+            }},
+            { selector: 'node[nodeType="gap"]', style: {
+                'label': 'data(label)', 'shape': 'round-rectangle', 'width': 200, 'height': 55,
+                'background-color': 'data(bgColor)', 'border-width': 2, 'border-color': 'data(borderColor)',
+                'font-size': 10, 'font-weight': 'bold', 'text-wrap': 'wrap', 'text-max-width': 180,
+                'text-valign': 'center', 'text-halign': 'center', 'color': '#1e2235',
+            }},
+            { selector: 'edge[edgeType="paper-lim"]', style: {
+                'width': 1.5, 'line-color': '#d0d4e4', 'target-arrow-color': '#d0d4e4',
+                'target-arrow-shape': 'triangle', 'curve-style': 'bezier', 'opacity': 0.5,
+            }},
+            { selector: 'edge[edgeType="lim-gap"]', style: {
+                'width': 2, 'line-color': '#7b9af0', 'target-arrow-color': '#7b9af0',
+                'target-arrow-shape': 'triangle', 'curve-style': 'bezier', 'opacity': 0.6,
+            }},
+            { selector: '.cy-collapsed', style: { 'display': 'none' }},
+            { selector: '.highlighted', style: { 'border-width': 3, 'border-color': '#4f6ef7', 'opacity': 1 }},
+            { selector: '.dimmed', style: { 'opacity': 0.12 }},
+            { selector: 'edge.highlighted', style: { 'width': 3, 'opacity': 1 }},
+            { selector: 'edge.dimmed', style: { 'opacity': 0.04 }},
+        ],
+        layout: { name: 'dagre', rankDir: 'LR', nodeSep: 30, rankSep: 80, padding: 30 },
+        userZoomingEnabled: true, userPanningEnabled: true,
+        boxSelectionEnabled: false, autoungrabify: true,
+    });
+
+    window._cyInstance = cy;
+
+    const expandedGaps = new Set();
+    const expandedLims = new Set();
+    let lockedNode = null;
+
+    function expandGap(gapNode) {
+        const gapId = gapNode.id();
+        if (expandedGaps.has(gapId)) return;
+        expandedGaps.add(gapId);
+        gapNode.data('label', gapNode.data('fullLabel'));
+        const incomingEdges = gapNode.incomers('edge[edgeType="lim-gap"]');
+        const limNodes = incomingEdges.sources();
+        limNodes.removeClass('cy-collapsed');
         incomingEdges.removeClass('cy-collapsed');
     }
 
@@ -3052,7 +3032,6 @@ function buildCyElements() {
         if (!expandedGaps.has(gapId)) return;
         expandedGaps.delete(gapId);
         gapNode.data('label', gapNode.data('badgeLabel'));
-        // 연결된 Lim 숨김 (다른 GAP에 연결되지 않은 것만)
         const incomingEdges = gapNode.incomers('edge[edgeType="lim-gap"]');
         const limNodes = incomingEdges.sources();
         incomingEdges.addClass('cy-collapsed');
@@ -3065,6 +3044,16 @@ function buildCyElements() {
         });
     }
 
+    function expandLim(limNode) {
+        const limId = limNode.id();
+        if (expandedLims.has(limId)) return;
+        expandedLims.add(limId);
+        const incomingEdges = limNode.incomers('edge[edgeType="paper-lim"]');
+        const paperNodes = incomingEdges.sources();
+        paperNodes.removeClass('cy-collapsed');
+        incomingEdges.removeClass('cy-collapsed');
+    }
+
     function collapseLim(limNode) {
         const limId = limNode.id();
         expandedLims.delete(limId);
@@ -3075,6 +3064,13 @@ function buildCyElements() {
             const otherLimEdges = p.outgoers('edge[edgeType="paper-lim"]').filter(e => !e.target().hasClass('cy-collapsed'));
             if (otherLimEdges.length === 0) p.addClass('cy-collapsed');
         });
+    }
+
+    function collapseAll() {
+        cy.nodes('[nodeType="paper"]').addClass('cy-collapsed');
+        cy.nodes('[nodeType="lim"]').addClass('cy-collapsed');
+        cy.edges('[edgeType="paper-lim"]').addClass('cy-collapsed');
+        cy.edges('[edgeType="lim-gap"]').addClass('cy-collapsed');
     }
 
     function highlightNeighborhood(node) {
@@ -3091,7 +3087,6 @@ function buildCyElements() {
         } else {
             connected = node.closedNeighborhood();
         }
-        // 보이는 요소 중에서만 dim
         const visible = cy.elements().filter(e => !e.hasClass('cy-collapsed'));
         visible.addClass('dimmed');
         connected.filter(e => !e.hasClass('cy-collapsed')).removeClass('dimmed').addClass('highlighted');
@@ -3101,6 +3096,7 @@ function buildCyElements() {
         cy.elements().removeClass('highlighted dimmed');
     }
 
+    // ── 이벤트 바인딩 ──
     cy.on('mouseover', 'node', function(e) {
         if (lockedNode) return;
         highlightNeighborhood(e.target);
@@ -3119,7 +3115,6 @@ function buildCyElements() {
         const nodeType = node.data('nodeType');
         const index = node.data('index');
 
-        // Toggle lock
         if (lockedNode && lockedNode.id() === node.id()) {
             lockedNode = null;
             clearHighlight();
@@ -3130,20 +3125,13 @@ function buildCyElements() {
         clearHighlight();
         highlightNeighborhood(node);
 
-        // Collapse/Expand + detail panel
         if (nodeType === 'gap') {
-            if (expandedGaps.has(node.id())) {
-                collapseGap(node);
-            } else {
-                expandGap(node);
-            }
+            if (expandedGaps.has(node.id())) collapseGap(node);
+            else expandGap(node);
             if (index !== undefined) selectGap(index);
         } else if (nodeType === 'lim') {
-            if (expandedLims.has(node.id())) {
-                collapseLim(node);
-            } else {
-                expandLim(node);
-            }
+            if (expandedLims.has(node.id())) collapseLim(node);
+            else expandLim(node);
             const paperId = node.data('paperId');
             const pIdx = (pipelineData.papers || []).findIndex(p => p.paper_id === paperId);
             if (pIdx >= 0) selectPaper(pIdx);
@@ -3153,51 +3141,19 @@ function buildCyElements() {
     });
 
     cy.on('tap', function(e) {
-        if (e.target === cy) {
-            lockedNode = null;
-            clearHighlight();
-        }
+        if (e.target === cy) { lockedNode = null; clearHighlight(); }
     });
 
-    // ── 더블클릭 줌인 ──
     cy.on('dbltap', 'node', function(e) {
-        const node = e.target;
-        const neighborhood = node.closedNeighborhood();
+        const neighborhood = e.target.closedNeighborhood();
         cy.animate({ fit: { eles: neighborhood, padding: 50 }, duration: 400 });
-    });
-
-    // ── Semantic zoom (3단계) ──
-    const ZOOM_DOT = 0.4;
-    const ZOOM_MID = 0.8;
-    let currentZoomMode = 'card';
-    let _zoomTimer = null;
-    cy.on('zoom', function() {
-        clearTimeout(_zoomTimer);
-        _zoomTimer = setTimeout(function() {
-            const z = cy.zoom();
-            let mode;
-            if (z < ZOOM_DOT) mode = 'dot';
-            else if (z < ZOOM_MID) mode = 'mid';
-            else mode = 'card';
-            if (mode === currentZoomMode) return;
-            // 이전 모드 클래스 제거
-            cy.elements().removeClass('zoom-dot zoom-mid');
-            if (mode === 'dot') {
-                cy.elements().addClass('zoom-dot');
-            } else if (mode === 'mid') {
-                cy.elements().addClass('zoom-mid');
-            }
-            currentZoomMode = mode;
-        }, 50);
     });
 
     // ── 초기 collapse + 진입 애니메이션 ──
     cy.one('layoutstop', function() {
-        // 모든 요소 숨김
         cy.elements().style('opacity', 0);
         collapseAll();
 
-        // 1단계: GAP 노드 fade-in (0~400ms)
         const gapNodes = cy.nodes('[nodeType="gap"]');
         gapNodes.removeClass('cy-collapsed');
         gapNodes.forEach((n, i) => {
@@ -3206,7 +3162,6 @@ function buildCyElements() {
             }, i * 80);
         });
 
-        // 2단계: lim-gap 엣지 라인 (400ms~)
         const limGapEdges = cy.edges('[edgeType="lim-gap"]');
         setTimeout(() => {
             limGapEdges.forEach(e => {
@@ -3214,7 +3169,6 @@ function buildCyElements() {
             });
         }, gapNodes.length * 80 + 200);
 
-        // collapsed 된 노드들은 opacity 초기화 (display:none이므로 안 보임)
         setTimeout(() => {
             cy.nodes('.cy-collapsed').style('opacity', 1);
             cy.edges('.cy-collapsed').style('opacity', 1);
