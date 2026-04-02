@@ -2296,7 +2296,7 @@ async function startAnalysis() {
         : PROFILE_DEFAULT_PROVIDERS[routingProfile] || 'azure';
     const domain = 'auto';
     const yearRange = document.getElementById('yearRange').value;
-    const outputLanguage = document.getElementById('outputLanguage').value;
+    const outputLanguage = document.getElementById('outputLanguage').value || 'auto';
 
     setInputEnabled(false);
     const providerLabels = { azure: 'Azure GPT', claude: 'Claude', groq: 'Groq', exaone: 'EXAONE' };
@@ -3457,7 +3457,7 @@ async function exploreDirection(topic) {
         : PROFILE_DEFAULTS_EXPLORE[exploreRoutingProfile] || 'azure';
     const domain = 'auto';
     const yearRange = document.getElementById('yearRange').value;
-    const outputLanguage = document.getElementById('outputLanguage').value;
+    const outputLanguage = document.getElementById('outputLanguage').value || 'auto';
 
     setInputEnabled(false);
     destroyCyGraph();

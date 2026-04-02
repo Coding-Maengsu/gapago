@@ -531,6 +531,7 @@ async def explore(topic: str, session_id: str = "", provider: str = "azure", dom
         "output_language": output_language,
         "fast_mode": fast_mode,
         "model_routing": router.to_dict(),
+        "session_id": new_session_id,
     }
 
     asyncio.create_task(_run_pipeline(new_session_id, graph, config_dict, inputs))
