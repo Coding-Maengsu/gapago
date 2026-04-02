@@ -6,10 +6,15 @@
 
 GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 인터페이스를 제공한다. 세 가지 구현이 존재하며, 메인 프론트엔드는 Vanilla JS SPA(`frontend/index.html`)이고, Streamlit(`app.py`)과 Gradio(`app_gradio.py`)는 대안 구현이다.
 
+**주요 변경 (2026-04-02):**
+- Cytoscape.js 제거 → 바닐라 JS/SVG 3-column 관계도 복원
+- 라우팅 프로파일 선택 UI 추가 (optimized/quality), 비-balanced시 provider 자동 할당
+- Fast Mode 툴팁 추가, provider 라벨 Groq→Qwen3-32B
+- interrupt 체크포인트 버그 수정, 채팅 버블 여백 확대
+
 **주요 변경 (2026-04-01):**
 - 용어 통일: 쿼리→질문, Research GAP→연구 GAP, 검색어 확장→확장
 - 클립보드 복사 제거 → .md/.docx 다운로드 버튼으로 교체
-- 관계도(Cytoscape) 개선: 라벨 길이 확장, 툴팁, 엣지 색상 통일, 인터랙션 강화
 - 한계점 평가 차트, GAP Axis 클러스터링, GAP Axis 도넛 차트 제거 (불필요한 시각화 정리)
 
 **주요 변경 (2026-03-28):**
@@ -69,17 +74,19 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 - 전체 상태 초기화
 - 결과 영역을 빈 상태로 복원
 
-#### 설정 (3개 드롭다운)
+#### 설정
 
-| 설정 | 옵션 | 기본값 |
-|------|------|--------|
-| LLM Provider | `azure`, `claude`, `gemini`, `exaone` | `azure` |
-| Year Range | `auto`, `1y`, `3y`, `5y` | `auto` |
-| Output Language | `auto`, `ko`, `en` | `auto` |
-| Fast Mode | 체크박스 (on/off) | off |
+| 설정 | 옵션 | 기본값 | 비고 |
+|------|------|--------|------|
+| 분석 모드 (Routing Profile) | `optimized`, `quality` | `optimized` | 에이전트별 LLM 자동 배정 |
+| LLM Provider | `azure`, `claude`, `exaone` | `azure` | **비-balanced 프로파일에서는 숨김 (자동 할당)** |
+| Year Range | `auto`, `1y`, `3y`, `5y` | `auto` | |
+| Output Language | `auto`, `ko`, `en` | `auto` | |
+| Fast Mode | 체크박스 (on/off) | off | 툴팁: "(빠른 분석, 품질 트레이드오프)" |
 
 > **Note:** 연구 도메인(Domain) 드롭다운은 제거됨 (`auto` 고정)
 > **Fast Mode:** CrossEncoder 리랭킹 스킵, 상위 3개 축만 분석 — 빠른 결과 제공
+> **라우팅 프로파일:** `optimized`=에이전트별 최적화(경량→groq, 핵심→claude), `quality`=최고 품질(Claude 활용)
 
 #### 분석 히스토리
 - 과거 분석 목록 (스크롤)
@@ -196,22 +203,18 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
   - Markdown: 분석 옵션, 정제된 질문, 확장 키워드, 요약 통계, AI 생성 리포트 포함
   - DOCX: Markdown → HTML 변환 후 Word 문서 생성
 
-**관계도 (Cytoscape 네트워크 시각화):**
-- 결과 요약 바 아래에 표시
-- **노드 유형:**
+**관계도 (바닐라 JS/SVG 3-column 시각화):**
+- 결과 요약 바 아래에 표시, 접힘/펼침(collapse/expand) 토글 지원
+- **3-column 레이아웃:** 논문(Papers) | 한계점(Limitations) | 연구 GAP(GAPs)
+- **노드 스타일:**
   - 논문: 파란 사각형
-  - 한계점: 노란 타원 (60개 초과 시 논문별 그룹화)
+  - 한계점: 노란/주황 사각형
   - 연구 GAP: 축 색상별 사각형
-- **엣지 유형:**
-  - 논문 → 한계점: 실선 (연한 파란색, 0.5 opacity)
-  - 한계점 → GAP: 점선 (빨간색, 0.6 opacity)
+- **엣지:** SVG path + 그라데이션 (논문→한계점: 파란→주황, 한계점→GAP: 파란→보라)
 - **인터랙션:**
-  - 호버: 노드 이웃 하이라이트 + 전체 라벨 툴팁 표시
-  - 클릭: 노드 선택 고정/토글
-  - 더블클릭: 해당 이웃 영역으로 줌
-  - 시맨틱 줌: 0.7x 미만에서 도트 모드
-  - "전체 보기" 버튼(⊞)으로 뷰 리셋
-- **레이아웃:** DAG 좌→우 배치, 300-600px 동적 높이
+  - 호버: BFS 기반 이웃 하이라이트 (3-depth), 비관련 노드 dim 처리
+  - 줌 3단계 지원, 진입 애니메이션, drop-shadow
+- **Cytoscape.js 의존성 제거** — 순수 SVG로 교체
 
 #### 상태 5: 결과 기반 채팅
 
