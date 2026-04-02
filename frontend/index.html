@@ -1775,6 +1775,13 @@
             <option value="ko">한국어</option>
             <option value="en">English</option>
         </select>
+        <label>라우팅 프로파일</label>
+        <select id="routingProfile">
+            <option value="balanced" selected>Balanced (단일 모델)</option>
+            <option value="optimized">Optimized (에이전트별 최적화)</option>
+            <option value="quality">Quality (최고 품질, Claude 활용)</option>
+            <option value="speed">Speed (최대 속도)</option>
+        </select>
         <label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer">
             <input type="checkbox" id="fastMode" style="width:16px;height:16px;cursor:pointer">
             <span>Fast Mode</span>
@@ -2320,7 +2327,8 @@ async function startAnalysis() {
 
     try {
         const fastMode = document.getElementById('fastMode')?.checked || false;
-        const params = new URLSearchParams({ query, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID, ...(fastMode ? {fast_mode: 'true'} : {}) });
+        const routingProfile = document.getElementById('routingProfile')?.value || 'balanced';
+        const params = new URLSearchParams({ query, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID, routing_profile: routingProfile, ...(fastMode ? {fast_mode: 'true'} : {}) });
         const resp = await fetch(`api/analyze?${params}`);
         if (!resp.ok) {
             showError(`API 오류 (${resp.status}): ${await resp.text()}`);
@@ -3491,12 +3499,14 @@ async function exploreDirection(topic) {
         // Try /api/explore first, fallback to /api/analyze
         let resp;
         try {
-            const exploreParams = new URLSearchParams({ session_id: currentSessionId || '', topic, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID });
+            const exploreRoutingProfile = document.getElementById('routingProfile')?.value || 'balanced';
+            const exploreParams = new URLSearchParams({ session_id: currentSessionId || '', topic, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID, routing_profile: exploreRoutingProfile });
             resp = await fetch(`api/explore?${exploreParams}`);
             if (!resp.ok) throw new Error('explore not available');
         } catch (e) {
             const fastMode2 = document.getElementById('fastMode')?.checked || false;
-            const params = new URLSearchParams({ query: topic, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID, ...(fastMode2 ? {fast_mode: 'true'} : {}) });
+            const routingProfile2 = document.getElementById('routingProfile')?.value || 'balanced';
+            const params = new URLSearchParams({ query: topic, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID, routing_profile: routingProfile2, ...(fastMode2 ? {fast_mode: 'true'} : {}) });
             resp = await fetch(`api/analyze?${params}`);
         }
 

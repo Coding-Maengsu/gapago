@@ -251,6 +251,20 @@ async def run():
     if not user_input:
         user_input = "Domain adaptation in clinical drug"
 
+    # --- 라우팅 프로파일 선택 ---
+    print("\n=== 라우팅 프로파일 선택 ===")
+    print("  0) balanced  - 단일 모델 (기본값)")
+    print("  1) optimized - 에이전트별 최적화 (단순→gemini, 핵심→claude)")
+    print("  2) quality   - 최고 품질 (핵심 작업 claude 활용)")
+    print("  3) speed     - 최대 속도 (대부분 gemini)")
+    profile_map = {"0": "balanced", "1": "optimized", "2": "quality", "3": "speed"}
+    profile_choice = input("\n선택 (기본값: balanced) > ").strip()
+    routing_profile = profile_map.get(profile_choice, "balanced")
+    print(f"  → {routing_profile} 선택됨")
+
+    from model_router import ModelRouter
+    router = ModelRouter(default_provider=selected_provider, profile=routing_profile)
+
     inputs = {
         "messages": [HumanMessage(content=user_input)],
         "max_iterations": 3,
@@ -259,6 +273,7 @@ async def run():
         "year_range": year_range,
         "output_language": output_language,
         "fast_mode": fast_mode,
+        "model_routing": router.to_dict(),
     }
 
     print_divider("[STEP 1] 초기 실행")
