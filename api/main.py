@@ -337,8 +337,9 @@ async def _run_pipeline(session_id: str, graph, config_dict: dict, inputs: dict 
         drainer.cancel()
         cleanup_progress(session_id)
         cancel_registry.cleanup(session_id)
-        # 파이프라인 종료 즉시 체크포인트 해제 (reaper 대기 없이 메모리 확보)
-        _clear_checkpoints(session_id)
+        # interrupted 상태면 체크포인트 유지 (재질문 시 파이프라인 재개 필요)
+        if session.get("status") != "interrupted":
+            _clear_checkpoints(session_id)
 
 
 # ── Endpoints ───────────────────────────────────────────────────────
@@ -429,7 +430,7 @@ async def delete_history(filename: str):
 
 
 @app.get("/api/analyze")
-async def analyze(query: str, provider: str = "azure", domain: str = "auto", year_range: str = "auto", output_language: str = "auto", user_id: str = "", fast_mode: bool = False, routing_profile: str = "balanced"):
+async def analyze(query: str, provider: str = "azure", domain: str = "auto", year_range: str = "auto", output_language: str = "auto", user_id: str = "", fast_mode: bool = False, routing_profile: str = "optimized"):
     """
     Start a new analysis pipeline in background. Returns session_id.
     Client should connect to /api/stream/{session_id} for SSE updates.
@@ -488,7 +489,7 @@ async def analyze(query: str, provider: str = "azure", domain: str = "auto", yea
 
 
 @app.get("/api/explore")
-async def explore(topic: str, session_id: str = "", provider: str = "azure", domain: str = "auto", year_range: str = "auto", output_language: str = "auto", user_id: str = "", routing_profile: str = "balanced", fast_mode: bool = False):
+async def explore(topic: str, session_id: str = "", provider: str = "azure", domain: str = "auto", year_range: str = "auto", output_language: str = "auto", user_id: str = "", routing_profile: str = "optimized", fast_mode: bool = False):
     """
     Start an exploration (chain re-execution) based on a proposed topic from a previous analysis.
     Links the new session to the parent session for hierarchical history.

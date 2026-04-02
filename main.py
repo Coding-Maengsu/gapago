@@ -195,25 +195,19 @@ async def run():
 
     # --- 라우팅 프로파일 선택 (provider 선택보다 먼저) ---
     print("\n=== 라우팅 프로파일 선택 ===")
-    print("  0) balanced  - 단일 모델 (기본값, 직접 provider 선택)")
-    print("  1) optimized - 에이전트별 최적화 (단순→groq, 핵심→claude)")
-    print("  2) quality   - 최고 품질 (핵심 작업 claude 활용)")
-    print("  3) speed     - 최대 속도 (전체 groq, rate limit 주의)")
-    profile_map = {"0": "balanced", "1": "optimized", "2": "quality", "3": "speed"}
-    profile_choice = input("\n선택 (기본값: balanced) > ").strip()
-    routing_profile = profile_map.get(profile_choice, "balanced")
+    print("  0) optimized - 에이전트별 최적화 (단순→groq, 핵심→claude)")
+    print("  1) quality   - 최고 품질 (핵심 작업 claude 활용)")
+    profile_map = {"0": "optimized", "1": "quality"}
+    profile_choice = input("\n선택 (기본값: optimized) > ").strip()
+    routing_profile = profile_map.get(profile_choice, "optimized")
     print(f"  → {routing_profile} 선택됨")
 
     # --- LLM Provider 선택 ---
-    from llm import select_provider_interactive
     import os
     from model_router import ModelRouter, PROFILE_DEFAULT_PROVIDERS
 
-    if routing_profile == "balanced":
-        selected_provider = select_provider_interactive()
-    else:
-        selected_provider = PROFILE_DEFAULT_PROVIDERS.get(routing_profile, "azure")
-        print(f"\n  → 프로파일 '{routing_profile}'의 기본 provider: {selected_provider} (자동 선택)")
+    selected_provider = PROFILE_DEFAULT_PROVIDERS.get(routing_profile, "azure")
+    print(f"\n  → 프로파일 '{routing_profile}'의 기본 provider: {selected_provider} (자동 선택)")
 
     os.environ["LLM_PROVIDER"] = selected_provider
 

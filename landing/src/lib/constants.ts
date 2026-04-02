@@ -7,7 +7,7 @@ import {
 // ── 네비게이션 ──
 export const NAV_LINKS = [
   { label: '사용법', href: '#workflow' },
-  { label: '하는 일', href: '#service' },
+  { label: '핵심 기능', href: '#service' },
   { label: '차별점', href: '#difference' },
   { label: '예시', href: '#examples' },
 ] as const
