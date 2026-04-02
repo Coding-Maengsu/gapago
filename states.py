@@ -216,6 +216,7 @@ class AgentState(TypedDict):
     output_language: str     # 출력 언어 (auto/ko/en)
     session_id: str          # SSE 진행률 리포팅용 세션 ID
     fast_mode: bool          # True면 빠른 분석 (품질 트레이드오프)
+    model_routing: dict      # ModelRouter 직렬화 (default_provider + profile)
 
     # ==================================================================
     # -3- LIMITATION AGENT
