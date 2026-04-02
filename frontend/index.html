@@ -1537,7 +1537,7 @@
         }
 
         /* ── 관계도 그래프 (Vanilla JS/SVG) ── */
-        .flow-graph-section { margin-top: 18px; border-top: 1.5px solid var(--border-light); padding-top: 18px; }
+        .flow-graph-section { margin-top: 18px; border-top: 1.5px solid var(--border-light); padding-top: 18px; overflow: hidden; }
         .flow-graph-section .section-title { font-weight: 700; font-size: 0.92em; color: var(--text); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
 
         .flow-graph-container { display: flex; gap: 0; position: relative; min-height: 360px; max-height: 600px; border: 1.5px solid var(--border-light); border-radius: var(--radius-lg); background: #fafbfe; overflow: hidden; box-shadow: 0 2px 12px rgba(80, 90, 140, 0.06); }
@@ -2789,6 +2789,14 @@ function renderFlowGraph() {
         svg.innerHTML = '';
 
         const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+        // 클리핑 영역: SVG 선이 container 밖으로 삐져나가지 않도록 제한
+        const clipPath = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+        clipPath.id = 'flowClip';
+        const clipRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        clipRect.setAttribute('x', '0'); clipRect.setAttribute('y', '0');
+        clipRect.setAttribute('width', cRect.width); clipRect.setAttribute('height', cRect.height);
+        clipPath.appendChild(clipRect);
+        defs.appendChild(clipPath);
         ['PL','LG','HL'].forEach((k, i) => {
             const colors = [
                 [EDGE_COLORS.paperToLim.start, EDGE_COLORS.paperToLim.end],
@@ -2801,6 +2809,9 @@ function renderFlowGraph() {
             defs.appendChild(grad);
         });
         svg.appendChild(defs);
+        // 모든 엣지를 클리핑 그룹 안에 그리기
+        const edgeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        edgeGroup.setAttribute('clip-path', 'url(#flowClip)');
 
         edges.forEach(e => {
             const fromEl = container.querySelector(`[data-id="${e.from}"]`);
@@ -2822,8 +2833,9 @@ function renderFlowGraph() {
             path.setAttribute('data-from', e.from);
             path.setAttribute('data-to', e.to);
             path.setAttribute('data-grad', e.grad);
-            svg.appendChild(path);
+            edgeGroup.appendChild(path);
         });
+        svg.appendChild(edgeGroup);
     }
 
     // Interactions: hover highlight via BFS
