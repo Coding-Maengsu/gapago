@@ -64,6 +64,13 @@ ROUTING_PRESETS: dict[str, dict[str, AgentModelConfig]] = {
     },
 }
 
+# 프로파일별 기본 provider (balanced 제외 — balanced는 사용자 선택)
+PROFILE_DEFAULT_PROVIDERS: dict[str, str] = {
+    "optimized": "azure",
+    "quality":   "azure",
+    "speed":     "gemini",
+}
+
 
 class ModelRouter:
     def __init__(self, default_provider: str, profile: str = "balanced"):

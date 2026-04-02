@@ -1752,14 +1752,16 @@
     <button class="new-btn" onclick="newAnalysis()">+ 새 분석</button>
 
     <div class="settings-section">
-        <label>LLM 프로바이더</label>
-        <select id="provider">
-            <option value="" disabled selected>선택해주세요</option>
-            <option value="azure">Azure OpenAI (GPT)</option>
-            <option value="claude">Claude (Anthropic)</option>
-            <option value="gemini">Google Gemini</option>
-            <option value="exaone">EXAONE (Local)</option>
-        </select>
+        <div id="providerGroup">
+            <label>LLM 프로바이더</label>
+            <select id="provider">
+                <option value="" disabled selected>선택해주세요</option>
+                <option value="azure">Azure OpenAI (GPT)</option>
+                <option value="claude">Claude (Anthropic)</option>
+                <option value="gemini">Google Gemini</option>
+                <option value="exaone">EXAONE (Local)</option>
+            </select>
+        </div>
         <label>연도 범위</label>
         <select id="yearRange">
             <option value="" disabled selected>선택해주세요</option>
@@ -1776,7 +1778,7 @@
             <option value="en">English</option>
         </select>
         <label>라우팅 프로파일</label>
-        <select id="routingProfile">
+        <select id="routingProfile" onchange="toggleProviderGroup()">
             <option value="balanced" selected>Balanced (단일 모델)</option>
             <option value="optimized">Optimized (에이전트별 최적화)</option>
             <option value="quality">Quality (최고 품질, Claude 활용)</option>
@@ -2123,6 +2125,18 @@ function fillQuery(q) {
     toggleSendBtn();
 }
 
+function toggleProviderGroup() {
+    const profile = document.getElementById('routingProfile').value;
+    const group = document.getElementById('providerGroup');
+    if (profile === 'balanced') {
+        group.style.display = '';
+    } else {
+        group.style.display = 'none';
+    }
+}
+// 초기 상태 설정
+toggleProviderGroup();
+
 function setInputEnabled(enabled) {
     document.getElementById('queryInput').disabled = !enabled;
     document.getElementById('provider').disabled = !enabled;
@@ -2272,7 +2286,10 @@ function newAnalysis() {
 }
 
 function validateOptions() {
-    const ids = ['provider', 'yearRange', 'outputLanguage'];
+    const routingProfile = document.getElementById('routingProfile')?.value || 'balanced';
+    const ids = routingProfile === 'balanced'
+        ? ['provider', 'yearRange', 'outputLanguage']
+        : ['yearRange', 'outputLanguage'];
     let valid = true;
     ids.forEach(id => {
         const el = document.getElementById(id);
@@ -2304,7 +2321,11 @@ async function startAnalysis() {
     if (!query) { document.getElementById('queryInput').focus(); return; }
     if (!validateOptions()) return;
 
-    const provider = document.getElementById('provider').value;
+    const routingProfile = document.getElementById('routingProfile')?.value || 'balanced';
+    const PROFILE_DEFAULT_PROVIDERS = { optimized: 'azure', quality: 'azure', speed: 'gemini' };
+    const provider = routingProfile === 'balanced'
+        ? document.getElementById('provider').value
+        : PROFILE_DEFAULT_PROVIDERS[routingProfile] || 'azure';
     const domain = 'auto';
     const yearRange = document.getElementById('yearRange').value;
     const outputLanguage = document.getElementById('outputLanguage').value;
@@ -2327,7 +2348,6 @@ async function startAnalysis() {
 
     try {
         const fastMode = document.getElementById('fastMode')?.checked || false;
-        const routingProfile = document.getElementById('routingProfile')?.value || 'balanced';
         const params = new URLSearchParams({ query, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID, routing_profile: routingProfile, ...(fastMode ? {fast_mode: 'true'} : {}) });
         const resp = await fetch(`api/analyze?${params}`);
         if (!resp.ok) {
@@ -3477,7 +3497,11 @@ async function exploreDirection(topic) {
     // Fill query input and start new analysis
     document.getElementById('queryInput').value = topic;
 
-    const provider = document.getElementById('provider').value;
+    const exploreRoutingProfile = document.getElementById('routingProfile')?.value || 'balanced';
+    const PROFILE_DEFAULTS_EXPLORE = { optimized: 'azure', quality: 'azure', speed: 'gemini' };
+    const provider = exploreRoutingProfile === 'balanced'
+        ? document.getElementById('provider').value
+        : PROFILE_DEFAULTS_EXPLORE[exploreRoutingProfile] || 'azure';
     const domain = 'auto';
     const yearRange = document.getElementById('yearRange').value;
     const outputLanguage = document.getElementById('outputLanguage').value;
@@ -3499,15 +3523,13 @@ async function exploreDirection(topic) {
         // Try /api/explore first, fallback to /api/analyze
         let resp;
         try {
-            const exploreRoutingProfile = document.getElementById('routingProfile')?.value || 'balanced';
             const exploreFastMode = document.getElementById('fastMode')?.checked || false;
             const exploreParams = new URLSearchParams({ session_id: currentSessionId || '', topic, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID, routing_profile: exploreRoutingProfile, ...(exploreFastMode ? {fast_mode: 'true'} : {}) });
             resp = await fetch(`api/explore?${exploreParams}`);
             if (!resp.ok) throw new Error('explore not available');
         } catch (e) {
             const fastMode2 = document.getElementById('fastMode')?.checked || false;
-            const routingProfile2 = document.getElementById('routingProfile')?.value || 'balanced';
-            const params = new URLSearchParams({ query: topic, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID, routing_profile: routingProfile2, ...(fastMode2 ? {fast_mode: 'true'} : {}) });
+            const params = new URLSearchParams({ query: topic, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID, routing_profile: exploreRoutingProfile, ...(fastMode2 ? {fast_mode: 'true'} : {}) });
             resp = await fetch(`api/analyze?${params}`);
         }
 
