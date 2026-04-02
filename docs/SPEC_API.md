@@ -38,10 +38,11 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 {
   "1": {"id": "azure", "name": "Azure OpenAI (GPT)"},
   "2": {"id": "claude", "name": "Claude (AWS Bedrock)"},
-  "3": {"id": "gemini", "name": "Google Gemini"},
-  "4": {"id": "exaone", "name": "LG EXAONE (Local GPU)"}
+  "3": {"id": "exaone", "name": "LG EXAONE (Local GPU)"}
 }
 ```
+
+> **Note:** Gemini는 사용자 선택 목록에서 제거됨. 코드에서는 하위 호환을 위해 유지되나 `AVAILABLE_PROVIDERS`에 노출되지 않음.
 
 ---
 
@@ -60,6 +61,8 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 | `year_range` | string | X | `"auto"` | 연도 범위 |
 | `output_language` | string | X | `"auto"` | 출력 언어 |
 | `user_id` | string | X | `""` | 사용자 식별자 |
+| `routing_profile` | string | X | `"optimized"` | 라우팅 프로파일 (`optimized`, `quality`) |
+| `fast_mode` | bool | X | `false` | 빠른 분석 모드 |
 
 **응답:**
 ```json
@@ -77,12 +80,13 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 | 파라미터 | 타입 | 필수 | 기본값 | 설명 |
 |---------|------|------|--------|------|
 | `query` | string | O | - | 연구 질문 |
-| `provider` | string | X | `"azure"` | LLM 프로바이더 (`azure`, `claude`, `gemini`, `exaone`) |
+| `provider` | string | X | `"azure"` | LLM 프로바이더 (`azure`, `claude`, `exaone`) |
 | `domain` | string | X | `"auto"` | 연구 도메인 (`auto`, `ai_cs`, `biomedical`, `materials_chemistry`, `physics`, `general`) |
 | `year_range` | string | X | `"auto"` | 연도 범위 (`auto`, `1y`, `3y`, `5y`) |
 | `output_language` | string | X | `"auto"` | 출력 언어 (`auto`, `ko`, `en`) |
 | `user_id` | string | X | `""` | 사용자 식별자 |
 | `fast_mode` | bool | X | `false` | 빠른 분석 모드 (CrossEncoder 스킵, 상위 3개 축만 분석) |
+| `routing_profile` | string | X | `"optimized"` | 라우팅 프로파일 (`optimized`, `quality`) |
 
 **응답:**
 ```json
@@ -91,9 +95,10 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 
 **내부 동작:**
 1. 세션 생성 (인메모리)
-2. LangGraph 파이프라인 초기화
-3. 백그라운드 태스크로 파이프라인 실행 시작
-4. 즉시 `session_id` 반환
+2. `ModelRouter(default_provider, profile)` 생성 → `model_routing` dict 주입
+3. LangGraph 파이프라인 초기화
+4. 백그라운드 태스크로 파이프라인 실행 시작
+5. 즉시 `session_id` 반환
 
 **파이프라인 입력 State:**
 ```python
@@ -106,6 +111,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
     "output_language": output_language,
     "session_id": session_id,       # 진행률 리포팅용
     "fast_mode": fast_mode,         # 빠른 분석 모드
+    "model_routing": router.to_dict(),  # 에이전트별 LLM 라우팅 설정
 }
 ```
 
@@ -259,15 +265,20 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 | `session_id` | string | O | 세션 ID |
 | `response` | string | O | 사용자의 명확화 응답 |
 
-**응답:**
+**응답 (성공):**
 ```json
 {"session_id": "...", "status": "resumed", "events_count": 5}
 ```
 
+**에러 응답:**
+- `404`: 존재하지 않는 세션
+- `410`: 서버 재시작으로 세션이 소실됨 (SQLite에 기록은 있으나 인메모리에 없음)
+
 **내부 동작:**
-1. 인터럽트된 서브그래프 상태에 사용자 응답 주입 (`app.update_state()`)
-2. 백그라운드에서 파이프라인 재개 (`_run_pipeline(session_id, graph, config, None)` — inputs=None으로 resume)
-3. 누적된 이벤트 수 반환
+1. 인메모리 세션 조회 → 없으면 SQLite fallback으로 원인 구분 (404 vs 410)
+2. 인터럽트된 서브그래프 상태에 사용자 응답 주입 (`app.update_state()`)
+3. 백그라운드에서 파이프라인 재개 (`_run_pipeline(session_id, graph, config, None)` — inputs=None으로 resume)
+4. 누적된 이벤트 수 반환
 
 ---
 
@@ -611,8 +622,21 @@ class Configuration:
 |-----------|-----------|----------|----------|
 | `azure` | `langchain-openai` | `gpt-5.1-chat` | `AzureChatOpenAI` |
 | `claude` / `anthropic` | `langchain-aws` | `claude-sonnet-4-20250514-v1:0` | `ChatBedrockConverse` (read_timeout=300s) |
-| `gemini` / `google` | `langchain-google-vertexai` | `gemini-3.1-flash-lite-preview` | `ChatVertexAI` |
 | `exaone` | `transformers` + `langchain` | `EXAONE-3.5-7.8B-Instruct` | `ChatHuggingFace` |
+
+> **Note:** `gemini` / `google` 프로바이더는 코드에 유지되나 사용자 선택 목록에서 제거됨.
+
+**에이전트별 LLM 라우팅** (`model_router.py`):
+
+`get_llm_for_agent(state, agent_name)` 함수로 에이전트별 최적 provider를 자동 배정.
+`model_routing` state 필드가 없으면 기존 `llm_provider` fallback.
+
+| 프로파일 | 설명 | 대부분 에이전트 | 핵심 추출/보고서 | 추론 | orchestrator |
+|---------|------|----------------|----------------|------|-------------|
+| `optimized` | 에이전트별 최적화 (기본) | azure (기본 provider) | claude | groq | groq |
+| `quality` | 최고 품질 | azure | claude | groq | groq |
+
+> **Note (2026-04-03):** optimized 프로파일에서 경량 작업(query_analysis, meaning_expand, critic_score 등)의 Groq 라우팅이 환각 방지를 위해 기본 provider(azure)로 변경됨. orchestrator와 gap_reasoning만 Groq 유지.
 
 **GAP 추론 전용 프로바이더** (`GAP_REASONING_PROVIDER` 환경변수로 선택, 내부 라우팅 전용):
 
@@ -712,7 +736,8 @@ bm25_rank(papers, query_text, top_k=30) -> List[dict]
 |------|------|------|
 | 오케스트레이션 | `messages`, `sender`, `errors` | `Sequence[BaseMessage]`, `str`, `List[str]` |
 | 쿼리 | `iteration`, `max_iterations`, `scope_level`, `refined_query`, `keywords`, `negative_keywords`, `needs_user_input` | `int`, `int`, `str`, `str`, `List[str]`, `List[str]`, `bool` |
-| 검색 | `papers`, `total_candidates_count`, `web_results`, `research_domain`, `llm_provider`, `year_range`, `output_language` | `List[dict]`, `int`, `List[dict]`, `str`, `str`, `str`, `str` |
+| 검색 | `papers`, `total_candidates_count`, `web_results`, `research_domain`, `llm_provider`, `year_range`, `output_language`, `model_routing`, `fast_mode`, `session_id` | `List[dict]`, `int`, `List[dict]`, `str`, `str`, `str`, `str`, `dict`, `bool`, `str` |
+| 오케스트레이터 | `completed_stages`, `agent_feedback`, `orchestrator_plan` | `List[str]`, `dict`, `List[str]` |
 | 한계점 | `limitations` | `List[dict]` |
 | 한계점 평가 | `limitation_eval`, `eval_warnings`, `eval_retry_count` | `dict`, `List[str]`, `int` |
 | 갭 추론 | `gaps` | `List[dict]` |
@@ -730,11 +755,13 @@ services:
   - type: web
     name: gapago
     runtime: python
-    buildCommand: pip install -r requirements_deploy.txt
+    buildCommand: cd landing && npm install && npm run build && cd .. && pip install -r requirements_deploy.txt
     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT --workers 1
     envVars:
       - key: PYTHON_VERSION
         value: "3.10.12"
+      - key: NODE_VERSION
+        value: "20.18.0"
       - key: LLM_PROVIDER
         value: azure
       - key: RERANK_MODELS

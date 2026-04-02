@@ -2,7 +2,9 @@
 
 ## 1. 개요
 
-GAPAGO의 핵심은 LangGraph StateGraph 기반의 멀티 에이전트 파이프라인이다. 10개의 에이전트 노드가 순차적/조건부로 실행되며(+ 1개 파이프라인 외부 대화 에이전트), 사용자의 연구 질문에서 시작하여 논문 검색 → 한계점 추출 → 갭 추론 → 품질 평가 → 최종 보고서를 생성한다.
+GAPAGO의 핵심은 LangGraph StateGraph 기반의 멀티 에이전트 파이프라인이다. 10개의 에이전트 노드가 순차적/조건부로 실행되며(+ 1개 오케스트레이터 에이전트, 1개 파이프라인 외부 대화 에이전트), 사용자의 연구 질문에서 시작하여 논문 검색 → 한계점 추출 → 갭 추론 → 품질 평가 → 최종 보고서를 생성한다.
+
+**LLM 라우팅**: 모든 에이전트는 `get_llm_for_agent(state, agent_name)`을 사용하여 `ModelRouter`가 에이전트별 최적 LLM provider를 자동 배정한다 (`model_router.py`). `model_routing` state 필드가 없으면 기존 `llm_provider`로 fallback.
 
 ---
 
@@ -60,7 +62,38 @@ query_analysis
 - `interrupt_before=["human_clarify"]`: 명확화 노드 진입 전 인터럽트
 - 최대 반복: `max_iterations = 3`
 
-### 2.3 조건부 라우팅
+### 2.3 오케스트레이터 파이프라인 (`graphs/orchestrator_graph.py`)
+
+`GAPAGO_ORCHESTRATOR=1` 환경변수로 활성화. LLM 기반 동적 파이프라인 조율.
+
+```
+START
+  │
+  ▼
+query_subgraph
+  │
+  ▼
+orchestrator ◄──────────────────────────┐
+  │                                     │
+  ├─► meaning_expand ───────────────────┤
+  ├─► paper_retrieval ──────────────────┤
+  ├─► limitation_extract ───────────────┤
+  ├─► limitation_eval (optional) ───────┤
+  ├─► recency_check (optional) ─────────┤
+  ├─► gap_infer ────────────────────────┤
+  ├─► critic_score (optional) ──────────┤
+  ├─► final_response ───────────────────┘
+  │
+  ▼
+END
+```
+
+**필수 순서**: meaning_expand → paper_retrieval → limitation_extract → gap_infer → final_response
+**선택적 에이전트**: limitation_eval, recency_check, critic_score (데이터 품질에 따라 LLM이 판단)
+**Fast Mode**: `⚡ FAST MODE 활성화됨` 가이드라인을 프롬프트에 주입 — 강제 스킵이 아닌 LLM 유동 판단
+**제한**: 최대 15 orchestrator 스텝, 에이전트당 최대 2회 재실행
+
+### 2.4 조건부 라우팅
 
 | 라우팅 함수 | 조건 | 대상 노드 |
 |------------|------|----------|
@@ -241,7 +274,8 @@ query_analysis
 | ScienceON | DOI 기반 PDF 또는 ContentURL 직접 접근 |
 | 특허/보고서 | ContentURL/FulltextURL (HTML → PDF 캐스케이드) |
 | Semantic Scholar / OpenAlex | DOI 기반 PDF |
-| 폴백 | 초록만 사용 |
+
+> **Full-text 전용**: abstract fallback은 제거됨. Full text 섹션을 확보하지 못한 논문은 추출을 스킵한다.
 
 **섹션 추출:**
 - 정규식 기반 헤딩 매칭 (예: "Method", "Methodology", "Approach")
@@ -265,6 +299,13 @@ query_analysis
 2. Full text 품질 검증 (500자 미만 필터링 → 백업 논문 자동 교체)
 3. 배치 LLM 호출 (3 논문/배치, 2 워커)
 4. 배치 실패 시 개별 논문 재시도
+
+**교차 검증** (`_verify_limitations()`):
+- `model_routing.profile`이 `optimized`, `quality`, `speed`일 때만 실행 (`balanced`에서는 스킵)
+- 논문별로 limitation을 그룹핑 → full text sections와 함께 검증 LLM에 전달
+- 검증 항목: evidence_quote 원문 존재 여부 (FOUND/NOT_FOUND) + claim 도출 가능성 (VALID/INVALID)
+- 결과: `verified: true/false` 플래그 추가 (제거하지 않고 하류 에이전트가 판단)
+- 검증 provider: `limitation_verify` 에이전트 이름으로 라우팅
 
 **중복 제거:**
 - Jaccard 유사도 (토큰화된 claim) — 임계값 0.55
@@ -617,6 +658,9 @@ class AgentState(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
     sender: str
     errors: List[str]
+    completed_stages: Annotated[List[str], _append_stages]  # 오케스트레이터 실행 이력
+    agent_feedback: dict              # 에이전트 간 신호 (eval RETRY 등)
+    orchestrator_plan: List[str]      # 오케스트레이터 결정 기록
 
     # -1- 쿼리 에이전트
     iteration: int
@@ -640,6 +684,7 @@ class AgentState(TypedDict):
     output_language: str         # auto/ko/en
     session_id: str              # SSE 진행률 리포팅용 세션 ID
     fast_mode: bool              # True면 빠른 분석 (CrossEncoder 스킵, 상위 3개 축만)
+    model_routing: dict          # {"default_provider": "azure", "profile": "optimized"}
 
     # -3- 한계점 에이전트
     limitations: List[dict]
@@ -895,6 +940,7 @@ class CriticScores(BaseModel):
 ```
 agents/
 ├── __init__.py                      # 모든 노드 export
+├── orchestrator_agent.py            # LLM 기반 동적 파이프라인 조율 (GAPAGO_ORCHESTRATOR=1)
 ├── query_agent/
 │   ├── query_analysis.py            # SemRank + CoQuest 기반 쿼리 분석
 │   └── query_refine.py              # APA 기반 쿼리 정제
@@ -909,8 +955,11 @@ agents/
 └── response_agent.py                # 최종 보고서 생성
 
 graphs/
-├── graph.py                         # 메인 StateGraph + 라우팅
+├── graph.py                         # 메인 StateGraph + 라우팅 (GAPAGO_ORCHESTRATOR 조건부 분기)
+├── orchestrator_graph.py            # 오케스트레이터 기반 동적 그래프
 └── query_subgraph.py                # 쿼리 서브그래프 (인터럽트)
+
+model_router.py                      # ModelRouter — 에이전트별 LLM 프로바이더 자동 라우팅
 
 prompts/
 └── system.py                        # BASE_SYSTEM_PROMPT + 언어 설정
