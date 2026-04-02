@@ -4,9 +4,7 @@ from langchain.agents import create_agent
 from langchain_core.messages import AIMessage
 from tools import build_role_tools
 from prompts.system import make_system_prompt
-from llm import get_llm
-
-llm = get_llm()
+from llm import get_llm_for_agent
 
 ROLE_TOOLS = build_role_tools()
 RESPONSE_TOOLS = ROLE_TOOLS["RESPONSE_TOOLS"]
@@ -78,13 +76,6 @@ RESPONSE_SYSTEM_PROMPT = (
 
     "End your output with exactly: FINAL ANSWER\n"
 )
-final_response_agent = create_agent(
-    model=llm,
-    tools=RESPONSE_TOOLS,
-    system_prompt=make_system_prompt(RESPONSE_SYSTEM_PROMPT),
-)
-
-
 def _build_data_context(state: AgentState) -> str:
     """state에 저장된 구조화 데이터를 텍스트로 변환하여 LLM에 전달."""
     parts = []
@@ -139,6 +130,14 @@ def _build_data_context(state: AgentState) -> str:
 
 
 def final_response_node(state: AgentState) -> AgentState:
+    # 런타임에 LLM + agent 생성 (사용자 선택 provider 반영)
+    llm = get_llm_for_agent(state, "response")
+    agent = create_agent(
+        model=llm,
+        tools=RESPONSE_TOOLS,
+        system_prompt=make_system_prompt(RESPONSE_SYSTEM_PROMPT),
+    )
+
     # 구조화 데이터를 messages에 주입
     data_context = _build_data_context(state)
     enriched_state = dict(state)
@@ -148,6 +147,6 @@ def final_response_node(state: AgentState) -> AgentState:
             HumanMessage(content=f"아래는 파이프라인에서 생성된 구조화 데이터입니다. 이 데이터를 기반으로 보고서를 작성하세요.\n\n{data_context}")
         ]
 
-    result = final_response_agent.invoke(enriched_state)
+    result = agent.invoke(enriched_state)
     last = AIMessage(content=result["messages"][-1].content, name="final_response")
     return {"messages": [last], "sender": "final_response"}

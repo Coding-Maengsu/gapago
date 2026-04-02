@@ -15,7 +15,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from utils.parse_json import parse_json
 
 
-def detect_user_intent(user_input: str, num_gaps: int) -> dict:
+def detect_user_intent(user_input: str, num_gaps: int, provider: str = None) -> dict:
     """
     사용자 입력의 의도를 파악
 
@@ -26,7 +26,7 @@ def detect_user_intent(user_input: str, num_gaps: int) -> dict:
             "confidence": float
         }
     """
-    llm = get_llm()
+    llm = get_llm(provider=provider)
 
     prompt = f"""사용자 입력의 의도를 파악하세요.
 
@@ -67,6 +67,73 @@ JSON만 출력:
         return {"intent": "question", "gap_index": None, "reasoning": ""}
 
 
+def _build_papers_context(papers: list) -> str:
+    """논문 목록을 컨텍스트 문자열로 변환"""
+    if not papers:
+        return "(논문 없음)"
+    lines = []
+    for i, p in enumerate(papers, 1):
+        if isinstance(p, dict):
+            pid, title, year, authors = p.get("paper_id", ""), p.get("title", ""), p.get("year", 0), p.get("authors", [])
+            abstract = p.get("abstract", "")
+        else:
+            pid, title, year, authors = p.paper_id, p.title, p.year, p.authors
+            abstract = getattr(p, "abstract", "")
+        author_str = ", ".join(authors[:3]) if authors else "N/A"
+        abstract_preview = (abstract[:200] + "...") if len(abstract) > 200 else abstract
+        lines.append(f"{i}. [{pid}] {title} ({year}) — {author_str}\n   Abstract: {abstract_preview}")
+    return "\n".join(lines)
+
+
+def _build_limitations_context(limitations: list) -> str:
+    """limitation 목록을 컨텍스트 문자열로 변환"""
+    if not limitations:
+        return "(limitation 없음)"
+    lines = []
+    for i, lim in enumerate(limitations, 1):
+        pid = lim.get("paper_id", "")
+        claim = lim.get("claim", "")
+        track = lim.get("track", "")
+        section = lim.get("source_section", "")
+        evidence = lim.get("evidence_quote", "")
+        evidence_preview = (evidence[:150] + "...") if len(evidence) > 150 else evidence
+        lines.append(f"{i}. [{pid}][{track}/{section}] {claim}\n   근거: \"{evidence_preview}\"")
+    return "\n".join(lines)
+
+
+def _build_gaps_context(gaps: list) -> str:
+    """gap 목록을 상세 컨텍스트 문자열로 변환"""
+    if not gaps:
+        return "(GAP 없음)"
+    lines = []
+    for i, g in enumerate(gaps, 1):
+        axis_label = g.get("axis_label", g.get("axis", ""))
+        gap_statement = g.get("gap_statement", "")
+        elaboration = g.get("elaboration", "")
+        proposed_topic = g.get("proposed_topic", "")
+        barriers = g.get("barriers", [])
+        what_was_tried = g.get("what_was_tried", [])
+        supporting_papers = g.get("supporting_papers", [])
+        supporting_quotes = g.get("supporting_quotes", [])
+        urgency = g.get("urgency_score", 0)
+        novelty = g.get("novelty_score", 0)
+        repeat_count = g.get("repeat_count", 0)
+
+        block = (
+            f"### GAP #{i} — [{axis_label}] ({repeat_count}개 논문)\n"
+            f"**Gap Statement**: {gap_statement}\n"
+            f"**상세 설명**: {elaboration}\n"
+            f"**제안 연구 주제**: {proposed_topic}\n"
+            f"**기술적 장벽**: {'; '.join(barriers[:3]) if barriers else 'N/A'}\n"
+            f"**기존 시도**: {'; '.join(what_was_tried[:3]) if what_was_tried else 'N/A'}\n"
+            f"**지지 논문**: {', '.join(supporting_papers[:5])}\n"
+            f"**주요 인용**: {'; '.join(q[:100] for q in supporting_quotes[:2]) if supporting_quotes else 'N/A'}\n"
+            f"**긴급도**: {urgency}/10 | **참신성**: {novelty}/10"
+        )
+        lines.append(block)
+    return "\n\n".join(lines)
+
+
 def gap_chat_respond(state: AgentState, user_question: str) -> str:
     """
     사용자 질문에 대해 GAP 분석 결과를 기반으로 답변 생성
@@ -84,49 +151,49 @@ def gap_chat_respond(state: AgentState, user_question: str) -> str:
     refined_query = state.get("refined_query", "")
     papers = state.get("papers", [])
 
-    # GAP 요약
-    gaps_summary = ""
-    if gaps:
-        gaps_summary = "\n\n".join([
-            f"**{i+1}. [{g.get('axis_label', g.get('axis', ''))}]** {g.get('gap_statement', '')}\n"
-            f"   제안 주제: {g.get('proposed_topic', '')}\n"
-            f"   지지 논문: {len(g.get('supporting_papers', []))}개"
-            for i, g in enumerate(gaps[:5])  # 상위 5개만
-        ])
+    # 상세 컨텍스트 구성
+    papers_context = _build_papers_context(papers)
+    limitations_context = _build_limitations_context(limitations[:30])  # 최대 30개
+    gaps_context = _build_gaps_context(gaps)
 
-    # Limitation 요약
-    lim_summary = f"{len(limitations)}개 limitation 추출됨 ({len(papers)}개 논문 분석)"
-
-    # 대화 히스토리 (최근 5개만)
+    # 대화 히스토리 (최근 10개)
     recent_messages = state.get("messages", [])[-10:]
 
     # 시스템 프롬프트
     system_prompt = f"""당신은 연구 GAP 분석 전문가입니다.
 
-다음 분석 결과를 바탕으로 사용자의 질문에 답변하세요:
+아래의 분석 결과 전체를 숙지하고, 사용자의 질문에 정확하게 답변하세요.
 
-**연구 질문**: {refined_query}
+---
 
-**발견된 주요 GAP** (상위 5개):
-{gaps_summary if gaps_summary else "(GAP 없음)"}
+## 연구 질문
+{refined_query}
 
-**분석 통계**:
-- {lim_summary}
-- GAP 후보: {len(gaps)}개
+---
 
-**답변 지침**:
-1. 분석 결과를 기반으로 정확하게 답변
-2. 구체적인 논문 ID나 축(axis) 이름 등 근거 제시
-3. 추가 분석이 필요한 경우 솔직하게 언급
-4. 사용자가 "재분석" 요청 시 어떤 부분을 어떻게 조정할지 제안
-5. 간결하고 명확하게 답변 (불필요한 반복 제거)
+## 분석된 논문 ({len(papers)}편)
+{papers_context}
 
-**가능한 질문 유형**:
-- 특정 GAP에 대한 상세 설명 요청
-- 특정 축(axis)에 대한 질문
-- 다른 연구 방향 제안 요청
-- 특정 논문 관련 질문
-- 결과 해석에 대한 질문
+---
+
+## 추출된 Limitation ({len(limitations)}개)
+{limitations_context}
+
+---
+
+## 발견된 Research GAP ({len(gaps)}개)
+{gaps_context}
+
+---
+
+## 답변 지침
+1. 위 데이터를 근거로 정확하게 답변. 데이터에 없는 내용을 지어내지 마세요.
+2. 논문 언급 시 paper_id와 제목을 함께 제시.
+3. GAP 언급 시 번호와 축(axis) 이름을 함께 제시.
+4. limitation 언급 시 어떤 논문에서 나온 것인지 명시.
+5. 사용자가 특정 번호를 물으면 해당 항목의 상세 정보를 제공.
+6. 추가 분석이 필요한 경우 솔직하게 언급.
+7. 간결하고 명확하게 답변 (불필요한 반복 제거).
 """
 
     # 메시지 구성
@@ -209,7 +276,7 @@ def interactive_chat_loop(state: AgentState):
                 continue
 
             # 사용자 의도 파악
-            intent_info = detect_user_intent(user_input, len(gaps))
+            intent_info = detect_user_intent(user_input, len(gaps), provider=state.get("llm_provider"))
             intent = intent_info.get("intent", "question")
 
             # 의도에 따라 처리
