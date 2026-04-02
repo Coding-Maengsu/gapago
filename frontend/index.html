@@ -2114,11 +2114,10 @@ function fillQuery(q) {
 
 function setInputEnabled(enabled) {
     document.getElementById('queryInput').disabled = !enabled;
-    document.getElementById('provider').disabled = !enabled;
-    document.getElementById('yearRange').disabled = !enabled;
-    document.getElementById('outputLanguage').disabled = !enabled;
-    const domainEl = document.getElementById('domain');
-    if (domainEl) domainEl.disabled = !enabled;
+    ['provider', 'yearRange', 'outputLanguage', 'domain'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = !enabled;
+    });
 
     const sendBtn = document.getElementById('sendBtn');
     if (enabled) {
