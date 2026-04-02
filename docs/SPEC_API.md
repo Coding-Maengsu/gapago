@@ -265,15 +265,20 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 | `session_id` | string | O | 세션 ID |
 | `response` | string | O | 사용자의 명확화 응답 |
 
-**응답:**
+**응답 (성공):**
 ```json
 {"session_id": "...", "status": "resumed", "events_count": 5}
 ```
 
+**에러 응답:**
+- `404`: 존재하지 않는 세션
+- `410`: 서버 재시작으로 세션이 소실됨 (SQLite에 기록은 있으나 인메모리에 없음)
+
 **내부 동작:**
-1. 인터럽트된 서브그래프 상태에 사용자 응답 주입 (`app.update_state()`)
-2. 백그라운드에서 파이프라인 재개 (`_run_pipeline(session_id, graph, config, None)` — inputs=None으로 resume)
-3. 누적된 이벤트 수 반환
+1. 인메모리 세션 조회 → 없으면 SQLite fallback으로 원인 구분 (404 vs 410)
+2. 인터럽트된 서브그래프 상태에 사용자 응답 주입 (`app.update_state()`)
+3. 백그라운드에서 파이프라인 재개 (`_run_pipeline(session_id, graph, config, None)` — inputs=None으로 resume)
+4. 누적된 이벤트 수 반환
 
 ---
 
@@ -626,10 +631,12 @@ class Configuration:
 `get_llm_for_agent(state, agent_name)` 함수로 에이전트별 최적 provider를 자동 배정.
 `model_routing` state 필드가 없으면 기존 `llm_provider` fallback.
 
-| 프로파일 | 설명 | 경량 작업 | 핵심 추출 | 추론 |
-|---------|------|----------|----------|------|
-| `optimized` | 에이전트별 최적화 (기본) | groq | claude | groq |
-| `quality` | 최고 품질 | azure | claude | groq |
+| 프로파일 | 설명 | 대부분 에이전트 | 핵심 추출/보고서 | 추론 | orchestrator |
+|---------|------|----------------|----------------|------|-------------|
+| `optimized` | 에이전트별 최적화 (기본) | azure (기본 provider) | claude | groq | groq |
+| `quality` | 최고 품질 | azure | claude | groq | groq |
+
+> **Note (2026-04-03):** optimized 프로파일에서 경량 작업(query_analysis, meaning_expand, critic_score 등)의 Groq 라우팅이 환각 방지를 위해 기본 provider(azure)로 변경됨. orchestrator와 gap_reasoning만 Groq 유지.
 
 **GAP 추론 전용 프로바이더** (`GAP_REASONING_PROVIDER` 환경변수로 선택, 내부 라우팅 전용):
 
@@ -748,11 +755,13 @@ services:
   - type: web
     name: gapago
     runtime: python
-    buildCommand: pip install -r requirements_deploy.txt
+    buildCommand: cd landing && npm install && npm run build && cd .. && pip install -r requirements_deploy.txt
     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT --workers 1
     envVars:
       - key: PYTHON_VERSION
         value: "3.10.12"
+      - key: NODE_VERSION
+        value: "20.18.0"
       - key: LLM_PROVIDER
         value: azure
       - key: RERANK_MODELS

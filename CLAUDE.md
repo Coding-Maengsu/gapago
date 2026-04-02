@@ -64,7 +64,7 @@ The query analysis node scores user questions on 5 weighted criteria (domain, ta
 All agents use `get_llm_for_agent(state, agent_name)` (in `llm.py`) to obtain their LLM instance. This delegates to `ModelRouter` (`model_router.py`) when `model_routing` exists in state, otherwise falls back to `llm_provider`.
 
 **Profiles** (set via `routing_profile` API parameter):
-- `optimized` (default): light tasks → Groq(Qwen3-32B), core extraction/report → Claude, reasoning → Groq
+- `optimized` (default): most agents use default provider (azure), orchestrator → Groq, core extraction/report → Claude, reasoning → Groq. Light tasks (query_analysis, meaning_expand, critic_score etc.) stay on azure for accuracy.
 - `quality`: core tasks all Claude + reasoning Groq
 
 **Key pattern** — every agent does:
@@ -79,7 +79,7 @@ All agent nodes are in `agents/` and exported via `agents/__init__.py`. Each nod
 - **query_analysis** (`agents/query_agent/query_analysis.py`): Uses `llm.with_structured_output(QueryAnalysis)` for structured scoring. SemRank-based scope classification (TOO_BROAD / SEARCHABLE / TOO_NARROW).
 - **meaning_expand** (`agents/meaning_expand_agent.py`): Expands keywords into search candidates (arxiv, web, scienceon queries). No tool calls — preparation only.
 - **paper_retrieval** (`agents/retrieval_agent.py`): Direct parallel search (`_parallel_search` + `ThreadPoolExecutor`) across 8 sources. 6-stage ranking: parallel search → dedup → year filter → BM25+FAISS union → fulltext confidence filter → CrossEncoder reranking (fallback: LLM reranker). Async node with `run_in_executor`.
-- **limitation_extract** (`agents/limitation_agent.py`): Iterates over papers, loads full text via 8-stage fallback chain, uses 2-track extraction (author-stated + structural). Includes garbage data detection (`_MIN_FULLTEXT_CHARS=500`) with automatic backup paper replacement. Cross-validation (`_verify_limitations()`) runs on optimized/quality profiles.
+- **limitation_extract** (`agents/limitation_agent.py`): Iterates over papers, loads full text via 8-stage fallback chain, uses 2-track extraction (author-stated + structural). **Full-text only** — no abstract fallback; papers without valid full-text sections are skipped. Includes garbage data detection (`_MIN_FULLTEXT_CHARS=500`) with automatic backup paper replacement. Cross-validation (`_verify_limitations()`) runs on optimized/quality profiles.
 - **limitation_eval** (`agents/limitation_eval_agent.py`): Dual-call evaluation — Call 1: FActScore atomic fact verification + Prometheus rubric scoring; Call 2: LimAgents set-level quality judgment + Xu et al. type classification. PASS/RETRY routing.
 - **gap_infer** (`agents/gap_agent.py`): 4-step process — fully dynamic axes (3-7, LLM-generated inductively from limitations, no predefined categories) → batch classification + recency weighting → per-axis barrier analysis → creative direction generation. Uses `_llm_invoke(messages, use_reasoning, state)` for routing between `gap_reasoning` (Groq) and `gap_classify` agents.
 - **critic_score** (`agents/critic_agent.py`): Scores on 3 dimensions (query_specificity, paper_relevance, groundedness), outputs a `DECISION:` tag that drives routing.
@@ -104,8 +104,9 @@ FastAPI server with SSE streaming. Key endpoints:
 - `GET /api/analyze?query=...&routing_profile=optimized&fast_mode=false` — starts analysis, returns session_id. Creates `ModelRouter` and injects `model_routing` into pipeline state.
 - `GET /api/explore?topic=...&routing_profile=...&fast_mode=...` — chain re-execution on proposed topic.
 - `GET /api/stream/{session_id}` — SSE stream with reconnection support (`from_idx`).
+- `GET /api/clarify?session_id=...&response=...` — resume after human clarification. Returns 410 if session lost to server restart.
 - `POST /api/chat` — Q&A on analysis results.
-- `GET /` — landing page (React SPA from `landing/dist/`), `GET /app` — main app (`frontend/index.html`).
+- `GET /` — landing page (React SPA, built during Render deploy via `npm run build`), `GET /app` — main app (`frontend/index.html`).
 
 ### Data Sources
 

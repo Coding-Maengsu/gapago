@@ -1,10 +1,15 @@
 # GAPAGO 웹 프론트엔드 스펙
 
-> **최종 업데이트:** 2026-04-02 (웹 UI 개선사항 반영)
+> **최종 업데이트:** 2026-04-03 (optimized 프로파일 조정, 배포 빌드 변경 반영)
 
 ## 1. 개요
 
 GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 인터페이스를 제공한다. 세 가지 구현이 존재하며, 메인 프론트엔드는 Vanilla JS SPA(`frontend/index.html`)이고, Streamlit(`app.py`)과 Gradio(`app_gradio.py`)는 대안 구현이다.
+
+**주요 변경 (2026-04-03):**
+- optimized 프로파일에서 Groq 경량 라우팅 축소 (환각 방지 — query_analysis 등 azure로 복귀)
+- Render 배포 시 랜딩페이지 자동 빌드 (`cd landing && npm install && npm run build`, Node 20.18.0)
+- Fast Mode 커스텀 툴팁 추가, Quality 프로파일 라벨 수정
 
 **주요 변경 (2026-04-02):**
 - Cytoscape.js 제거 → 바닐라 JS/SVG 3-column 관계도 복원

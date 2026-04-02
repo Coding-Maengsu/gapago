@@ -274,7 +274,8 @@ END
 | ScienceON | DOI 기반 PDF 또는 ContentURL 직접 접근 |
 | 특허/보고서 | ContentURL/FulltextURL (HTML → PDF 캐스케이드) |
 | Semantic Scholar / OpenAlex | DOI 기반 PDF |
-| 폴백 | 초록만 사용 |
+
+> **Full-text 전용**: abstract fallback은 제거됨. Full text 섹션을 확보하지 못한 논문은 추출을 스킵한다.
 
 **섹션 추출:**
 - 정규식 기반 헤딩 매칭 (예: "Method", "Methodology", "Approach")
