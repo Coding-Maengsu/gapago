@@ -1,4 +1,4 @@
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, ChevronDown } from 'lucide-react'
 import Button from '@/components/ui/Button'
 
 export default function Hero() {
@@ -16,15 +16,15 @@ export default function Hero() {
 
         {/* 제목 */}
         <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold max-w-4xl leading-tight mb-6 mx-auto">
-          논문 속 <span className="text-[#5469d4]">Research Gap</span>을
+          논문 속 <span className="text-[#5469d4]">연구 GAP</span>을
           <br />찾아드립니다
         </h1>
 
         {/* 부제목 */}
         <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
-          키워드 하나로 관련 논문을 분석하고, 연구 공백을 도출합니다.
+          키워드로 관련 논문들을 분석하고, 연구 GAP을 도출합니다.
           <br className="hidden sm:block" />
-          단순 요약이 아닌, 진짜 GAP을 발견하세요.
+          단순 요약이 아닌, 진짜 빈틈을 발견하고 연구를 시작하세요.
         </p>
 
         {/* CTA 버튼 */}
@@ -32,11 +32,17 @@ export default function Hero() {
           <Button size="lg" glow href="/app">
             무료로 분석 시작 <ArrowRight className="h-5 w-5" />
           </Button>
-          <Button variant="outline" size="lg" href="#workflow">
-            사용법 보기
-          </Button>
         </div>
       </div>
+
+      {/* 스크롤 유도 화살표 */}
+      <a
+        href="#workflow"
+        className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 animate-bounce text-foreground/30 hover:text-foreground/60 transition-colors"
+        aria-label="아래로 스크롤"
+      >
+        <ChevronDown className="h-8 w-8" />
+      </a>
     </section>
   )
 }

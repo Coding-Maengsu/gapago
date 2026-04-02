@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GAPAGO - Research GAP Agent</title>
+    <title>GAPAGO - 연구 GAP Agent</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">
     <style>
@@ -137,6 +137,14 @@
             40% { transform: translateX(5px); }
             60% { transform: translateX(-3px); }
             80% { transform: translateX(3px); }
+        }
+        .settings-section.option-highlight {
+            animation: optionPulse 1.5s ease;
+        }
+        @keyframes optionPulse {
+            0% { box-shadow: 0 0 0 0 rgba(84,105,212,0.3); }
+            50% { box-shadow: 0 0 0 6px rgba(84,105,212,0.15), 0 0 16px rgba(84,105,212,0.1); }
+            100% { box-shadow: 0 0 0 0 rgba(84,105,212,0); }
         }
 
         .history-section {
@@ -338,7 +346,22 @@
             border: 1px solid var(--border-light);
             border-bottom-left-radius: 4px;
         }
-        .chat-msg.assistant .chat-msg-bubble p { margin: 4px 0; }
+        .chat-msg.assistant .chat-msg-bubble p { margin: 2px 0; }
+        .chat-msg.assistant .chat-msg-bubble > *:first-child { margin-top: 0; }
+        .chat-msg.assistant .chat-msg-bubble > *:last-child { margin-bottom: 0; }
+        .chat-msg.assistant .chat-msg-bubble h1,
+        .chat-msg.assistant .chat-msg-bubble h2,
+        .chat-msg.assistant .chat-msg-bubble h3,
+        .chat-msg.assistant .chat-msg-bubble h4 { margin: 12px 0 6px; font-size: 0.95em; }
+        .chat-msg.assistant .chat-msg-bubble ul,
+        .chat-msg.assistant .chat-msg-bubble ol { padding-left: 20px; margin: 6px 0; }
+        .chat-msg.assistant .chat-msg-bubble li { margin: 3px 0; line-height: 1.5; }
+        .chat-msg.assistant .chat-msg-bubble code { background: var(--surface2); padding: 1px 5px; border-radius: 4px; font-size: 0.88em; }
+        .chat-msg.assistant .chat-msg-bubble blockquote { border-left: 3px solid var(--border); padding-left: 12px; margin: 8px 0; color: var(--text-dim); }
+        .chat-msg.assistant .chat-msg-bubble table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 0.88em; }
+        .chat-msg.assistant .chat-msg-bubble th,
+        .chat-msg.assistant .chat-msg-bubble td { border: 1px solid var(--border-light); padding: 6px 10px; text-align: left; }
+        .chat-msg.assistant .chat-msg-bubble hr { margin: 10px 0; border: none; border-top: 1px solid var(--border-light); }
         .chat-typing {
             display: inline-flex;
             gap: 4px;
@@ -470,12 +493,7 @@
             margin: 2px 2px 0 0;
         }
 
-        .timeline-detail .paper-title-mini {
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 340px;
-        }
+
 
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(8px); }
@@ -865,6 +883,15 @@
             color: var(--text-dim);
             line-height: 1.6;
         }
+        .paper-lim-card {
+            padding: 10px 14px;
+            border-left: 3px solid var(--accent);
+            background: var(--surface2);
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 8px;
+        }
+        .paper-lim-claim { font-size: 0.9em; font-weight: 500; line-height: 1.55; color: var(--text); }
+        .paper-lim-quote { font-size: 0.82em; font-style: italic; color: var(--text-dim); margin-top: 6px; padding-left: 10px; line-height: 1.5; }
 
         /* ── Master Report Collapse ── */
         .report-master-collapse {
@@ -922,8 +949,8 @@
             transition: max-height 0.4s ease;
         }
         .report-master-collapse.open .report-master-body {
-            max-height: none;
-            overflow: visible;
+            max-height: calc(100vh - 180px);
+            overflow-y: auto;
         }
         .report-master-body-inner {
             padding: 0 20px 20px;
@@ -1169,6 +1196,18 @@
             font-size: 0.78em;
             color: var(--text-light);
             margin-top: 4px;
+        }
+
+        /* ── Limitation Claim Streaming ── */
+        .lim-claim-stream { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
+        .lim-claim-item {
+            font-size: 0.84em; color: var(--text); padding: 8px 12px;
+            background: var(--surface2); border-radius: 8px; border-left: 3px solid #f0d8a0;
+            animation: fadeInUp 0.35s ease both; line-height: 1.45;
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         /* ── Query Preview ── */
@@ -1497,71 +1536,31 @@
             .results { padding: 12px; }
         }
 
-        /* ── 관계도 그래프 (Flow Graph) ── */
-        .flow-graph-section { margin-top: 24px; border-top: 1.5px solid var(--border-light); padding-top: 18px; }
-        .flow-graph-toggle { display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: 10px 6px; font-weight: 700; font-size: 0.95em; color: var(--text); user-select: none; letter-spacing: -0.01em; }
-        .flow-graph-toggle:hover { color: var(--accent); }
-        .flow-graph-toggle .toggle-arrow { transition: transform 0.25s ease; font-size: 0.8em; }
-        .flow-graph-section.open .flow-graph-toggle .toggle-arrow { transform: rotate(180deg); }
+        /* ── 관계도 그래프 (Cytoscape) ── */
+        .flow-graph-section { margin-top: 18px; border-top: 1.5px solid var(--border-light); padding-top: 18px; }
+        .flow-graph-section .section-title { font-weight: 700; font-size: 0.92em; color: var(--text); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .cy-container { width: 100%; min-height: 320px; height: auto; max-height: 600px; border: 1.5px solid var(--border-light); border-radius: var(--radius-lg); background: #fafbfe; position: relative; overflow: hidden; box-shadow: 0 2px 12px rgba(80, 90, 140, 0.06); }
+        .cy-empty-placeholder { display: flex; align-items: center; justify-content: center; height: 200px; color: var(--text-light); font-size: 0.88em; }
+        .cy-fit-btn { position: absolute; top: 10px; right: 10px; z-index: 10; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-dim); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s, box-shadow 0.15s; }
+        .cy-fit-btn:hover { background: var(--surface2); box-shadow: var(--shadow-sm); }
+        .cy-legend { display: flex; gap: 18px; padding: 10px 16px; font-size: 0.78em; color: #6b7294; border: 1.5px solid var(--border-light); border-top: none; border-radius: 0 0 var(--radius-lg) var(--radius-lg); background: linear-gradient(180deg, #f4f5fb 0%, #edeef6 100%); flex-wrap: wrap; align-items: center; }
+        .cy-legend-dot { display: inline-block; width: 11px; height: 11px; border-radius: 4px; margin-right: 5px; vertical-align: middle; }
 
-        .flow-graph-wrapper { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
-        .flow-graph-section.open .flow-graph-wrapper { overflow: visible; }
-
-        .flow-graph-container { display: flex; gap: 0; position: relative; min-height: 360px; max-height: 600px; border: 1.5px solid var(--border-light); border-radius: var(--radius-lg); background: #fafbfe; overflow: hidden; box-shadow: 0 2px 12px rgba(80, 90, 140, 0.06); }
-
-        .flow-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-        .flow-col-header { padding: 12px 16px; font-size: 0.82em; font-weight: 700; color: #4a5073; border-bottom: 1.5px solid var(--border-light); background: linear-gradient(180deg, #f4f5fb 0%, #edeef6 100%); flex-shrink: 0; display: flex; align-items: center; gap: 7px; letter-spacing: -0.01em; }
-        .flow-col-header .flow-col-icon { font-size: 1.1em; }
-        .flow-col-body { flex: 1; overflow-y: auto; padding: 10px; position: relative; z-index: 2; }
-        .flow-col-body::-webkit-scrollbar { width: 4px; }
-        .flow-col-body::-webkit-scrollbar-thumb { background: #d0d4e4; border-radius: 4px; }
-        .flow-col + .flow-col { border-left: 1.5px solid var(--border-light); }
-
-        .flow-node { padding: 10px 13px; border-radius: 10px; font-size: 0.82em; margin-bottom: 7px; cursor: pointer; border: 1.5px solid transparent; transition: all 0.2s ease; position: relative; line-height: 1.45; word-break: keep-all; overflow-wrap: break-word; }
-        .flow-node:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(80, 90, 140, 0.12); }
-        .flow-node.highlighted { border-color: #4f6ef7; box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.15); z-index: 3; transform: translateY(-1px); }
-        .flow-node.dimmed { opacity: 0.12; transform: none; }
-
-        .flow-node-paper { background: #ffffff; border-color: #d8dce8; }
-        .flow-node-paper:hover { border-color: #b0b8d0; }
-        .flow-node-paper .flow-node-title { font-weight: 600; line-height: 1.45; color: #2d3250; }
-        .flow-node-paper .flow-node-meta { font-size: 0.82em; color: #8891ad; margin-top: 4px; }
-
-        .flow-node-lim { background: #fff7ed; border-color: #f5d9a8; }
-        .flow-node-lim:hover { border-color: #e8b560; }
-        .flow-node-lim .flow-node-claim { line-height: 1.45; color: #5c4a1e; }
-
-        .flow-node-gap { border-width: 2px; padding: 12px 14px; }
-        .flow-node-gap .flow-node-axis { font-size: 0.78em; font-weight: 700; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
-        .flow-node-gap .flow-node-statement { line-height: 1.5; font-weight: 500; color: #1e2235; }
-        .flow-node-gap .flow-node-count { font-size: 0.78em; color: #8891ad; margin-top: 5px; display: flex; align-items: center; gap: 4px; }
-
-        .flow-svg-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
-        .flow-edge { stroke-width: 1.8; fill: none; opacity: 0.35; transition: opacity 0.25s, stroke-width 0.25s; }
-        .flow-edge.highlighted { opacity: 1; stroke-width: 2.5; }
-        .flow-edge.dimmed { opacity: 0.04; }
-
-        .flow-legend { display: flex; gap: 18px; padding: 10px 16px; font-size: 0.78em; color: #6b7294; border-top: 1.5px solid var(--border-light); background: linear-gradient(180deg, #f4f5fb 0%, #edeef6 100%); flex-wrap: wrap; align-items: center; }
-        .flow-legend-dot { display: inline-block; width: 11px; height: 11px; border-radius: 4px; margin-right: 5px; vertical-align: middle; }
-
-        @media (max-width: 768px) {
-            .flow-graph-container { flex-direction: column; max-height: 600px; }
-            .flow-col + .flow-col { border-left: none; border-top: 1.5px solid var(--border-light); }
-            .flow-col-body { max-height: 200px; }
-            .flow-svg-overlay { display: none; }
-        }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
 </head>
 <body>
 
 <!-- Sidebar -->
 <aside class="sidebar">
     <div class="sidebar-header">
-        <a href="#" onclick="event.preventDefault();newAnalysis();" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;cursor:pointer;">
+        <a href="/" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:inherit;cursor:pointer;">
             <img src="new_logo.png" alt="GAPAGO" style="width:36px;height:36px;border-radius:8px;object-fit:cover;">
             <div style="padding-top:2px;">
                 <h1>GAPAGO</h1>
-                <p>Research GAP Agent</p>
+                <p>연구 GAP Agent</p>
             </div>
         </a>
     </div>
@@ -1640,10 +1639,10 @@ window.onerror = function(msg, url, line) {
 
 // ── Timeline configuration ──
 const TIMELINE_NODES = [
-    { id: 'query', label: '질문 분석 & 검색어 확장', nodes: ['query_subgraph', 'meaning_expand'] },
+    { id: 'query', label: '질문 분석 & 확장', nodes: ['query_subgraph', 'meaning_expand'] },
     { id: 'retrieval', label: '논문 검색', nodes: ['paper_retrieval'] },
     { id: 'limitation', label: '한계점 추출', nodes: ['limitation_extract'] },
-    { id: 'eval', label: '한계점 품질 평가', nodes: ['limitation_eval'] },
+    { id: 'eval', label: '한계점 평가', nodes: ['limitation_eval'] },
     { id: 'recency', label: '최신성 검증', nodes: ['recency_check'] },
     { id: 'gap', label: '연구 GAP 도출', nodes: ['gap_infer'] },
     { id: 'critic', label: '결과 검증', nodes: ['critic_score'] },
@@ -1686,10 +1685,6 @@ const AXIS_COLORS = [
     { bg: '#edf6fc', color: '#2572a8', border: '#72b5e0' },
     { bg: '#f6f0fb', color: '#8040b8', border: '#bb8ee6' },
 ];
-const EDGE_COLORS = {
-    paperToLim: { start: '#b0b8d0', end: '#e8b560' },
-    limToGap:   { start: '#e8b560', end: '#7b9af0' },
-};
 function getAxisColor(axisName) {
     // Deterministic color based on axis name hash
     let hash = 0;
@@ -1783,7 +1778,7 @@ function getEmptyStateHTML() {
     return `
     <div class="empty-state">
         <h2 style="font-size:1.5em;font-weight:700;color:var(--text);margin-bottom:8px;letter-spacing:-0.3px;">키워드 또는 논문 제목으로 시작해보세요</h2>
-        <p class="subtitle">연구 방향을 입력하면 논문 검색부터 Research GAP 도출까지 진행됩니다.</p>
+        <p class="subtitle">연구 방향을 입력하면 논문 검색부터 연구 GAP 도출까지 진행됩니다.</p>
 
         <div class="example-queries">
             ${cardsHTML}
@@ -2098,9 +2093,15 @@ function validateOptions() {
         }
     });
     if (!valid) {
-        // scroll sidebar to make options visible
+        // scroll sidebar to make options visible and add pulse glow
         const section = document.querySelector('.settings-section');
-        if (section) section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (section) {
+            section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            section.classList.remove('option-highlight');
+            void section.offsetWidth;
+            section.classList.add('option-highlight');
+            section.addEventListener('animationend', () => section.classList.remove('option-highlight'), { once: true });
+        }
     }
     return valid;
 }
@@ -2119,7 +2120,7 @@ async function startAnalysis() {
     const providerLabels = { azure: 'Azure GPT', claude: 'Claude', gemini: 'Gemini', exaone: 'EXAONE' };
     const yearLabels = { auto: '자동 추천', '1y': '최근 1년', '3y': '최근 3년', '5y': '최근 5년' };
     const langLabels = { auto: '자동 감지', ko: '한국어', en: 'English' };
-    destroyFlowGraph();
+    destroyCyGraph();
     pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: { provider: providerLabels[provider] || provider, yearRange: yearLabels[yearRange] || yearRange, outputLanguage: langLabels[outputLanguage] || outputLanguage } };
     _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
     timelineDetails = {};
@@ -2227,7 +2228,7 @@ async function reconnectToSession(sessionId, query) {
     localStorage.setItem('gapago_active_session', sessionId);
     document.getElementById('queryInput').value = query || '';
     setInputEnabled(false);
-    destroyFlowGraph();
+    destroyCyGraph();
     pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: {} };
     _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
     timelineDetails = {};
@@ -2470,7 +2471,7 @@ function collectData(data) {
     if ((node === 'query_subgraph' || node === 'meaning_expand')) {
         if (data.refined_query) pipelineData.refined_query = data.refined_query;
         if (data.keywords) pipelineData.keywords = data.keywords;
-        // Build detail text (쿼리는 우측 패널에 표시하므로 키워드만)
+        // Build detail text (질문은 우측 패널에 표시하므로 키워드만)
         let detail = '';
         if (pipelineData.keywords && pipelineData.keywords.length) {
             detail = pipelineData.keywords.slice(0, 6).map(k => `<span class="keyword-tag">${esc(k)}</span>`).join(' ');
@@ -2481,14 +2482,9 @@ function collectData(data) {
     if (node === 'paper_retrieval') {
         if (data.papers) pipelineData.papers = data.papers;
         if (data.total_searched) pipelineData.total_searched = data.total_searched;
-        const totalS = pipelineData.total_searched || '?';
+        const totalS = pipelineData.total_searched || pipelineData.papers.length || '?';
         const count = pipelineData.papers.length;
         let detail = `${totalS}편 중 ${count}편 선별`;
-        // Show top 3 paper titles
-        if (pipelineData.papers.length > 0) {
-            const top3 = pipelineData.papers.slice(0, 3);
-            detail += '<br>' + top3.map(p => `<div class="paper-title-mini">&#x2022; ${esc(p.title || '')}</div>`).join('');
-        }
         timelineDetails['retrieval'] = detail;
     }
 
@@ -2569,15 +2565,34 @@ function updateLivePreview() {
         if (body) body.classList.remove('center-timeline');
     }
 
-    let html = '';
-
-    // Limitation extraction progress bar (한계점 데이터 도착 전에만 단독 표시)
-    if (hasProgress && !hasGaps && !hasLimitations) {
-        html += `<div class="preview-progress">
-            <div class="preview-progress-bar"><div class="preview-progress-fill" style="width:${_progressData.progress}%"></div></div>
-            <div class="preview-progress-detail">${_progressData.current} / ${_progressData.total} (${_progressData.progress}%)</div>
-        </div>`;
+    // Incremental limitation claim streaming
+    if (hasLimitations && !hasGaps) {
+        const limCount = pipelineData.limitations.length;
+        const limInProgress = hasProgress && _progressData.progress < 100;
+        const titleSuffix = limInProgress ? ` (추출 중... ${_progressData.current}/${_progressData.total})` : '';
+        const existingStream = panel.querySelector('.lim-claim-stream');
+        if (existingStream) {
+            // Update title
+            const titleEl = panel.querySelector('.lim-claim-title');
+            if (titleEl) titleEl.textContent = `한계점 추출 (${limCount}개)${titleSuffix}`;
+            // Append only new items
+            const existingCount = existingStream.children.length;
+            if (existingCount < limCount) {
+                for (let i = existingCount; i < limCount; i++) {
+                    const lim = pipelineData.limitations[i];
+                    const claim = lim.claim || lim.limitation_text || lim.text || lim.content || '(한계점)';
+                    const item = document.createElement('div');
+                    item.className = 'lim-claim-item';
+                    item.textContent = claim;
+                    existingStream.appendChild(item);
+                }
+                existingStream.scrollTop = existingStream.scrollHeight;
+            }
+            return;
+        }
     }
+
+    let html = '';
 
     // GAPs
     if (hasGaps) {
@@ -2593,20 +2608,23 @@ function updateLivePreview() {
         html += '</div>';
     }
 
-    // Limitations — 진행 바 + 개수만 표시
-    if (hasLimitations) {
+    // Limitations — claim 스트리밍
+    if (hasLimitations && !hasGaps) {
         const limCount = pipelineData.limitations.length;
-        const limPct = hasProgress ? _progressData.progress : 100;
-        html += `<div class="preview-section"><div class="preview-section-title">한계점 추출 (${limCount}개)</div>`;
-        html += `<div class="preview-progress" style="margin-top:4px">
-            <div class="preview-progress-bar"><div class="preview-progress-fill" style="width:${limPct}%"></div></div>
-        </div>`;
-        html += '</div>';
+        const limInProgress = hasProgress && _progressData.progress < 100;
+        const titleSuffix = limInProgress ? ` (추출 중... ${_progressData.current}/${_progressData.total})` : '';
+        html += `<div class="preview-section"><div class="preview-section-title lim-claim-title">한계점 추출 (${limCount}개)${titleSuffix}</div>`;
+        html += `<div class="lim-claim-stream">`;
+        pipelineData.limitations.forEach(lim => {
+            const claim = lim.claim || lim.limitation_text || lim.text || lim.content || '(한계점)';
+            html += `<div class="lim-claim-item">${esc(claim)}</div>`;
+        });
+        html += '</div></div>';
     }
 
     // Papers
     if (hasPapers) {
-        html += `<div class="preview-section"><div class="preview-section-title">검색된 논문 (${pipelineData.papers.length}/${pipelineData.total_searched || '?'})</div>`;
+        html += `<div class="preview-section"><div class="preview-section-title">검색된 논문 (${pipelineData.papers.length}/${pipelineData.total_searched || pipelineData.papers.length || '?'})</div>`;
         html += `<div style="max-height:300px;overflow-y:auto;">`;
         pipelineData.papers.forEach(p => {
             html += `<div class="preview-paper-item">
@@ -2622,7 +2640,7 @@ function updateLivePreview() {
         html += `<div class="preview-section">`;
         if (pipelineData.refined_query) {
             html += `<div class="preview-query-box">
-                <div class="preview-query-label">정제된 쿼리</div>
+                <div class="preview-query-label">정제된 질문</div>
                 <div class="preview-query-text">${esc(pipelineData.refined_query)}</div>
             </div>`;
         }
@@ -2638,11 +2656,9 @@ function updateLivePreview() {
     panel.innerHTML = html;
 }
 
-// ── 관계도 그래프 (Flow Graph) ──
-let _flowGraphInitialized = false;
-let _flowEdgeDebounce = null;
+// ── 관계도 그래프 (Cytoscape) ──
 
-function buildFlowGraphData() {
+function buildCyGraphData() {
     const papers = pipelineData.papers || [];
     const limitations = pipelineData.limitations || [];
     const gaps = pipelineData.gaps || [];
@@ -2677,15 +2693,24 @@ function buildFlowGraphData() {
     return { papers, validLimitations, gaps, paperToLim, limToGap };
 }
 
-function renderFlowGraph() {
-    const data = buildFlowGraphData();
+function buildCyElements() {
+    const data = buildCyGraphData();
     const { papers, validLimitations, gaps, paperToLim, limToGap } = data;
+    const elements = [];
 
-    if (!papers.length && !gaps.length) return;
+    if (!papers.length && !gaps.length) return elements;
 
     // 한계점 그룹핑 (60개 초과 시 논문별 그룹)
     const groupLimitations = validLimitations.length > 60;
-    let limNodes = [];
+
+    // 논문 노드
+    papers.forEach((p, i) => {
+        const fullTitle = p.title || p.paper_id || '';
+        const meta = [p.venue, p.year].filter(Boolean).join(', ');
+        elements.push({ data: { id: p.paper_id, label: fullTitle, fullLabel: fullTitle, meta, nodeType: 'paper', index: i } });
+    });
+
+    // 한계점 노드
     if (groupLimitations) {
         const byPaper = {};
         validLimitations.forEach(l => {
@@ -2694,313 +2719,422 @@ function renderFlowGraph() {
         });
         Object.entries(byPaper).forEach(([pid, lims]) => {
             const paper = papers.find(p => p.paper_id === pid);
-            const label = paper ? (paper.title || '') : pid;
-            limNodes.push({ id: `limgrp-${pid}`, type: 'limgroup', paperId: pid, count: lims.length, label, limIdxs: lims.map(l => l._idx) });
+            const label = (paper ? (paper.title || '') : pid) + ` (${lims.length})`;
+            const grpId = `limgrp-${pid}`;
+            elements.push({ data: { id: grpId, label, nodeType: 'lim', paperId: pid } });
+            // paper → limgroup edge
+            elements.push({ data: { source: pid, target: grpId, edgeType: 'paper-lim' } });
+            // limgroup → gap edges
+            const gapTargets = new Set();
+            lims.forEach(l => {
+                limToGap.filter(e => e.from === `lim-${l._idx}`).forEach(e => gapTargets.add(e.to));
+            });
+            gapTargets.forEach(gid => {
+                elements.push({ data: { source: grpId, target: gid, edgeType: 'lim-gap' } });
+            });
         });
     } else {
         validLimitations.forEach(l => {
-            const claim = l.claim || l.limitation_text || l.text || l.content || '';
-            limNodes.push({ id: `lim-${l._idx}`, type: 'lim', paperId: l.paper_id, claim, _idx: l._idx });
+            const fullClaim = l.claim || l.limitation_text || l.text || l.content || '(한계점)';
+            elements.push({ data: { id: `lim-${l._idx}`, label: fullClaim, fullLabel: fullClaim, nodeType: 'lim', paperId: l.paper_id } });
+        });
+        // paper → lim edges
+        paperToLim.forEach(e => {
+            elements.push({ data: { source: e.from, target: e.to, edgeType: 'paper-lim' } });
+        });
+        // lim → gap edges
+        limToGap.forEach(e => {
+            elements.push({ data: { source: e.from, target: e.to, edgeType: 'lim-gap' } });
         });
     }
 
-    // 헤더 업데이트 (아이콘 포함)
-    const colPapers = document.getElementById('flowColPapers');
-    const colLims = document.getElementById('flowColLims');
-    const colGaps = document.getElementById('flowColGaps');
-    if (colPapers) colPapers.querySelector('.flow-col-header').innerHTML = `<span class="flow-col-icon">&#128196;</span> Papers <span style="opacity:0.5;font-weight:400">${papers.length}</span>`;
-    if (colLims) colLims.querySelector('.flow-col-header').innerHTML = `<span class="flow-col-icon">&#9888;&#65039;</span> Limitations <span style="opacity:0.5;font-weight:400">${validLimitations.length}</span>`;
-    if (colGaps) colGaps.querySelector('.flow-col-header').innerHTML = `<span class="flow-col-icon">&#128161;</span> GAPs <span style="opacity:0.5;font-weight:400">${gaps.length}</span>`;
-
-    // 논문 노드 — 전체 제목 표시 (wrap)
-    const bodyPapers = document.getElementById('flowBodyPapers');
-    bodyPapers.innerHTML = papers.map((p, i) => {
-        const title = p.title || p.paper_id || '';
-        const meta = [p.year, p.venue].filter(Boolean).join(' · ');
-        return `<div class="flow-node flow-node-paper" data-id="${esc(p.paper_id)}" data-type="paper" data-index="${i}">
-            <div class="flow-node-title">${esc(title)}</div>
-            ${meta ? `<div class="flow-node-meta">${esc(meta)}</div>` : ''}
-        </div>`;
-    }).join('');
-
-    // 한계점 노드 — 전체 claim 표시 (wrap)
-    const bodyLims = document.getElementById('flowBodyLims');
-    if (groupLimitations) {
-        bodyLims.innerHTML = limNodes.map(n => {
-            return `<div class="flow-node flow-node-lim" data-id="${esc(n.id)}" data-type="limgroup" data-paper-id="${esc(n.paperId)}">
-                <div class="flow-node-claim">${esc(n.label)} <span style="opacity:0.6">&#8212; ${n.count}items</span></div>
-            </div>`;
-        }).join('');
-    } else {
-        bodyLims.innerHTML = limNodes.map(n => {
-            const claimText = n.claim || '';
-            return `<div class="flow-node flow-node-lim" data-id="lim-${n._idx}" data-type="lim" data-paper-id="${esc(n.paperId)}">
-                <div class="flow-node-claim">${esc(claimText || '(limitation)')}</div>
-            </div>`;
-        }).join('');
-    }
-
-    // GAP 노드 — 전체 statement 표시 (wrap)
-    const bodyGaps = document.getElementById('flowBodyGaps');
-    bodyGaps.innerHTML = gaps.map((g, i) => {
+    // GAP 노드 (크기 = 연결된 엣지 수에 비례)
+    const gapEdgeCounts = {};
+    elements.filter(e => e.data.edgeType === 'lim-gap').forEach(e => {
+        gapEdgeCounts[e.data.target] = (gapEdgeCounts[e.data.target] || 0) + 1;
+    });
+    gaps.forEach((g, i) => {
         const axisLabel = g.axis_label || g.axis || '';
         const ac = getAxisColor(axisLabel);
-        const stmt = g.gap_statement || '';
-        const paperCount = (g.supporting_papers || []).length || g.repeat_count || 0;
-        return `<div class="flow-node flow-node-gap" data-id="gap-${i}" data-type="gap" data-index="${i}" style="background:${ac.bg};border-color:${ac.border}">
-            <div class="flow-node-axis" style="color:${ac.color}">${esc(axisLabel)}</div>
-            <div class="flow-node-statement">${esc(stmt)}</div>
-            <div class="flow-node-count"><span style="color:${ac.color}">&#9679;</span> ${paperCount} papers</div>
-        </div>`;
-    }).join('');
+        const fullStmt = g.gap_statement || '';
+        const edgeCount = gapEdgeCounts[`gap-${i}`] || 1;
+        const nodeWidth = Math.round(180 * Math.max(1, Math.min(edgeCount / 2, 2.5)));
+        const dotSize = Math.round(24 * Math.max(1, Math.min(edgeCount / 2, 1.7)));
+        const badgeLabel = fullStmt + `\n[한계점 ${edgeCount}개 연결]`;
+        elements.push({ data: { id: `gap-${i}`, label: fullStmt, badgeLabel, fullLabel: fullStmt, axisLabel, nodeType: 'gap', index: i, bgColor: ac.bg, borderColor: ac.border, textColor: ac.color, nodeWidth, dotSize, limCount: edgeCount } });
+    });
 
-    // 데이터를 전역에 저장 (엣지·인터랙션용)
-    window._flowData = data;
-    window._flowGrouped = groupLimitations;
-    window._flowLimNodes = limNodes;
+    return elements;
 }
 
-function drawFlowEdges() {
-    const svg = document.getElementById('flowSvgOverlay');
-    const container = document.getElementById('flowGraphContainer');
-    if (!svg || !container || !window._flowData) return;
-
-    const cRect = container.getBoundingClientRect();
-    svg.setAttribute('viewBox', `0 0 ${cRect.width} ${cRect.height}`);
-    svg.innerHTML = '';
-
-    // 그라데이션 정의
-    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-    const gradPL = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
-    gradPL.id = 'edgeGradPL'; gradPL.setAttribute('x1','0%'); gradPL.setAttribute('x2','100%');
-    gradPL.innerHTML = `<stop offset="0%" stop-color="${EDGE_COLORS.paperToLim.start}"/><stop offset="100%" stop-color="${EDGE_COLORS.paperToLim.end}"/>`;
-    const gradLG = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
-    gradLG.id = 'edgeGradLG'; gradLG.setAttribute('x1','0%'); gradLG.setAttribute('x2','100%');
-    gradLG.innerHTML = `<stop offset="0%" stop-color="${EDGE_COLORS.limToGap.start}"/><stop offset="100%" stop-color="${EDGE_COLORS.limToGap.end}"/>`;
-    const gradHL = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
-    gradHL.id = 'edgeGradHL'; gradHL.setAttribute('x1','0%'); gradHL.setAttribute('x2','100%');
-    gradHL.innerHTML = `<stop offset="0%" stop-color="#4f6ef7"/><stop offset="100%" stop-color="#a78bfa"/>`;
-    defs.appendChild(gradPL); defs.appendChild(gradLG); defs.appendChild(gradHL);
-    svg.appendChild(defs);
-
-    const { paperToLim, limToGap } = window._flowData;
-    const grouped = window._flowGrouped;
-
-    function getNodeRect(id) {
-        const el = container.querySelector(`[data-id="${id}"]`);
-        if (!el) return null;
-        const r = el.getBoundingClientRect();
-        return { left: r.left - cRect.left, right: r.right - cRect.left, top: r.top - cRect.top, bottom: r.bottom - cRect.top, cy: (r.top + r.bottom) / 2 - cRect.top };
-    }
-
-    function makePath(fromRect, toRect) {
-        const x1 = fromRect.right;
-        const y1 = fromRect.cy;
-        const x2 = toRect.left;
-        const y2 = toRect.cy;
-        const dx = Math.abs(x2 - x1) * 0.45;
-        return `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`;
-    }
-
-    function addEdge(fromRect, toRect, fromId, toId, gradientId) {
-        if (!fromRect || !toRect) return;
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        path.setAttribute('d', makePath(fromRect, toRect));
-        path.setAttribute('class', 'flow-edge');
-        path.setAttribute('stroke', `url(#${gradientId})`);
-        path.setAttribute('data-from', fromId);
-        path.setAttribute('data-to', toId);
-        path.setAttribute('data-grad', gradientId);
-        svg.appendChild(path);
-    }
-
-    // paper → limitation 엣지
-    if (grouped) {
-        const limNodes = window._flowLimNodes || [];
-        const paperIds = new Set();
-        limNodes.forEach(n => paperIds.add(n.paperId));
-        paperIds.forEach(pid => {
-            const fromRect = getNodeRect(pid);
-            const grpNode = limNodes.find(n => n.paperId === pid);
-            const toRect = grpNode ? getNodeRect(grpNode.id) : null;
-            addEdge(fromRect, toRect, pid, grpNode?.id, 'edgeGradPL');
-        });
-        // limgroup → gap
-        limNodes.forEach(grpNode => {
-            const gapIndices = new Set();
-            (window._flowData.limToGap || []).forEach(e => {
-                if (grpNode.limIdxs.some(idx => e.from === `lim-${idx}`)) {
-                    gapIndices.add(e.to);
-                }
-            });
-            gapIndices.forEach(gapId => {
-                addEdge(getNodeRect(grpNode.id), getNodeRect(gapId), grpNode.id, gapId, 'edgeGradLG');
-            });
-        });
-    } else {
-        paperToLim.forEach(e => {
-            addEdge(getNodeRect(e.from), getNodeRect(e.to), e.from, e.to, 'edgeGradPL');
-        });
-        limToGap.forEach(e => {
-            addEdge(getNodeRect(e.from), getNodeRect(e.to), e.from, e.to, 'edgeGradLG');
-        });
-    }
-}
-
-function setupFlowInteractions() {
-    const container = document.getElementById('flowGraphContainer');
+function initCyGraph() {
+    const container = document.getElementById('cyContainer');
     if (!container) return;
 
-    const allNodes = container.querySelectorAll('.flow-node');
-    const svg = document.getElementById('flowSvgOverlay');
-
-    // 연결 맵 구축
-    function getConnected(nodeId) {
-        const connected = new Set([nodeId]);
-        const edges = svg ? svg.querySelectorAll('.flow-edge') : [];
-        // BFS 양방향 탐색
-        let frontier = [nodeId];
-        for (let depth = 0; depth < 3; depth++) {
-            const next = [];
-            frontier.forEach(nid => {
-                edges.forEach(edge => {
-                    const from = edge.getAttribute('data-from');
-                    const to = edge.getAttribute('data-to');
-                    if (from === nid && !connected.has(to)) { connected.add(to); next.push(to); }
-                    if (to === nid && !connected.has(from)) { connected.add(from); next.push(from); }
-                });
-            });
-            frontier = next;
-        }
-        return connected;
+    const elements = buildCyElements();
+    if (!elements.length) {
+        container.innerHTML = '<div class="cy-empty-placeholder">관계도를 표시할 데이터가 없습니다</div>';
+        return;
     }
 
-    function getConnectedEdges(connectedNodes) {
-        const edgeSet = new Set();
-        const edges = svg ? svg.querySelectorAll('.flow-edge') : [];
-        edges.forEach(edge => {
-            const from = edge.getAttribute('data-from');
-            const to = edge.getAttribute('data-to');
-            if (connectedNodes.has(from) && connectedNodes.has(to)) edgeSet.add(edge);
+    const cy = cytoscape({
+        container,
+        elements,
+        style: [
+            // ── Base node ──
+            { selector: 'node', style: {
+                'label': 'data(label)', 'text-wrap': 'wrap', 'text-max-width': '240px',
+                'font-size': '10px', 'text-valign': 'center', 'text-halign': 'center',
+                'width': '180px', 'height': 'label', 'padding': '12px',
+                'shape': 'round-rectangle', 'background-color': '#f0f2f8',
+                'border-width': 1.5, 'border-color': '#dfe3ed',
+                'color': '#2d3250', 'font-family': 'Pretendard Variable, Inter, sans-serif',
+                'transition-property': 'opacity, border-color, border-width',
+                'transition-duration': '0.2s',
+            }},
+            { selector: 'node[nodeType="paper"]', style: {
+                'shape': 'round-rectangle', 'background-color': '#ffffff', 'border-color': '#d8dce8',
+                'color': '#2d3250', 'font-weight': '600',
+            }},
+            { selector: 'node[nodeType="lim"]', style: {
+                'shape': 'round-rectangle', 'background-color': '#fff7ed', 'border-color': '#f5d9a8',
+                'border-width': 2, 'color': '#5c4a1e', 'width': '140px',
+            }},
+            { selector: 'node[nodeType="gap"]', style: {
+                'shape': 'round-rectangle',
+                'background-color': 'data(bgColor)', 'border-color': 'data(borderColor)',
+                'border-width': 3, 'color': 'data(textColor)', 'font-weight': '600',
+                'width': 'data(nodeWidth)',
+                'shadow-blur': 12, 'shadow-color': 'data(borderColor)',
+                'shadow-offset-x': 0, 'shadow-offset-y': 4, 'shadow-opacity': 0.25,
+            }},
+            // ── Collapse/Expand ──
+            { selector: '.cy-collapsed', style: {
+                'display': 'none',
+            }},
+            // ── Edge types ──
+            { selector: 'edge', style: {
+                'target-arrow-shape': 'triangle', 'curve-style': 'bezier',
+                'arrow-scale': 0.8,
+                'transition-property': 'opacity, line-color, width',
+                'transition-duration': '0.2s',
+            }},
+            { selector: 'edge[edgeType="paper-lim"]', style: {
+                'width': 1.8, 'line-fill': 'linear-gradient',
+                'line-gradient-stop-colors': '#b0b8d0 #e8b560',
+                'line-gradient-stop-positions': '0% 100%',
+                'target-arrow-color': '#e8b560',
+                'line-style': 'solid', 'opacity': 0.4,
+            }},
+            { selector: 'edge[edgeType="lim-gap"]', style: {
+                'width': 2, 'line-fill': 'linear-gradient',
+                'line-gradient-stop-colors': '#e8b560 #7b9af0',
+                'line-gradient-stop-positions': '0% 100%',
+                'target-arrow-color': '#7b9af0',
+                'line-style': 'solid', 'opacity': 0.5,
+            }},
+            // ── Semantic zoom: dot mode (zoom < 0.4) ──
+            { selector: 'node.zoom-dot', style: {
+                'width': 20, 'height': 20, 'label': '', 'shape': 'ellipse',
+                'padding': '2px',
+            }},
+            { selector: 'node.zoom-dot[nodeType="paper"]', style: {
+                'background-color': '#b0b8d0',
+            }},
+            { selector: 'node.zoom-dot[nodeType="lim"]', style: {
+                'width': 16, 'height': 16, 'background-color': '#e8b560',
+            }},
+            { selector: 'node.zoom-dot[nodeType="gap"]', style: {
+                'width': 'data(dotSize)', 'height': 'data(dotSize)',
+                'background-color': 'data(borderColor)',
+                'label': 'data(label)', 'font-size': '8px', 'text-valign': 'bottom',
+                'text-margin-y': 6, 'text-max-width': '120px',
+            }},
+            { selector: 'edge.zoom-dot', style: {
+                'width': 1, 'arrow-scale': 0.5,
+            }},
+            // ── Semantic zoom: mid mode (0.4 ~ 0.8) ──
+            { selector: 'node.zoom-mid', style: {
+                'font-size': '8px', 'text-max-width': '120px',
+            }},
+            { selector: 'node.zoom-mid[nodeType="paper"]', style: {
+                'width': '120px',
+            }},
+            { selector: 'node.zoom-mid[nodeType="lim"]', style: {
+                'width': '100px',
+            }},
+            // ── Highlight/dim (after zoom-dot for priority) ──
+            { selector: '.highlighted', style: {
+                'border-color': '#4f6ef7', 'border-width': 2.5, 'opacity': 1,
+                'z-index': 10,
+            }},
+            { selector: 'edge.highlighted', style: {
+                'line-color': '#4f6ef7', 'target-arrow-color': '#4f6ef7', 'width': 2.5, 'opacity': 1,
+                'z-index': 10,
+            }},
+            { selector: '.dimmed', style: { 'opacity': 0.12 }},
+            { selector: 'edge.dimmed', style: { 'opacity': 0.06 }},
+        ],
+        layout: {
+            name: 'dagre',
+            rankDir: 'LR',
+            nodeSep: 50,
+            rankSep: 120,
+            edgeSep: 20,
+            animate: false,
+        },
+        minZoom: 0.3,
+        maxZoom: 3,
+        wheelSensitivity: 0.3,
+        boxSelectionEnabled: false,
+    });
+
+    setupCyInteractions(cy);
+
+    // Dynamic container height based on graph extent
+    cy.on('layoutstop', function() {
+        const ext = cy.extent();
+        const newH = Math.min(600, Math.max(300, Math.round(ext.h + 60)));
+        container.style.height = newH + 'px';
+        cy.resize();
+        cy.fit(undefined, 30);
+    });
+
+    window._cyInstance = cy;
+}
+
+function setupCyInteractions(cy) {
+    let lockedNode = null;
+    const expandedGaps = new Set();
+    const expandedLims = new Set();
+
+    // ── Collapse/Expand helpers ──
+    function collapseAll() {
+        cy.nodes('[nodeType="paper"]').addClass('cy-collapsed');
+        cy.nodes('[nodeType="lim"]').addClass('cy-collapsed');
+        cy.edges().addClass('cy-collapsed');
+        // GAP 뱃지 라벨 표시
+        cy.nodes('[nodeType="gap"]').forEach(n => n.data('label', n.data('badgeLabel')));
+        expandedGaps.clear();
+        expandedLims.clear();
+    }
+
+    function expandGap(gapNode) {
+        const gapId = gapNode.id();
+        if (expandedGaps.has(gapId)) return;
+        expandedGaps.add(gapId);
+        // GAP 라벨 → 일반 라벨 복원
+        gapNode.data('label', gapNode.data('fullLabel'));
+        // 연결된 Lim 노드 + lim-gap 엣지 표시
+        const incomingEdges = gapNode.incomers('edge[edgeType="lim-gap"]');
+        const limNodes = incomingEdges.sources();
+        limNodes.removeClass('cy-collapsed');
+        incomingEdges.removeClass('cy-collapsed');
+    }
+
+    function expandLim(limNode) {
+        const limId = limNode.id();
+        if (expandedLims.has(limId)) return;
+        expandedLims.add(limId);
+        // 연결된 Paper 노드 + paper-lim 엣지 표시
+        const incomingEdges = limNode.incomers('edge[edgeType="paper-lim"]');
+        const paperNodes = incomingEdges.sources();
+        paperNodes.removeClass('cy-collapsed');
+        incomingEdges.removeClass('cy-collapsed');
+    }
+
+    function collapseGap(gapNode) {
+        const gapId = gapNode.id();
+        if (!expandedGaps.has(gapId)) return;
+        expandedGaps.delete(gapId);
+        gapNode.data('label', gapNode.data('badgeLabel'));
+        // 연결된 Lim 숨김 (다른 GAP에 연결되지 않은 것만)
+        const incomingEdges = gapNode.incomers('edge[edgeType="lim-gap"]');
+        const limNodes = incomingEdges.sources();
+        incomingEdges.addClass('cy-collapsed');
+        limNodes.forEach(lim => {
+            const otherGapEdges = lim.outgoers('edge[edgeType="lim-gap"]').filter(e => expandedGaps.has(e.target().id()));
+            if (otherGapEdges.length === 0) {
+                collapseLim(lim);
+                lim.addClass('cy-collapsed');
+            }
         });
-        return edgeSet;
+    }
+
+    function collapseLim(limNode) {
+        const limId = limNode.id();
+        expandedLims.delete(limId);
+        const incomingEdges = limNode.incomers('edge[edgeType="paper-lim"]');
+        const paperNodes = incomingEdges.sources();
+        incomingEdges.addClass('cy-collapsed');
+        paperNodes.forEach(p => {
+            const otherLimEdges = p.outgoers('edge[edgeType="paper-lim"]').filter(e => !e.target().hasClass('cy-collapsed'));
+            if (otherLimEdges.length === 0) p.addClass('cy-collapsed');
+        });
+    }
+
+    function highlightNeighborhood(node) {
+        const nodeType = node.data('nodeType');
+        let connected;
+        if (nodeType === 'paper') {
+            const hop1 = node.outgoers();
+            const hop2 = hop1.nodes().outgoers();
+            connected = node.union(hop1).union(hop2);
+        } else if (nodeType === 'gap') {
+            const hop1 = node.incomers();
+            const hop2 = hop1.nodes().incomers();
+            connected = node.union(hop1).union(hop2);
+        } else {
+            connected = node.closedNeighborhood();
+        }
+        // 보이는 요소 중에서만 dim
+        const visible = cy.elements().filter(e => !e.hasClass('cy-collapsed'));
+        visible.addClass('dimmed');
+        connected.filter(e => !e.hasClass('cy-collapsed')).removeClass('dimmed').addClass('highlighted');
     }
 
     function clearHighlight() {
-        allNodes.forEach(n => { n.classList.remove('highlighted', 'dimmed'); });
-        if (svg) svg.querySelectorAll('.flow-edge').forEach(e => {
-            e.classList.remove('highlighted', 'dimmed');
-            const origGrad = e.getAttribute('data-grad');
-            if (origGrad) e.setAttribute('stroke', `url(#${origGrad})`);
-        });
+        cy.elements().removeClass('highlighted dimmed');
     }
 
-    allNodes.forEach(node => {
-        node.addEventListener('mouseenter', () => {
-            const nodeId = node.getAttribute('data-id');
-            const connected = getConnected(nodeId);
-            const connEdges = getConnectedEdges(connected);
-
-            allNodes.forEach(n => {
-                if (connected.has(n.getAttribute('data-id'))) n.classList.add('highlighted');
-                else n.classList.add('dimmed');
-            });
-            if (svg) svg.querySelectorAll('.flow-edge').forEach(e => {
-                if (connEdges.has(e)) {
-                    e.classList.add('highlighted');
-                    e.setAttribute('stroke', 'url(#edgeGradHL)');
-                } else {
-                    e.classList.add('dimmed');
-                }
-            });
-        });
-
-        node.addEventListener('mouseleave', clearHighlight);
-
-        node.addEventListener('click', () => {
-            const type = node.getAttribute('data-type');
-            const index = parseInt(node.getAttribute('data-index'), 10);
-            if (type === 'gap' && !isNaN(index)) {
-                selectGap(index);
-            } else if (type === 'paper' && !isNaN(index)) {
-                selectPaper(index);
-            } else if (type === 'lim' || type === 'limgroup') {
-                const paperId = node.getAttribute('data-paper-id');
-                const pIdx = (pipelineData.papers || []).findIndex(p => p.paper_id === paperId);
-                if (pIdx >= 0) selectPaper(pIdx);
-            }
-        });
+    cy.on('mouseover', 'node', function(e) {
+        if (lockedNode) return;
+        highlightNeighborhood(e.target);
+        const fullLabel = e.target.data('fullLabel');
+        if (fullLabel) cy.container().setAttribute('title', fullLabel);
     });
 
-    // 스크롤 시 엣지 재계산
-    container.querySelectorAll('.flow-col-body').forEach(col => {
-        col.addEventListener('scroll', () => {
-            if (_flowEdgeDebounce) cancelAnimationFrame(_flowEdgeDebounce);
-            _flowEdgeDebounce = requestAnimationFrame(drawFlowEdges);
-        });
+    cy.on('mouseout', 'node', function() {
+        if (lockedNode) return;
+        clearHighlight();
+        cy.container().removeAttribute('title');
     });
 
-    // 리사이즈 감지
-    if (window.ResizeObserver) {
-        const ro = new ResizeObserver(() => {
-            if (_flowEdgeDebounce) cancelAnimationFrame(_flowEdgeDebounce);
-            _flowEdgeDebounce = requestAnimationFrame(drawFlowEdges);
-        });
-        ro.observe(container);
-        window._flowResizeObserver = ro;
-    }
-}
+    cy.on('tap', 'node', function(e) {
+        const node = e.target;
+        const nodeType = node.data('nodeType');
+        const index = node.data('index');
 
-function toggleFlowGraph() {
-    const section = document.getElementById('flowGraphSection');
-    const wrapper = document.getElementById('flowGraphWrapper');
-    if (!section || !wrapper) return;
-
-    if (section.classList.contains('open')) {
-        wrapper.style.maxHeight = wrapper.scrollHeight + 'px';
-        requestAnimationFrame(() => { wrapper.style.maxHeight = '0'; });
-        section.classList.remove('open');
-    } else {
-        section.classList.add('open');
-        if (!_flowGraphInitialized) {
-            _flowGraphInitialized = true;
-            renderFlowGraph();
-            requestAnimationFrame(() => {
-                drawFlowEdges();
-                setupFlowInteractions();
-            });
+        // Toggle lock
+        if (lockedNode && lockedNode.id() === node.id()) {
+            lockedNode = null;
+            clearHighlight();
+            return;
         }
-        wrapper.style.maxHeight = wrapper.scrollHeight + 'px';
-        wrapper.addEventListener('transitionend', function handler() {
-            if (section.classList.contains('open')) {
-                wrapper.style.maxHeight = 'none';
-                drawFlowEdges();
+
+        lockedNode = node;
+        clearHighlight();
+        highlightNeighborhood(node);
+
+        // Collapse/Expand + detail panel
+        if (nodeType === 'gap') {
+            if (expandedGaps.has(node.id())) {
+                collapseGap(node);
+            } else {
+                expandGap(node);
             }
-            wrapper.removeEventListener('transitionend', handler);
+            if (index !== undefined) selectGap(index);
+        } else if (nodeType === 'lim') {
+            if (expandedLims.has(node.id())) {
+                collapseLim(node);
+            } else {
+                expandLim(node);
+            }
+            const paperId = node.data('paperId');
+            const pIdx = (pipelineData.papers || []).findIndex(p => p.paper_id === paperId);
+            if (pIdx >= 0) selectPaper(pIdx);
+        } else if (nodeType === 'paper' && index !== undefined) {
+            selectPaper(index);
+        }
+    });
+
+    cy.on('tap', function(e) {
+        if (e.target === cy) {
+            lockedNode = null;
+            clearHighlight();
+        }
+    });
+
+    // ── 더블클릭 줌인 ──
+    cy.on('dbltap', 'node', function(e) {
+        const node = e.target;
+        const neighborhood = node.closedNeighborhood();
+        cy.animate({ fit: { eles: neighborhood, padding: 50 }, duration: 400 });
+    });
+
+    // ── Semantic zoom (3단계) ──
+    const ZOOM_DOT = 0.4;
+    const ZOOM_MID = 0.8;
+    let currentZoomMode = 'card';
+    let _zoomTimer = null;
+    cy.on('zoom', function() {
+        clearTimeout(_zoomTimer);
+        _zoomTimer = setTimeout(function() {
+            const z = cy.zoom();
+            let mode;
+            if (z < ZOOM_DOT) mode = 'dot';
+            else if (z < ZOOM_MID) mode = 'mid';
+            else mode = 'card';
+            if (mode === currentZoomMode) return;
+            // 이전 모드 클래스 제거
+            cy.elements().removeClass('zoom-dot zoom-mid');
+            if (mode === 'dot') {
+                cy.elements().addClass('zoom-dot');
+            } else if (mode === 'mid') {
+                cy.elements().addClass('zoom-mid');
+            }
+            currentZoomMode = mode;
+        }, 50);
+    });
+
+    // ── 초기 collapse + 진입 애니메이션 ──
+    cy.one('layoutstop', function() {
+        // 모든 요소 숨김
+        cy.elements().style('opacity', 0);
+        collapseAll();
+
+        // 1단계: GAP 노드 fade-in (0~400ms)
+        const gapNodes = cy.nodes('[nodeType="gap"]');
+        gapNodes.removeClass('cy-collapsed');
+        gapNodes.forEach((n, i) => {
+            setTimeout(() => {
+                n.animate({ style: { opacity: 1 } }, { duration: 400 });
+            }, i * 80);
         });
+
+        // 2단계: lim-gap 엣지 라인 (400ms~)
+        const limGapEdges = cy.edges('[edgeType="lim-gap"]');
+        setTimeout(() => {
+            limGapEdges.forEach(e => {
+                e.animate({ style: { opacity: 0.6 } }, { duration: 350 });
+            });
+        }, gapNodes.length * 80 + 200);
+
+        // collapsed 된 노드들은 opacity 초기화 (display:none이므로 안 보임)
+        setTimeout(() => {
+            cy.nodes('.cy-collapsed').style('opacity', 1);
+            cy.edges('.cy-collapsed').style('opacity', 1);
+        }, gapNodes.length * 80 + 600);
+    });
+}
+
+function destroyCyGraph() {
+    if (window._cyInstance) {
+        window._cyInstance.destroy();
+        window._cyInstance = null;
     }
 }
 
-function destroyFlowGraph() {
-    _flowGraphInitialized = false;
-    window._flowData = null;
-    window._flowGrouped = false;
-    window._flowLimNodes = null;
-    if (window._flowResizeObserver) {
-        window._flowResizeObserver.disconnect();
-        window._flowResizeObserver = null;
-    }
-}
 
 function renderResults() {
-    destroyFlowGraph();
+    destroyCyGraph();
     const area = document.getElementById('resultArea');
     area.style.display = 'block';
 
     selectedItem = { type: 'gap', index: 0 };
 
     // Summary stats (used in report toggle)
-    const totalSearched = pipelineData.total_searched || '?';
+    const totalSearched = pipelineData.total_searched || pipelineData.papers.length || '?';
     const papersCount = pipelineData.papers.length;
     const gapsCount = pipelineData.gaps.length;
 
@@ -3009,6 +3143,7 @@ function renderResults() {
 
     // Gaps section
     leftHTML += `<div class="panel-section-header">연구 GAP (${gapsCount})</div>`;
+
     if (pipelineData.gaps.length) {
         pipelineData.gaps.forEach((gap, i) => {
             const isTop = i === 0;
@@ -3079,8 +3214,8 @@ function renderResults() {
     let reportActionsHTML = '';
     if (pipelineData.report) {
         reportActionsHTML = `<div class="result-report-actions">
-            <button onclick="copyReport()">클립보드에 복사</button>
-            <button onclick="downloadReport()">다운로드 .md</button>
+            <button onclick="downloadReport('md')">다운로드 .md</button>
+            <button onclick="downloadReport('docx')">다운로드 .docx</button>
         </div>`;
     }
 
@@ -3102,38 +3237,24 @@ function renderResults() {
                         </div>
                     </div>
                     <div class="flow-graph-section" id="flowGraphSection">
-                        <div class="flow-graph-toggle" onclick="toggleFlowGraph()">
-                            <span>Relationship Graph</span>
-                            <span class="toggle-arrow" id="flowGraphArrow">&#x25BC;</span>
+                        <div class="section-title">Relationship Graph (Papers → Limitations → GAPs)</div>
+                        <div class="cy-container" id="cyContainer">
+                            <button class="cy-fit-btn" onclick="if(window._cyInstance) window._cyInstance.animate({fit:{padding:30},duration:300})" title="전체 보기">⊞</button>
                         </div>
-                        <div class="flow-graph-wrapper" id="flowGraphWrapper">
-                            <div class="flow-graph-container" id="flowGraphContainer">
-                                <svg class="flow-svg-overlay" id="flowSvgOverlay"></svg>
-                                <div class="flow-col" id="flowColPapers">
-                                    <div class="flow-col-header"><span class="flow-col-icon">&#128196;</span> Papers <span style="opacity:0.5;font-weight:400">${papersCount}</span></div>
-                                    <div class="flow-col-body" id="flowBodyPapers"></div>
-                                </div>
-                                <div class="flow-col" id="flowColLims">
-                                    <div class="flow-col-header"><span class="flow-col-icon">&#9888;&#65039;</span> Limitations</div>
-                                    <div class="flow-col-body" id="flowBodyLims"></div>
-                                </div>
-                                <div class="flow-col" id="flowColGaps">
-                                    <div class="flow-col-header"><span class="flow-col-icon">&#128161;</span> GAPs <span style="opacity:0.5;font-weight:400">${gapsCount}</span></div>
-                                    <div class="flow-col-body" id="flowBodyGaps"></div>
-                                </div>
-                            </div>
-                            <div class="flow-legend">
-                                <span><span class="flow-legend-dot" style="background:#fff;border:1.5px solid #b0b8d0"></span> Papers</span>
-                                <span><span class="flow-legend-dot" style="background:#fff7ed;border:1.5px solid #e8b560"></span> Limitations</span>
-                                <span><span class="flow-legend-dot" style="background:#eff3ff;border:1.5px solid #7b9af0"></span> GAPs</span>
-                                <span style="margin-left:auto;font-style:italic;opacity:0.55;font-size:0.95em">Hover to highlight connections</span>
-                            </div>
+                        <div class="cy-legend">
+                            <span><span class="cy-legend-dot" style="background:#fff;border:1.5px solid #b0b8d0"></span> Papers</span>
+                            <span><span class="cy-legend-dot" style="background:#fff7ed;border:1.5px solid #e8b560"></span> Limitations</span>
+                            <span><span class="cy-legend-dot" style="background:#eff3ff;border:1.5px solid #7b9af0"></span> GAPs</span>
+                            <span style="margin-left:auto;font-style:italic;opacity:0.55;font-size:0.95em">Click to highlight · Double-click to zoom · ⊞ Fit all</span>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     `;
+
+    // 관계도 Cytoscape 초기화
+    requestAnimationFrame(() => initCyGraph());
 }
 
 function getGapDetailHTML(index) {
@@ -3210,8 +3331,13 @@ function getPaperDetailHTML(index) {
         const paperLimitations = pipelineData.limitations.filter(l => l.paper_id === p.paper_id);
         if (paperLimitations.length) {
             html += `<div class="detail-section-title">이 논문의 한계점 (${paperLimitations.length})</div>`;
-            paperLimitations.forEach(l => {
-                html += `<div class="paper-limitation-item">${esc(l.limitation_text || l.text || l.content || JSON.stringify(l))}</div>`;
+            paperLimitations.forEach((l, idx) => {
+                const claim = l.claim || l.limitation_text || l.text || l.content || '';
+                const quote = l.evidence_quote || '';
+                html += `<div class="paper-lim-card">
+                    <div class="paper-lim-claim">${esc(claim)}</div>
+                    ${quote ? `<div class="paper-lim-quote">"${esc(truncate(quote, 200))}"</div>` : ''}
+                </div>`;
             });
         }
     }
@@ -3255,7 +3381,7 @@ function toggleMasterReport() {
         mc.classList.add('open');
         body.style.maxHeight = body.scrollHeight + 'px';
         body.addEventListener('transitionend', () => {
-            if (mc.classList.contains('open')) body.style.maxHeight = 'none';
+            if (mc.classList.contains('open')) body.style.maxHeight = 'calc(100vh - 180px)';
         }, { once: true });
     }
 }
@@ -3271,7 +3397,7 @@ async function exploreDirection(topic) {
     const outputLanguage = document.getElementById('outputLanguage').value;
 
     setInputEnabled(false);
-    destroyFlowGraph();
+    destroyCyGraph();
     pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: {} };
     _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
     timelineDetails = {};
@@ -3377,7 +3503,7 @@ function renderSavedResult(data) {
     results.innerHTML = `
         <div style="margin-bottom:20px">
             <h3 style="font-size:1em;font-weight:600;margin-bottom:4px;color:var(--text)">${esc(data.query || '')}</h3>
-            ${data.refined_query ? `<p style="color:var(--text-dim);font-size:0.8em">정제된 쿼리: ${esc(data.refined_query)}</p>` : ''}
+            ${data.refined_query ? `<p style="color:var(--text-dim);font-size:0.8em">정제된 질문: ${esc(data.refined_query)}</p>` : ''}
             <p style="color:var(--text-light);font-size:0.7em;margin-top:3px">${data.timestamp || ''}</p>
         </div>
         <div id="resultArea" style="display:block"></div>
@@ -3431,39 +3557,10 @@ function renderMarkdown(text) {
         .replace(/\n/g, '<br>');
 }
 
-function copyReport() {
-    const report = pipelineData.report || '';
-    if (!report) return;
-    navigator.clipboard.writeText(report).then(() => {
-        const btn = document.querySelector('.report-actions button');
-        if (btn) {
-            const orig = btn.textContent;
-            btn.textContent = '복사됨!';
-            setTimeout(() => { btn.textContent = orig; }, 1500);
-        }
-    }).catch(() => {
-        // fallback for non-HTTPS or older browsers
-        const ta = document.createElement('textarea');
-        ta.value = report;
-        ta.style.cssText = 'position:fixed;left:-9999px';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        const btn = document.querySelector('.report-actions button');
-        if (btn) {
-            const orig = btn.textContent;
-            btn.textContent = '복사됨!';
-            setTimeout(() => { btn.textContent = orig; }, 1500);
-        }
-    });
-}
-
-function downloadReport() {
+function buildReportMd() {
     const opts = pipelineData.analysisOptions || {};
     let md = '# 분석 리포트\n\n';
 
-    // Analysis options
     if (opts.provider || opts.yearRange || opts.outputLanguage) {
         md += '## 분석 옵션\n';
         if (opts.provider) md += `- LLM: ${opts.provider}\n`;
@@ -3472,28 +3569,40 @@ function downloadReport() {
         md += '\n';
     }
 
-    // Refined query
     if (pipelineData.refined_query) {
-        md += `## 정제된 쿼리\n${pipelineData.refined_query}\n\n`;
+        md += `## 정제된 질문\n${pipelineData.refined_query}\n\n`;
     }
 
-    // Keywords
     if (pipelineData.keywords && pipelineData.keywords.length) {
         md += `## 확장 키워드\n${pipelineData.keywords.join(', ')}\n\n`;
     }
 
-    // Summary
     md += `## 요약\n`;
-    md += `- 검색 논문: ${pipelineData.papers.length}/${pipelineData.total_searched || '?'}편\n`;
+    md += `- 검색 논문: ${pipelineData.papers.length}/${pipelineData.total_searched || pipelineData.papers.length || '?'}편\n`;
     md += `- 도출 GAP: ${pipelineData.gaps.length}개\n\n`;
-
     md += '---\n\n';
 
-    // Full report
-    if (pipelineData.report) {
-        md += pipelineData.report;
-    }
+    if (pipelineData.report) md += pipelineData.report;
+    return md;
+}
 
+function mdToHtml(md) {
+    return md
+        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+        .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+        .replace(/(?<!\w)_(.+?)_(?!\w)/g, '<i>$1</i>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
+        .replace(/(<\/ul>\s*<ul>)/g, '')
+        .replace(/^---$/gm, '<hr>')
+        .replace(/\n{2,}/g, '<br><br>')
+        .replace(/\n/g, '<br>');
+}
+
+function downloadReport(format) {
+    const md = buildReportMd();
     const now = new Date();
     const ts = now.getFullYear().toString()
         + String(now.getMonth() + 1).padStart(2, '0')
@@ -3502,10 +3611,19 @@ function downloadReport() {
         + String(now.getMinutes()).padStart(2, '0')
         + String(now.getSeconds()).padStart(2, '0');
 
-    const blob = new Blob([md], { type: 'text/markdown' });
+    let blob, filename;
+    if (format === 'docx') {
+        const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><style>body{font-family:'Malgun Gothic',sans-serif;font-size:11pt;line-height:1.6}h1{font-size:18pt}h2{font-size:14pt}h3{font-size:12pt}</style></head><body>${mdToHtml(md)}</body></html>`;
+        blob = new Blob(['\ufeff' + html], { type: 'application/msword' });
+        filename = `GAPAGO_report_${ts}.doc`;
+    } else {
+        blob = new Blob([md], { type: 'text/markdown' });
+        filename = `GAPAGO_report_${ts}.md`;
+    }
+
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `finalreport_${ts}.md`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(a.href);
 }

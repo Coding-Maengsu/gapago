@@ -55,7 +55,24 @@ def print_message(msg):
             print(f"🛠️ [Tool: {msg.name}] (Content too long to display)")
         return
 
-    # 그 외 Human, AI Message는 깔끔하게 출력
+    # 내부 파이프라인 전달용 메시지 — 터미널에 raw JSON 전체 출력 불필요
+    # 최종 리포트(final_response)에서 정제된 형태로 출력됨
+    _INTERNAL_AGENTS = {
+        "gap_infer",
+        "limitation_extract",
+        "paper_retrieval",
+        "meaning_expand",
+        "recency_check",
+        "limitation_eval",
+    }
+    msg_name = getattr(msg, "name", "") or ""
+    if msg_name in _INTERNAL_AGENTS:
+        content = getattr(msg, "content", "") or ""
+        preview = content.replace("\n", " ")[:80]
+        print(f"  [{msg_name}] {preview}{'...' if len(content) > 80 else ''}")
+        return
+
+    # Human, AI Message (query_analysis, clarify_prompt, critic_score, final_response 등)
     msg.pretty_print()
 
 
@@ -120,12 +137,7 @@ async def print_stream_events_and_capture_interrupt(app, stream_input, config_di
 def save_result(query: str, state_values: dict) -> Path:
     """
     파이프라인 완료 후 결과를 outputs/gapago_result_YYYYMMDD_HHMMSS.json 으로 저장.
- 
-    저장 내용:
-      - query / refined_query / keywords
-      - gaps     : gap_infer_node가 state["gaps"]에 저장한 구조화 데이터
-                   (repeat_count 내림차순 정렬 = 가장 시급한 GAP 순서)
-      - messages : 각 agent의 AIMessage 원문 (name 포함)
+    웹 API(_save_result)와 동일한 필드를 포함하여 evaluate.py 호환성 보장.
     """
     # messages 직렬화
     messages_out = []
@@ -135,26 +147,41 @@ def save_result(query: str, state_values: dict) -> Path:
             "name":    getattr(msg, "name", None),
             "content": getattr(msg, "content", ""),
         })
- 
+
+    # papers 구조화 (웹과 동일)
+    papers = state_values.get("papers", [])
+    papers_out = []
+    for p in papers:
+        d = p if isinstance(p, dict) else (p.model_dump() if hasattr(p, "model_dump") else p.__dict__)
+        papers_out.append({
+            "paper_id": d.get("paper_id", ""),
+            "title":    d.get("title", ""),
+            "year":     d.get("year", 0),
+            "authors":  d.get("authors", []),
+            "url":      d.get("url", ""),
+            "venue":    d.get("venue", ""),
+        })
+
     result = {
         "query":         query,
         "timestamp":     datetime.now().isoformat(),
         "refined_query": state_values.get("refined_query", ""),
         "keywords":      state_values.get("keywords", []),
- 
-        # ★ 핵심: gap_infer_node가 state["gaps"]에 저장한 구조화 데이터
-        #   repeat_count 내림차순 정렬 상태 그대로 저장
-        "limitations": state_values.get("limitations", []),
-        "gaps": state_values.get("gaps", []),
-        "web_results": state_values.get("web_results", []),
-
-        "messages": messages_out,
+        "papers":        papers_out,
+        "total_searched": state_values.get("total_candidates_count", len(papers)),
+        "limitations":   state_values.get("limitations", []),
+        "limitation_eval": state_values.get("limitation_eval", {}),
+        "eval_warnings": state_values.get("eval_warnings", []),
+        "gaps":          state_values.get("gaps", []),
+        "web_results":   state_values.get("web_results", []),
+        "paper_extraction_status": state_values.get("paper_extraction_status", []),
+        "messages":      messages_out,
     }
- 
+
     fname = f"gapago_result_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     path  = OUTPUT_DIR / fname
     path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
- 
+
     print(f"\n  ✅ 결과 저장 완료 → {path}")
     print(f"  평가 실행: python evaluate.py --result-file {path}")
     return path
@@ -189,19 +216,13 @@ async def run():
         get_llm(provider=reasoning_provider)
         print(f"  [warmup] GAP 추론 LLM 초기화 완료")
 
-    # --- 연구 도메인 선택 (recency check용) ---
-    print("\n=== 연구 도메인 선택 (최신성 검증 소스 결정) ===")
-    print("  0) auto - LLM이 자동 판단 (기본값)")
-    print("  1) ai_cs - AI / Computer Science")
-    print("  2) biomedical - 바이오 / 의학")
-    print("  3) materials_chemistry - 재료 / 화학")
-    print("  4) physics - 물리")
-    print("  5) general - 범용 (전체 웹)")
-    domain_map = {"0": "auto", "1": "ai_cs", "2": "biomedical",
-                  "3": "materials_chemistry", "4": "physics", "5": "general"}
-    domain_choice = input("\n선택 (기본값: auto) > ").strip()
-    research_domain = domain_map.get(domain_choice, "auto")
-    print(f"  → {research_domain} 선택됨")
+    # --- 분석 모드 선택 ---
+    print("\n=== 분석 모드 선택 ===")
+    print("  0) 일반 모드 - 정밀 분석 (기본값)")
+    print("  1) Fast 모드 - 빠른 분석 (CrossEncoder 스킵, 상위 3개 축만 분석)")
+    mode_choice = input("\n선택 (기본값: 일반) > ").strip()
+    fast_mode = mode_choice == "1"
+    print(f"  → {'⚡ Fast 모드' if fast_mode else '일반 모드'} 선택됨")
 
     # --- 연도 필터 선택 ---
     print("\n=== 검색 연도 범위 선택 ===")
@@ -214,6 +235,16 @@ async def run():
     year_range = year_map.get(year_choice, "auto")
     print(f"  → {year_range} 선택됨")
 
+    # --- 출력 언어 선택 ---
+    print("\n=== 출력 언어 선택 ===")
+    print("  0) auto - 입력 언어에 맞춤 (기본값)")
+    print("  1) ko   - 한국어")
+    print("  2) en   - English")
+    lang_map = {"0": "auto", "1": "ko", "2": "en"}
+    lang_choice = input("\n선택 (기본값: auto) > ").strip()
+    output_language = lang_map.get(lang_choice, "auto")
+    print(f"  → {output_language} 선택됨")
+
     # --- 사용자 입력 ---
     default_query = "Domain adaptation"
     user_input = input("\n연구 질문을 입력하세요: ").strip() or default_query
@@ -223,8 +254,11 @@ async def run():
     inputs = {
         "messages": [HumanMessage(content=user_input)],
         "max_iterations": 3,
-        "research_domain": research_domain,
+        "research_domain": "auto",
+        "llm_provider": selected_provider,
         "year_range": year_range,
+        "output_language": output_language,
+        "fast_mode": fast_mode,
     }
 
     print_divider("[STEP 1] 초기 실행")
@@ -299,6 +333,16 @@ async def run():
     print("refined_query =", values.get("refined_query"))
 
     save_result(user_input, values)
+
+    # -----------------------------------------------------------------
+    # Gap Chat — 결과 검토 대화
+    # -----------------------------------------------------------------
+    if values.get("gaps"):
+        print("\n결과에 대해 질문하시겠습니까?")
+        chat_answer = input("(y/n, 기본값: n) > ").strip().lower()
+        if chat_answer in ("y", "yes", "ㅛ"):
+            from agents.gap_chat_agent import interactive_chat_loop
+            interactive_chat_loop(values)
 
 if __name__ == "__main__":
     asyncio.run(run())

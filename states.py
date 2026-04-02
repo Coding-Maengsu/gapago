@@ -13,6 +13,12 @@ from typing_extensions import Annotated
 import operator
 
 
+# ── Orchestrator reducers ──
+def _append_stages(existing: list, new: list) -> list:
+    """completed_stages reducer — append 방식으로 실행 이력 누적"""
+    return (existing or []) + (new or [])
+
+
 # =====================================================================
 # ======================== Data Models(Schema) ========================
 # =====================================================================
@@ -131,7 +137,7 @@ class GapCandidate(BaseModel):
 
     axis: str
     axis_label: str = ""
-    axis_type: str = "fixed"
+    axis_type: str = "dynamic"
     gap_statement: str
     elaboration: str = ""
     proposed_topic: str = ""
@@ -214,6 +220,7 @@ class AgentState(TypedDict):
     # ==================================================================
     # -3- LIMITATION AGENT
     limitations: List[dict]
+    paper_extraction_status: List[dict]  # 논문별 full text 추출 상태 (status/fulltext_source/sections)
 
     # ==================================================================
     # -3.5- LIMITATION EVAL AGENT
@@ -231,3 +238,9 @@ class AgentState(TypedDict):
     critic_loop_count: int
 
     trace: dict
+
+    # ==================================================================
+    # -6- ORCHESTRATOR (GAPAGO_ORCHESTRATOR=1 일 때만 사용)
+    completed_stages: Annotated[List[str], _append_stages]
+    agent_feedback: dict
+    orchestrator_plan: List[str]

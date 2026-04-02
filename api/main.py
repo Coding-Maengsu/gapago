@@ -202,11 +202,13 @@ def _save_result(query: str, state_values: dict, user_id: str = "", parent_sessi
         "refined_query": state_values.get("refined_query", ""),
         "keywords": state_values.get("keywords", []),
         "papers": papers_out,
+        "total_searched": state_values.get("total_candidates_count", len(papers)),
         "limitations": state_values.get("limitations", []),
         "limitation_eval": state_values.get("limitation_eval", {}),
         "eval_warnings": state_values.get("eval_warnings", []),
         "gaps": state_values.get("gaps", []),
         "web_results": state_values.get("web_results", []),
+        "paper_extraction_status": state_values.get("paper_extraction_status", []),
         "messages": messages_out,
     }
 
@@ -279,6 +281,9 @@ async def _run_pipeline(session_id: str, graph, config_dict: dict, inputs: dict 
                     session["status"] = "interrupted"
                     continue
                 if node.startswith("__"):
+                    continue
+                # orchestrator 노드는 내부 라우팅 전용 — 프론트에 노출하지 않음
+                if node == "orchestrator":
                     continue
 
                 # Track pipeline stage completion for ETA
@@ -753,7 +758,7 @@ def _build_node_payload(node: str, values: dict) -> dict:
         limitations = values.get("limitations", [])
         payload["limitations_count"] = len(limitations)
         paper_ids = list({lim.get("paper_id", "") for lim in limitations})
-        payload["detail"] = f"Extracted {len(limitations)} limitations from {len(paper_ids)} papers"
+        payload["detail"] = f"{len(paper_ids)}편 논문에서 {len(limitations)}개 한계점 추출"
         payload["limitations"] = []
         for lim in limitations:
             payload["limitations"].append({
@@ -763,6 +768,9 @@ def _build_node_payload(node: str, values: dict) -> dict:
                 "source_section": lim.get("source_section", ""),
                 "evidence_quote": lim.get("evidence_quote", "")[:200],
             })
+        extraction_status = values.get("paper_extraction_status", [])
+        if extraction_status:
+            payload["paper_extraction_status"] = extraction_status
 
     elif node == "limitation_eval":
         eval_data = values.get("limitation_eval", {})
