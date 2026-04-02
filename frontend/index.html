@@ -1730,6 +1730,22 @@
         .flow-legend { display: flex; gap: 18px; padding: 10px 16px; font-size: 0.78em; color: #6b7294; border-top: 1.5px solid var(--border-light); background: linear-gradient(180deg, #f4f5fb 0%, #edeef6 100%); flex-wrap: wrap; align-items: center; }
         .flow-legend-dot { display: inline-block; width: 11px; height: 11px; border-radius: 4px; margin-right: 5px; vertical-align: middle; }
 
+        /* 커스텀 툴팁 */
+        .has-tooltip { position: relative; }
+        .has-tooltip .custom-tooltip {
+            visibility: hidden; opacity: 0;
+            position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+            background: #1e1e2e; color: #e0e0e0; font-size: 0.78em; line-height: 1.5;
+            padding: 8px 12px; border-radius: 8px; white-space: nowrap;
+            pointer-events: none; transition: opacity 0.2s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25); z-index: 100;
+        }
+        .has-tooltip .custom-tooltip::after {
+            content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+            border: 6px solid transparent; border-top-color: #1e1e2e;
+        }
+        .has-tooltip:hover .custom-tooltip { visibility: visible; opacity: 1; transition-delay: 0.5s; }
+
     </style>
 </head>
 <body>
@@ -1752,7 +1768,7 @@
         <label>모드 선택</label>
         <select id="routingProfile">
             <option value="optimized" selected>Optimized (에이전트별 최적화)</option>
-            <option value="quality">Quality (최고 품질, Claude 활용)</option>
+            <option value="quality">Quality (평가·추출 전체 Claude)</option>
         </select>
         <label>답변 언어</label>
         <select id="outputLanguage">
@@ -1769,11 +1785,12 @@
             <option value="3y">최근 3년</option>
             <option value="5y">최근 5년</option>
         </select>
-        <label title="일부 분석 단계를 생략하여 속도를 높입니다. 품질이 다소 낮아질 수 있습니다."
+        <label class="has-tooltip"
                style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer">
             <input type="checkbox" id="fastMode" style="width:16px;height:16px;cursor:pointer">
             <span>Fast Mode</span>
             <span style="font-size:0.75em;color:var(--text-light)">(빠른 분석, 품질 트레이드오프)</span>
+            <span class="custom-tooltip">CrossEncoder 리랭킹 · 한계점 평가 Call 1 생략, 경량 모델 전환</span>
         </label>
     </div>
 
@@ -3417,7 +3434,18 @@ async function sendClarification(response) {
     try {
         const params = new URLSearchParams({ session_id: currentSessionId, response });
         const resp = await fetch(`api/clarify?${params}`);
-        if (!resp.ok) { showError(`명확화 오류 (${resp.status}): ${await resp.text()}`); return; }
+        if (!resp.ok) {
+            const body = await resp.text();
+            let msg;
+            try { msg = JSON.parse(body).detail; } catch { msg = body; }
+            if (resp.status === 410) {
+                showError(msg || '서버가 재시작되어 세션이 소실되었습니다. 새로운 분석을 시작해주세요.');
+                setInputEnabled(true);
+            } else {
+                showError(`명확화 오류 (${resp.status}): ${msg}`);
+            }
+            return;
+        }
         const data = await resp.json();
         await connectToStream(currentSessionId, data.events_count || 0);
     } catch (e) { showError(e.message); }

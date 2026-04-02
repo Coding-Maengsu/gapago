@@ -22,19 +22,14 @@ class AgentModelConfig:
 # 프리셋 정의
 ROUTING_PRESETS: dict[str, dict[str, AgentModelConfig]] = {
     "optimized": {
-        # light: 단순 분류/점수화 → groq (빠르고 무료)
-        "query_analysis":      AgentModelConfig(provider="groq", tier="light"),
-        "query_refine":        AgentModelConfig(provider="groq", tier="light"),
-        "meaning_expand":      AgentModelConfig(provider="groq", tier="light"),
-        "critic_score":        AgentModelConfig(provider="groq", tier="light"),
+        # azure(GPT) 기본: 정확성 필수 작업 전부 (환각 방지)
+        # query_analysis, query_refine, meaning_expand, limitation_eval,
+        # recency_check, critic_score, gap_classify, limitation_verify → 기본 provider
         "orchestrator":        AgentModelConfig(provider="groq", tier="light"),
-        "gap_classify":        AgentModelConfig(provider="groq", tier="light"),
-        # standard: limitation_eval, recency_check → 기본 provider (azure)
         # heavy: 핵심 추론/추출 → claude, groq
         "limitation_extract":  AgentModelConfig(provider="claude", tier="heavy"),
         "gap_reasoning":       AgentModelConfig(provider="groq", tier="heavy"),
         "response":            AgentModelConfig(provider="claude", tier="heavy"),
-        "limitation_verify":   AgentModelConfig(provider="groq", tier="light"),
     },
     "quality": {
         # heavy: 핵심 작업 전부 claude
