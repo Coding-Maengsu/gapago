@@ -1758,7 +1758,6 @@
                 <option value="" disabled selected>선택해주세요</option>
                 <option value="azure">Azure OpenAI (GPT)</option>
                 <option value="claude">Claude (Anthropic)</option>
-                <option value="gemini">Google Gemini</option>
                 <option value="exaone">EXAONE (Local)</option>
             </select>
         </div>
@@ -2322,7 +2321,7 @@ async function startAnalysis() {
     if (!validateOptions()) return;
 
     const routingProfile = document.getElementById('routingProfile')?.value || 'balanced';
-    const PROFILE_DEFAULT_PROVIDERS = { optimized: 'azure', quality: 'azure', speed: 'gemini' };
+    const PROFILE_DEFAULT_PROVIDERS = { optimized: 'azure', quality: 'azure', speed: 'groq' };
     const provider = routingProfile === 'balanced'
         ? document.getElementById('provider').value
         : PROFILE_DEFAULT_PROVIDERS[routingProfile] || 'azure';
@@ -2331,7 +2330,7 @@ async function startAnalysis() {
     const outputLanguage = document.getElementById('outputLanguage').value;
 
     setInputEnabled(false);
-    const providerLabels = { azure: 'Azure GPT', claude: 'Claude', gemini: 'Gemini', exaone: 'EXAONE' };
+    const providerLabels = { azure: 'Azure GPT', claude: 'Claude', groq: 'Groq', exaone: 'EXAONE' };
     const yearLabels = { auto: '자동 추천', '1y': '최근 1년', '3y': '최근 3년', '5y': '최근 5년' };
     const langLabels = { auto: '자동 감지', ko: '한국어', en: 'English' };
     destroyCyGraph();
@@ -3498,7 +3497,7 @@ async function exploreDirection(topic) {
     document.getElementById('queryInput').value = topic;
 
     const exploreRoutingProfile = document.getElementById('routingProfile')?.value || 'balanced';
-    const PROFILE_DEFAULTS_EXPLORE = { optimized: 'azure', quality: 'azure', speed: 'gemini' };
+    const PROFILE_DEFAULTS_EXPLORE = { optimized: 'azure', quality: 'azure', speed: 'groq' };
     const provider = exploreRoutingProfile === 'balanced'
         ? document.getElementById('provider').value
         : PROFILE_DEFAULTS_EXPLORE[exploreRoutingProfile] || 'azure';

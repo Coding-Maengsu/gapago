@@ -77,8 +77,7 @@ class GeminiVertexChat(BaseChatModel):
 AVAILABLE_PROVIDERS = {
     "1": ("azure",   "Azure OpenAI (GPT)"),
     "2": ("claude",  "Claude (AWS Bedrock)"),
-    "3": ("gemini",  "Google Gemini"),
-    "4": ("exaone",  "LG EXAONE (Local GPU)"),
+    "3": ("exaone",  "LG EXAONE (Local GPU)"),
 }
 
 

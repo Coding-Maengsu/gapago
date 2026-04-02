@@ -196,9 +196,9 @@ async def run():
     # --- 라우팅 프로파일 선택 (provider 선택보다 먼저) ---
     print("\n=== 라우팅 프로파일 선택 ===")
     print("  0) balanced  - 단일 모델 (기본값, 직접 provider 선택)")
-    print("  1) optimized - 에이전트별 최적화 (단순→gemini, 핵심→claude)")
+    print("  1) optimized - 에이전트별 최적화 (단순→groq, 핵심→claude)")
     print("  2) quality   - 최고 품질 (핵심 작업 claude 활용)")
-    print("  3) speed     - 최대 속도 (대부분 gemini)")
+    print("  3) speed     - 최대 속도 (전체 groq, rate limit 주의)")
     profile_map = {"0": "balanced", "1": "optimized", "2": "quality", "3": "speed"}
     profile_choice = input("\n선택 (기본값: balanced) > ").strip()
     routing_profile = profile_map.get(profile_choice, "balanced")

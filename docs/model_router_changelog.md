@@ -215,6 +215,44 @@ LLM 프로바이더 드롭다운 아래에 라우팅 프로파일 선택기 추�
 
 ---
 
+### 7. CLI/Web 기능 패리티 수정 (`0819bde`)
+
+| 파일 | 문제 | 수정 |
+|---|---|---|
+| `agents/gap_chat_agent.py` | `gap_chat_respond()` 내 `get_llm()` → 기본 provider 사용 | `get_llm_for_agent(state, "gap_chat")` 로 마이그레이션 |
+| `api/main.py` | explore 엔드포인트에 `fast_mode` 미전달, `_save_result`에 라우팅 정보 미저장 | `fast_mode` 파라미터 추가, `_save_result`에 `llm_provider`/`model_routing`/`output_language` 저장, `_build_chat_state`에 `model_routing`/`output_language` 전달 |
+| `frontend/index.html` | explore 호출 시 `fast_mode` 파라미터 누락 | explore API 호출에 `fast_mode` 파라미터 추가 |
+
+---
+
+### 8. 비-balanced 프로파일 provider 자동 할당 (`3fd3c3c`)
+
+비-balanced 프로파일(optimized, quality, speed) 선택 시 provider 드롭다운을 숨기고 프로파일 기본 provider를 자동 할당.
+
+**변경 내용**:
+
+- `model_router.py`: `PROFILE_DEFAULT_PROVIDERS` 딕셔너리 추가
+  - `optimized` / `quality` → `azure`
+  - `speed` → `gemini`
+- `frontend/index.html`: 프로파일 변경 이벤트 리스너 추가 — `balanced`일 때만 provider 드롭다운 표시, 나머지는 숨기고 기본값 자동 설정
+- `main.py`: CLI에서도 동일하게 프로파일 선택을 먼저 받고, `balanced`일 때만 provider 선택 프롬프트 표시
+
+**의도**: 사용자가 "optimized" 선택 후 provider를 groq로 바꾸면 라우팅 의도와 충돌 → 혼란 방지
+
+---
+
+## 변경 파일 목록 (추가분)
+
+| 파일 | 변경 내용 |
+|---|---|
+| `agents/gap_chat_agent.py` | `gap_chat_respond()` LLM 라우팅 마이그레이션 |
+| `api/main.py` | explore `fast_mode`, `_save_result`/`_build_chat_state` 필드 보강 |
+| `frontend/index.html` | explore `fast_mode` + 프로파일별 provider 드롭다운 조건부 표시 |
+| `main.py` | 프로파일별 provider 선택 로직 분기 |
+| `model_router.py` | `PROFILE_DEFAULT_PROVIDERS` 추가 |
+
+---
+
 ## 하위 호환성
 
 - `balanced` 프로파일 = 기존 동작과 100% 동일
