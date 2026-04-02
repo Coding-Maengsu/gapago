@@ -3500,7 +3500,8 @@ async function exploreDirection(topic) {
         let resp;
         try {
             const exploreRoutingProfile = document.getElementById('routingProfile')?.value || 'balanced';
-            const exploreParams = new URLSearchParams({ session_id: currentSessionId || '', topic, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID, routing_profile: exploreRoutingProfile });
+            const exploreFastMode = document.getElementById('fastMode')?.checked || false;
+            const exploreParams = new URLSearchParams({ session_id: currentSessionId || '', topic, provider, domain, year_range: yearRange, output_language: outputLanguage, user_id: USER_ID, routing_profile: exploreRoutingProfile, ...(exploreFastMode ? {fast_mode: 'true'} : {}) });
             resp = await fetch(`api/explore?${exploreParams}`);
             if (!resp.ok) throw new Error('explore not available');
         } catch (e) {

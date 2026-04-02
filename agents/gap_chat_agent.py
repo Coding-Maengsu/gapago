@@ -10,7 +10,7 @@ GAP Chat Agent — 최종 결과 검토 후 사용자와 대화
 """
 
 from states import AgentState
-from llm import get_llm
+from llm import get_llm, get_llm_for_agent
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from utils.parse_json import parse_json
 
@@ -210,7 +210,7 @@ def gap_chat_respond(state: AgentState, user_question: str) -> str:
     messages.append(HumanMessage(content=user_question))
 
     # LLM 호출
-    llm = get_llm(provider=state.get("llm_provider"))
+    llm = get_llm_for_agent(state, "gap_chat")
     response = llm.invoke(messages)
 
     return response.content
