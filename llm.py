@@ -95,7 +95,6 @@ def get_llm(provider: str | None = None, model: str | None = None) -> BaseChatMo
                 "AZURE_OPENAI_API_VERSION", "2024-12-01-preview"
             ),
             azure_deployment=deployment,
-            temperature=0.1,
         )
 
     # ── Claude via AWS Bedrock ──
