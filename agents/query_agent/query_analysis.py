@@ -36,7 +36,7 @@
 import json
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from states import AgentState, QueryResult
-from llm import get_llm
+from llm import get_llm_for_agent
 
 # =====================================================================================================================
 # 0) 시스템 프롬프트
@@ -263,7 +263,7 @@ def query_analysis_node(state: AgentState) -> AgentState:
     output_language = state.get("output_language", "auto")
     lang_instruction = get_language_instruction(output_language)
 
-    llm = get_llm(provider=state.get("llm_provider"))
+    llm = get_llm_for_agent(state, "query_analysis")
     structured_llm = llm.with_structured_output(QueryResult)
     result: QueryResult = structured_llm.invoke([
         SystemMessage(content=SYSTEM_PROMPT + lang_instruction),

@@ -30,7 +30,7 @@ import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from states import AgentState, GapCandidate, LimitationItem
-from llm import get_llm
+from llm import get_llm, get_llm_for_agent
 from utils.parse_json import parse_json
 from utils.progress import report_progress
 from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
@@ -52,29 +52,30 @@ RECENCY_WEIGHT = {
 
 # ── LLM 헬퍼 ─────────────────────────────────────────────────────────────────
 
-def _llm_invoke(messages: list[dict], use_reasoning: bool = False) -> str:
+def _llm_invoke(messages: list[dict], use_reasoning: bool = False, state: dict = None) -> str:
     """
     LLM 호출 헬퍼.
 
-    gap_agent 내부 전용 — state["llm_provider"](상용 LLM)와 완전히 분리.
+    state가 있고 model_routing이 설정된 경우:
+      use_reasoning=True  → get_llm_for_agent(state, "gap_reasoning")
+      use_reasoning=False → get_llm_for_agent(state, "gap_classify")
 
-    use_reasoning=True:
-      GAP_REASONING_PROVIDER 환경변수("qwq" or "groq")가 설정된 경우
-      해당 추론 전용 모델 사용 (동적 축 생성, 장벽 분석, 창의적 방향 제안).
-      미설정이면 기본 LLM으로 fallback.
-
-    use_reasoning=False:
-      기본 LLM 사용 (배치 분류, 긴급도 점수화 등 단순 작업).
+    state가 없거나 model_routing이 없는 경우 (하위 호환):
+      GAP_REASONING_PROVIDER 환경변수("qwq" or "groq") fallback.
     """
-    reasoning_provider = os.getenv("GAP_REASONING_PROVIDER", "")
-    effective_provider = None  # 기본값: get_llm()의 기본 provider
+    if state and state.get("model_routing"):
+        agent_name = "gap_reasoning" if use_reasoning else "gap_classify"
+        llm = get_llm_for_agent(state, agent_name)
+    else:
+        reasoning_provider = os.getenv("GAP_REASONING_PROVIDER", "")
+        effective_provider = None
 
-    if use_reasoning and reasoning_provider in ("qwq", "groq"):
-        effective_provider = reasoning_provider
-        label = "Groq Qwen3-32B" if reasoning_provider == "groq" else "QwQ-32B"
-        print(f"  [LLM] 추론 단계 → {label} 사용")
+        if use_reasoning and reasoning_provider in ("qwq", "groq"):
+            effective_provider = reasoning_provider
+            label = "Groq Qwen3-32B" if reasoning_provider == "groq" else "QwQ-32B"
+            print(f"  [LLM] 추론 단계 → {label} 사용")
 
-    llm = get_llm(provider=effective_provider)
+        llm = get_llm(provider=effective_provider)
     lc_messages = []
     for m in messages:
         role, content_text = m["role"], m["content"]
@@ -151,6 +152,7 @@ def _parse_limitations_from_messages(messages) -> list:
 def _generate_all_axes(
     all_claims_text: str,
     research_question: str,
+    state: dict = None,
 ) -> list:
     """
     고정 축 없이 LLM이 limitations 전체를 분석하여
@@ -215,7 +217,7 @@ Output JSON only:
 
     try:
         # 도메인 축 귀납 도출 → 추론 모델 사용
-        response = _llm_invoke(messages, use_reasoning=True)
+        response = _llm_invoke(messages, use_reasoning=True, state=state)
         result = parse_json(response)
         axes_raw = result.get("axes", [])
 
@@ -246,6 +248,7 @@ Output JSON only:
 def _generate_fallback_axes(
     all_claims_text: str,
     research_question: str,
+    state: dict = None,
 ) -> list:
     """
     LLM 동적 축 생성이 실패하거나 결과가 너무 적을 때
@@ -276,7 +279,7 @@ Output JSON only:
     ]
 
     try:
-        response = _llm_invoke(messages, use_reasoning=True)
+        response = _llm_invoke(messages, use_reasoning=True, state=state)
         result = parse_json(response)
         axes_raw = result.get("axes", [])
         return [
@@ -323,6 +326,7 @@ def _classify_limitations_batch(
     limitations: list,
     final_axes: dict,
     lang_instruction: str = "",
+    state: dict = None,
 ) -> dict:
     BATCH_SIZE = 20
     axis_mapping = {}
@@ -367,7 +371,7 @@ Output JSON only:
 
         try:
             # 분류는 단순 작업 → 기본 provider (use_reasoning=False)
-            response = _llm_invoke(messages)
+            response = _llm_invoke(messages, state=state)
             result = parse_json(response)
             cls_map = result.get("classifications", {})
             offset = batch_idx * BATCH_SIZE
@@ -427,6 +431,7 @@ def _score_axis_urgency(
     final_axes: dict,
     research_question: str,
     lang_instruction: str = "",
+    state: dict = None,
 ) -> list[tuple[str, float, str, str]]:
     """
     각 축의 긴급도를 LLM으로 점수화하여 우선순위를 결정한다.
@@ -493,7 +498,7 @@ Output JSON only:
 
     try:
         # 점수화도 단순 판단 → 기본 provider
-        response = _llm_invoke(messages)
+        response = _llm_invoke(messages, state=state)
         result = parse_json(response)
         scores_raw = result.get("urgency_scores", {})
 
@@ -529,6 +534,7 @@ def _analyze_barriers(
     all_lims: list,
     research_question: str,
     lang_instruction: str = "",
+    state: dict = None,
 ) -> dict:
     """
     왜 N편의 논문이 이 문제를 인정하면서도 해결하지 못했는지를 분석한다.
@@ -623,7 +629,7 @@ Output JSON only:
 
     try:
         # 장벽 분석은 핵심 추론 → 추론 모델 사용
-        response = _llm_invoke(messages, use_reasoning=True)
+        response = _llm_invoke(messages, use_reasoning=True, state=state)
         result = parse_json(response)
         return {
             "gap_statement":  result.get("gap_statement",  f"Unsolved gap in {ax_key}"),
@@ -655,6 +661,7 @@ def _generate_creative_directions(
     web_results: list,
     cascade_impact: str,
     lang_instruction: str = "",
+    state: dict = None,
 ) -> dict | None:
     """
     Step 4b에서 도출한 장벽과 "이미 시도된 것들"을 출발점으로,
@@ -768,7 +775,7 @@ Output JSON only:
 
     try:
         # 창의적 방향 제안은 핵심 추론 → 추론 모델 사용
-        response = _llm_invoke(messages, use_reasoning=True)
+        response = _llm_invoke(messages, use_reasoning=True, state=state)
         result = parse_json(response)
 
         candidates = result.get("candidates", [])
@@ -969,11 +976,11 @@ def gap_infer_node(state: AgentState) -> AgentState:
     all_claims_text = "\n".join(f"[{lim.paper_id}] {lim.claim}" for lim in limitations)
 
     print("  🔄 완전 동적 축 생성 중 (고정 축 없음)...")
-    dynamic_axes = _generate_all_axes(all_claims_text, research_question)
+    dynamic_axes = _generate_all_axes(all_claims_text, research_question, state=state)
 
     if len(dynamic_axes) < 2:
         print(f"  ⚠️ 동적 축이 {len(dynamic_axes)}개뿐 → fallback 재시도...")
-        dynamic_axes = _generate_fallback_axes(all_claims_text, research_question)
+        dynamic_axes = _generate_fallback_axes(all_claims_text, research_question, state=state)
 
     for ax in dynamic_axes:
         print(f"  🟢 동적 축: [{ax['name']}] {ax['label']}")
@@ -985,7 +992,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
     # ── Step 3. 배치 분류 + recency 가중치 적용 ─────────────────────────────
     print("  🔄 배치 분류 중...")
     axis_mapping = _classify_limitations_batch(
-        limitations, final_axes, lang_instruction=lang_instruction
+        limitations, final_axes, lang_instruction=lang_instruction, state=state
     )
     axis_groups = _build_axis_groups_with_recency(limitations, axis_mapping)
 
@@ -1005,7 +1012,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
 
     print(f"\n  🔄 Step 4a: {len(active_groups)}개 축 긴급도 점수화...")
     scored_axes = _score_axis_urgency(
-        active_groups, final_axes, research_question, lang_instruction
+        active_groups, final_axes, research_question, lang_instruction, state=state
     )
 
     # fast_mode: 상위 3개 축만 분석
@@ -1036,7 +1043,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
         print(f"  🔍 4b 장벽 분석 ({ax_key})...")
         barrier = _analyze_barriers(
             ax_key, ax_info, unresolved_lims, grp["lims"],
-            research_question, lang_instruction,
+            research_question, lang_instruction, state=state,
         )
         print(f"     gap: {barrier['gap_statement'][:70]}...")
         print(f"     barrier_type: {barrier['barrier_type']}")
@@ -1057,6 +1064,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
             web_results=web_results,
             cascade_impact=cascade_impact,
             lang_instruction=lang_instruction,
+            state=state,
         )
 
         if direction is None:

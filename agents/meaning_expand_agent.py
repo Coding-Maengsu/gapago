@@ -6,7 +6,7 @@ from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from llm import get_llm
+from llm import get_llm_for_agent
 from states import AgentState
 
 
@@ -72,7 +72,7 @@ def _extract_query_context(state: AgentState) -> dict[str, Any]:
 
 
 def meaning_expand_node(state: AgentState) -> AgentState:
-    llm = get_llm(provider=state.get("llm_provider"))
+    llm = get_llm_for_agent(state, "meaning_expand")
 
     ctx = _extract_query_context(state)
     refined_query = ctx["refined_query"]

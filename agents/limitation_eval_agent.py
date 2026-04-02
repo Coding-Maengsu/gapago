@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
 
 from states import AgentState
-from llm import get_llm
+from llm import get_llm, get_llm_for_agent
 from utils.parse_json import parse_json
 
 # ── 최대 RETRY 횟수 ──────────────────────────────────────────────
@@ -150,10 +150,10 @@ RETRY conditions (ANY triggers RETRY):
 # Call 1 실행
 # =====================================================================
 def _run_call1(
-    limitations: list[dict], refined_query: str, provider: str = None
+    limitations: list[dict], refined_query: str, provider: str = None, state: dict = None
 ) -> list[dict]:
     """Per-limitation 평가: atomic fact verification + rubric scoring."""
-    llm = get_llm(provider=provider)
+    llm = get_llm_for_agent(state, "limitation_eval") if state else get_llm(provider=provider)
 
     # 배치를 병렬로 처리 (ThreadPoolExecutor)
     total = len(limitations)
@@ -191,7 +191,7 @@ def _run_call1(
         ]
 
         try:
-            batch_llm = get_llm(provider=provider)
+            batch_llm = get_llm_for_agent(state, "limitation_eval") if state else get_llm(provider=provider)
             response = batch_llm.invoke(messages)
             content = (
                 response.content if hasattr(response, "content") else str(response)
@@ -246,9 +246,10 @@ def _run_call2(
     call1_results: list[dict],
     refined_query: str,
     provider: str = None,
+    state: dict = None,
 ) -> dict:
     """Set-level 평가: holistic judgment + type classification + PASS/RETRY."""
-    llm = get_llm(provider=provider)
+    llm = get_llm_for_agent(state, "limitation_eval") if state else get_llm(provider=provider)
 
     # Call 1 결과를 요약해서 전달
     call1_summary = "\n".join(
@@ -439,7 +440,6 @@ def limitation_eval_node(state: AgentState) -> AgentState:
     print(f"\n  ===== Limitation Evaluation (attempt {eval_retry_count + 1}) =====")
     print(f"  [eval] {len(limitations)}개 limitation 평가 시작")
 
-    provider = state.get("llm_provider")
     fast_mode = state.get("fast_mode", False)
 
     # ── fast_mode: Call 1 스킵, Call 2만 실행 ──
@@ -457,7 +457,7 @@ def limitation_eval_node(state: AgentState) -> AgentState:
     else:
         # ── Call 1: Per-limitation scoring ──
         print("  [eval:call1] Atomic verification + Rubric scoring...")
-        call1_results = _run_call1(limitations, refined_query, provider=provider)
+        call1_results = _run_call1(limitations, refined_query, state=state)
         print(f"  [eval:call1] {len(call1_results)}개 결과 수신")
 
     # Call 1 실패 시 전체 PASS (평가 생략)
@@ -483,7 +483,7 @@ def limitation_eval_node(state: AgentState) -> AgentState:
     # ── Call 2: Holistic judgment ──
     print("  [eval:call2] Holistic judgment + Type classification...")
     call2_result = _run_call2(
-        limitations, call1_results, refined_query, provider=provider
+        limitations, call1_results, refined_query, state=state
     )
     print(f"  [eval:call2] decision={call2_result.get('decision', 'N/A')}")
 

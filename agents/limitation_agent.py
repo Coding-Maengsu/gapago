@@ -21,7 +21,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 
 from states import AgentState, Paper, LimitationItem
-from llm import get_llm
+from llm import get_llm, get_llm_for_agent
 from utils.parse_json import parse_json
 from utils.progress import report_progress
 from utils.cancel import is_cancelled
@@ -1199,6 +1199,112 @@ def _dedupe_limitations(limitations: list[dict], threshold: float = 0.55) -> lis
 
 
 # =====================================================================
+# 교차 검증 (Cross-verification)
+# =====================================================================
+
+VERIFY_PROMPT = """주어진 논문 텍스트와 추출된 limitation을 비교하세요.
+
+[논문 텍스트]
+{paper_text}
+
+[추출된 Limitations]
+{limitations_text}
+
+각 limitation에 대해:
+1. evidence_quote가 원문에 존재하는가? (FOUND/NOT_FOUND)
+2. claim이 evidence_quote에서 도출 가능한가? (VALID/INVALID)
+
+JSON 리스트만 출력:
+[{{"index": 0, "quote_check": "FOUND", "claim_check": "VALID"}}, ...]"""
+
+
+def _verify_limitations(limitations: list[dict], paper_sections: dict, state: dict) -> list[dict]:
+    """
+    추출된 limitation을 다른 provider로 교차 검증.
+    model_routing의 profile이 optimized/speed일 때만 실행.
+
+    검증 기준:
+    1. evidence_quote가 실제 원문에 존재하는가? (hallucination 체크)
+    2. claim이 evidence_quote에서 합리적으로 도출 가능한가?
+
+    Returns: 검증 플래그가 추가된 limitation 리스트
+    """
+    routing = state.get("model_routing")
+    if not routing or routing.get("profile", "balanced") == "balanced":
+        return limitations
+
+    print("  🔍 [verify] 교차 검증 시작...")
+    llm = get_llm_for_agent(state, "limitation_verify")
+
+    # 논문별로 그룹핑
+    by_paper: dict[str, list[tuple[int, dict]]] = {}
+    for i, lim in enumerate(limitations):
+        pid = lim.get("paper_id", "")
+        by_paper.setdefault(pid, []).append((i, lim))
+
+    verify_results = {}
+    verified_count = 0
+    failed_count = 0
+
+    for pid, lim_group in by_paper.items():
+        sections = paper_sections.get(pid, {})
+        if not sections:
+            continue
+
+        # 해당 논문의 텍스트 (최대 3000자)
+        paper_text = "\n".join(
+            f"[{sec}]\n{text[:1000]}" for sec, text in list(sections.items())[:5]
+        )
+        if len(paper_text) > 3000:
+            paper_text = paper_text[:3000] + "\n... (truncated)"
+
+        lim_text = "\n".join(
+            f"[index={idx}]\n  claim: {lim.get('claim', '')}\n  evidence_quote: {lim.get('evidence_quote', '')}"
+            for idx, lim in lim_group
+        )
+
+        prompt = VERIFY_PROMPT.format(paper_text=paper_text, limitations_text=lim_text)
+
+        try:
+            from langchain_core.messages import SystemMessage as _SM, HumanMessage as _HM
+            response = llm.invoke([
+                _SM(content="You are a fact-checker. Output only valid JSON."),
+                _HM(content=prompt),
+            ])
+            content = response.content if hasattr(response, "content") else str(response)
+            parsed = parse_json(content)
+
+            if isinstance(parsed, list):
+                for item in parsed:
+                    idx = item.get("index")
+                    if idx is not None:
+                        verify_results[idx] = item
+        except Exception as e:
+            print(f"  ⚠️ [verify] {pid} 검증 실패: {e}")
+
+    # 플래그 추가
+    for i, lim in enumerate(limitations):
+        result = verify_results.get(i)
+        if result:
+            is_valid = (
+                result.get("quote_check") == "FOUND"
+                and result.get("claim_check") == "VALID"
+            )
+            lim["verified"] = is_valid
+            if is_valid:
+                verified_count += 1
+            else:
+                failed_count += 1
+                lim["verify_detail"] = {
+                    "quote_check": result.get("quote_check"),
+                    "claim_check": result.get("claim_check"),
+                }
+
+    print(f"  ✅ [verify] 교차 검증 완료: verified={verified_count}, failed={failed_count}, unchecked={len(limitations) - verified_count - failed_count}")
+    return limitations
+
+
+# =====================================================================
 # limitation_extract_node
 # =====================================================================
 def limitation_extract_node(state: AgentState) -> AgentState:
@@ -1234,7 +1340,6 @@ def limitation_extract_node(state: AgentState) -> AgentState:
 
     print(f"  ✓ {len(papers)}편의 full text 접근 가능한 논문으로 limitation 추출 시작")
 
-    provider = state.get("llm_provider")
     session_id = state.get("session_id", "")
     output_language = state.get("output_language", "auto")
     from prompts.system import get_language_instruction
@@ -1250,8 +1355,8 @@ def limitation_extract_node(state: AgentState) -> AgentState:
         result = {"paper_id": paper.paper_id, "limitations": [], "errors": [],
                   "fulltext_failed": False, "llm_failed": False, "content": "[]"}
 
-        # 스레드 내에서 LLM 인스턴스 획득 (provider 변경 반영)
-        llm = get_llm(provider=provider)
+        # 스레드 내에서 LLM 인스턴스 획득 (model_routing 반영)
+        llm = get_llm_for_agent(state, "limitation_extract")
 
         # full text 로드
         sections = _load_full_text_sections(paper)
@@ -1399,7 +1504,7 @@ def limitation_extract_node(state: AgentState) -> AgentState:
 
     def _process_batch(batch: list[Paper]) -> dict:
         """논문 배치를 1회 LLM 호출로 처리."""
-        llm = get_llm(provider=provider)
+        llm = get_llm_for_agent(state, "limitation_extract")
         batch_result = {"limitations": [], "errors": [], "llm_failed": False}
 
         # 배치 프롬프트 구성
@@ -1508,6 +1613,16 @@ def limitation_extract_node(state: AgentState) -> AgentState:
     dedup_removed = before_dedup - len(all_limitations)
     if dedup_removed:
         print(f"  [dedup] {before_dedup} → {len(all_limitations)} ({dedup_removed}개 중복 제거)")
+
+    # ── 교차 검증 (optimized/speed 프로파일에서만 실행) ──
+    all_limitations = _verify_limitations(all_limitations, paper_sections, state)
+
+    # ── 검증 통계를 state에 기록 ──
+    verify_stats = {
+        "verified": sum(1 for l in all_limitations if l.get("verified") is True),
+        "failed": sum(1 for l in all_limitations if l.get("verified") is False),
+        "unchecked": sum(1 for l in all_limitations if "verified" not in l),
+    }
 
     # ── 논문별 추출 상태 집계 ──
     lim_count_by_paper = {}
