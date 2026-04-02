@@ -1498,8 +1498,8 @@
         }
 
         /* ── 관계도 그래프 (Flow Graph) ── */
-        .flow-graph-section { margin-top: 18px; border-top: 1px solid var(--border-light); padding-top: 14px; }
-        .flow-graph-toggle { display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: 8px 4px; font-weight: 600; font-size: 0.9em; color: var(--text); user-select: none; }
+        .flow-graph-section { margin-top: 24px; border-top: 1.5px solid var(--border-light); padding-top: 18px; }
+        .flow-graph-toggle { display: flex; justify-content: space-between; align-items: center; cursor: pointer; padding: 10px 6px; font-weight: 700; font-size: 0.95em; color: var(--text); user-select: none; letter-spacing: -0.01em; }
         .flow-graph-toggle:hover { color: var(--accent); }
         .flow-graph-toggle .toggle-arrow { transition: transform 0.25s ease; font-size: 0.8em; }
         .flow-graph-section.open .flow-graph-toggle .toggle-arrow { transform: rotate(180deg); }
@@ -1507,42 +1507,47 @@
         .flow-graph-wrapper { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
         .flow-graph-section.open .flow-graph-wrapper { overflow: visible; }
 
-        .flow-graph-container { display: flex; gap: 0; position: relative; min-height: 300px; max-height: 480px; border: 1px solid var(--border-light); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; }
+        .flow-graph-container { display: flex; gap: 0; position: relative; min-height: 360px; max-height: 600px; border: 1.5px solid var(--border-light); border-radius: var(--radius-lg); background: #fafbfe; overflow: hidden; box-shadow: 0 2px 12px rgba(80, 90, 140, 0.06); }
 
         .flow-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-        .flow-col-header { padding: 10px 14px; font-size: 0.78em; font-weight: 600; color: var(--text-dim); border-bottom: 1px solid var(--border-light); background: var(--surface2); flex-shrink: 0; }
-        .flow-col-body { flex: 1; overflow-y: auto; padding: 8px; position: relative; z-index: 2; }
-        .flow-col + .flow-col { border-left: 1px solid var(--border-light); }
+        .flow-col-header { padding: 12px 16px; font-size: 0.82em; font-weight: 700; color: #4a5073; border-bottom: 1.5px solid var(--border-light); background: linear-gradient(180deg, #f4f5fb 0%, #edeef6 100%); flex-shrink: 0; display: flex; align-items: center; gap: 7px; letter-spacing: -0.01em; }
+        .flow-col-header .flow-col-icon { font-size: 1.1em; }
+        .flow-col-body { flex: 1; overflow-y: auto; padding: 10px; position: relative; z-index: 2; }
+        .flow-col-body::-webkit-scrollbar { width: 4px; }
+        .flow-col-body::-webkit-scrollbar-thumb { background: #d0d4e4; border-radius: 4px; }
+        .flow-col + .flow-col { border-left: 1.5px solid var(--border-light); }
 
-        .flow-node { padding: 7px 10px; border-radius: 8px; font-size: 0.78em; margin-bottom: 5px; cursor: pointer; border: 1.5px solid transparent; transition: opacity 0.2s, border-color 0.2s, box-shadow 0.2s; position: relative; }
-        .flow-node:hover { box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-        .flow-node.highlighted { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-light); z-index: 3; }
-        .flow-node.dimmed { opacity: 0.18; }
+        .flow-node { padding: 10px 13px; border-radius: 10px; font-size: 0.82em; margin-bottom: 7px; cursor: pointer; border: 1.5px solid transparent; transition: all 0.2s ease; position: relative; line-height: 1.45; word-break: keep-all; overflow-wrap: break-word; }
+        .flow-node:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(80, 90, 140, 0.12); }
+        .flow-node.highlighted { border-color: #4f6ef7; box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.15); z-index: 3; transform: translateY(-1px); }
+        .flow-node.dimmed { opacity: 0.12; transform: none; }
 
-        .flow-node-paper { background: var(--surface2); border-color: var(--border); }
-        .flow-node-paper .flow-node-title { font-weight: 500; line-height: 1.3; }
-        .flow-node-paper .flow-node-meta { font-size: 0.85em; color: var(--text-light); margin-top: 2px; }
+        .flow-node-paper { background: #ffffff; border-color: #d8dce8; }
+        .flow-node-paper:hover { border-color: #b0b8d0; }
+        .flow-node-paper .flow-node-title { font-weight: 600; line-height: 1.45; color: #2d3250; }
+        .flow-node-paper .flow-node-meta { font-size: 0.82em; color: #8891ad; margin-top: 4px; }
 
-        .flow-node-lim { background: var(--yellow-light); border-color: #f0d8a0; }
-        .flow-node-lim .flow-node-claim { line-height: 1.3; color: var(--text); }
+        .flow-node-lim { background: #fff7ed; border-color: #f5d9a8; }
+        .flow-node-lim:hover { border-color: #e8b560; }
+        .flow-node-lim .flow-node-claim { line-height: 1.45; color: #5c4a1e; }
 
-        .flow-node-gap { border-width: 2px; }
-        .flow-node-gap .flow-node-axis { font-size: 0.8em; font-weight: 600; margin-bottom: 2px; }
-        .flow-node-gap .flow-node-statement { line-height: 1.3; }
-        .flow-node-gap .flow-node-count { font-size: 0.8em; color: var(--text-light); margin-top: 2px; }
+        .flow-node-gap { border-width: 2px; padding: 12px 14px; }
+        .flow-node-gap .flow-node-axis { font-size: 0.78em; font-weight: 700; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
+        .flow-node-gap .flow-node-statement { line-height: 1.5; font-weight: 500; color: #1e2235; }
+        .flow-node-gap .flow-node-count { font-size: 0.78em; color: #8891ad; margin-top: 5px; display: flex; align-items: center; gap: 4px; }
 
         .flow-svg-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
-        .flow-edge { stroke: var(--border); stroke-width: 1.5; fill: none; opacity: 0.45; transition: opacity 0.2s, stroke 0.2s, stroke-width 0.2s; }
-        .flow-edge.highlighted { stroke: var(--accent); opacity: 1; stroke-width: 2; }
-        .flow-edge.dimmed { opacity: 0.05; }
+        .flow-edge { stroke-width: 1.8; fill: none; opacity: 0.35; transition: opacity 0.25s, stroke-width 0.25s; }
+        .flow-edge.highlighted { opacity: 1; stroke-width: 2.5; }
+        .flow-edge.dimmed { opacity: 0.04; }
 
-        .flow-legend { display: flex; gap: 14px; padding: 6px 14px; font-size: 0.72em; color: var(--text-light); border-top: 1px solid var(--border-light); background: var(--surface2); flex-wrap: wrap; align-items: center; }
-        .flow-legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: middle; }
+        .flow-legend { display: flex; gap: 18px; padding: 10px 16px; font-size: 0.78em; color: #6b7294; border-top: 1.5px solid var(--border-light); background: linear-gradient(180deg, #f4f5fb 0%, #edeef6 100%); flex-wrap: wrap; align-items: center; }
+        .flow-legend-dot { display: inline-block; width: 11px; height: 11px; border-radius: 4px; margin-right: 5px; vertical-align: middle; }
 
         @media (max-width: 768px) {
-            .flow-graph-container { flex-direction: column; max-height: 520px; }
-            .flow-col + .flow-col { border-left: none; border-top: 1px solid var(--border-light); }
-            .flow-col-body { max-height: 160px; }
+            .flow-graph-container { flex-direction: column; max-height: 600px; }
+            .flow-col + .flow-col { border-left: none; border-top: 1.5px solid var(--border-light); }
+            .flow-col-body { max-height: 200px; }
             .flow-svg-overlay { display: none; }
         }
     </style>
@@ -1673,14 +1678,18 @@ let pipelineData = {
 
 // Axis color palette for GAP visualization
 const AXIS_COLORS = [
-    { bg: '#eef0fb', color: '#5469d4', border: '#5469d4' },
-    { bg: '#f3eefa', color: '#7c5cbf', border: '#7c5cbf' },
-    { bg: '#eaf6f0', color: '#0d9668', border: '#0d9668' },
-    { bg: '#fef5e7', color: '#c27a0e', border: '#c27a0e' },
-    { bg: '#feeef0', color: '#d44a4a', border: '#d44a4a' },
-    { bg: '#e9f4fb', color: '#2e7dba', border: '#2e7dba' },
-    { bg: '#f4eefb', color: '#8e4ec6', border: '#8e4ec6' },
+    { bg: '#eff3ff', color: '#3659c9', border: '#7b9af0' },
+    { bg: '#f3effb', color: '#6d45b8', border: '#a88de0' },
+    { bg: '#edf8f2', color: '#18804a', border: '#6bc99a' },
+    { bg: '#fef6ed', color: '#b56e0a', border: '#edb95e' },
+    { bg: '#fef0f1', color: '#c13d4b', border: '#f09da4' },
+    { bg: '#edf6fc', color: '#2572a8', border: '#72b5e0' },
+    { bg: '#f6f0fb', color: '#8040b8', border: '#bb8ee6' },
 ];
+const EDGE_COLORS = {
+    paperToLim: { start: '#b0b8d0', end: '#e8b560' },
+    limToGap:   { start: '#e8b560', end: '#7b9af0' },
+};
 function getAxisColor(axisName) {
     // Deterministic color based on axis name hash
     let hash = 0;
@@ -2685,7 +2694,7 @@ function renderFlowGraph() {
         });
         Object.entries(byPaper).forEach(([pid, lims]) => {
             const paper = papers.find(p => p.paper_id === pid);
-            const label = paper ? truncate(paper.title || '', 20) : pid.slice(0, 12);
+            const label = paper ? (paper.title || '') : pid;
             limNodes.push({ id: `limgrp-${pid}`, type: 'limgroup', paperId: pid, count: lims.length, label, limIdxs: lims.map(l => l._idx) });
         });
     } else {
@@ -2695,52 +2704,53 @@ function renderFlowGraph() {
         });
     }
 
-    // 헤더 업데이트
+    // 헤더 업데이트 (아이콘 포함)
     const colPapers = document.getElementById('flowColPapers');
     const colLims = document.getElementById('flowColLims');
     const colGaps = document.getElementById('flowColGaps');
-    if (colPapers) colPapers.querySelector('.flow-col-header').textContent = `논문 (${papers.length})`;
-    if (colLims) colLims.querySelector('.flow-col-header').textContent = `한계점 (${validLimitations.length})`;
-    if (colGaps) colGaps.querySelector('.flow-col-header').textContent = `GAP (${gaps.length})`;
+    if (colPapers) colPapers.querySelector('.flow-col-header').innerHTML = `<span class="flow-col-icon">&#128196;</span> Papers <span style="opacity:0.5;font-weight:400">${papers.length}</span>`;
+    if (colLims) colLims.querySelector('.flow-col-header').innerHTML = `<span class="flow-col-icon">&#9888;&#65039;</span> Limitations <span style="opacity:0.5;font-weight:400">${validLimitations.length}</span>`;
+    if (colGaps) colGaps.querySelector('.flow-col-header').innerHTML = `<span class="flow-col-icon">&#128161;</span> GAPs <span style="opacity:0.5;font-weight:400">${gaps.length}</span>`;
 
-    // 논문 노드
+    // 논문 노드 — 전체 제목 표시 (wrap)
     const bodyPapers = document.getElementById('flowBodyPapers');
     bodyPapers.innerHTML = papers.map((p, i) => {
-        const title = truncate(p.title || p.paper_id || '', 32);
-        const meta = [p.venue, p.year].filter(Boolean).join(', ');
+        const title = p.title || p.paper_id || '';
+        const meta = [p.year, p.venue].filter(Boolean).join(' · ');
         return `<div class="flow-node flow-node-paper" data-id="${esc(p.paper_id)}" data-type="paper" data-index="${i}">
             <div class="flow-node-title">${esc(title)}</div>
-            ${meta ? `<div class="flow-node-meta">${esc(truncate(meta, 28))}</div>` : ''}
+            ${meta ? `<div class="flow-node-meta">${esc(meta)}</div>` : ''}
         </div>`;
     }).join('');
 
-    // 한계점 노드
+    // 한계점 노드 — 전체 claim 표시 (wrap)
     const bodyLims = document.getElementById('flowBodyLims');
     if (groupLimitations) {
         bodyLims.innerHTML = limNodes.map(n => {
             return `<div class="flow-node flow-node-lim" data-id="${esc(n.id)}" data-type="limgroup" data-paper-id="${esc(n.paperId)}">
-                <div class="flow-node-claim">${esc(n.label)} — 한계점 ${n.count}개</div>
+                <div class="flow-node-claim">${esc(n.label)} <span style="opacity:0.6">&#8212; ${n.count}items</span></div>
             </div>`;
         }).join('');
     } else {
         bodyLims.innerHTML = limNodes.map(n => {
-            const claimText = truncate(n.claim, 38);
+            const claimText = n.claim || '';
             return `<div class="flow-node flow-node-lim" data-id="lim-${n._idx}" data-type="lim" data-paper-id="${esc(n.paperId)}">
-                <div class="flow-node-claim">${esc(claimText || '(한계점)')}</div>
+                <div class="flow-node-claim">${esc(claimText || '(limitation)')}</div>
             </div>`;
         }).join('');
     }
 
-    // GAP 노드
+    // GAP 노드 — 전체 statement 표시 (wrap)
     const bodyGaps = document.getElementById('flowBodyGaps');
     bodyGaps.innerHTML = gaps.map((g, i) => {
         const axisLabel = g.axis_label || g.axis || '';
         const ac = getAxisColor(axisLabel);
-        const stmt = truncate(g.gap_statement || '', 32);
+        const stmt = g.gap_statement || '';
+        const paperCount = (g.supporting_papers || []).length || g.repeat_count || 0;
         return `<div class="flow-node flow-node-gap" data-id="gap-${i}" data-type="gap" data-index="${i}" style="background:${ac.bg};border-color:${ac.border}">
             <div class="flow-node-axis" style="color:${ac.color}">${esc(axisLabel)}</div>
             <div class="flow-node-statement">${esc(stmt)}</div>
-            <div class="flow-node-count">${g.repeat_count || 0}편 논문에서 도출</div>
+            <div class="flow-node-count"><span style="color:${ac.color}">&#9679;</span> ${paperCount} papers</div>
         </div>`;
     }).join('');
 
@@ -2758,6 +2768,20 @@ function drawFlowEdges() {
     const cRect = container.getBoundingClientRect();
     svg.setAttribute('viewBox', `0 0 ${cRect.width} ${cRect.height}`);
     svg.innerHTML = '';
+
+    // 그라데이션 정의
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    const gradPL = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+    gradPL.id = 'edgeGradPL'; gradPL.setAttribute('x1','0%'); gradPL.setAttribute('x2','100%');
+    gradPL.innerHTML = `<stop offset="0%" stop-color="${EDGE_COLORS.paperToLim.start}"/><stop offset="100%" stop-color="${EDGE_COLORS.paperToLim.end}"/>`;
+    const gradLG = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+    gradLG.id = 'edgeGradLG'; gradLG.setAttribute('x1','0%'); gradLG.setAttribute('x2','100%');
+    gradLG.innerHTML = `<stop offset="0%" stop-color="${EDGE_COLORS.limToGap.start}"/><stop offset="100%" stop-color="${EDGE_COLORS.limToGap.end}"/>`;
+    const gradHL = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+    gradHL.id = 'edgeGradHL'; gradHL.setAttribute('x1','0%'); gradHL.setAttribute('x2','100%');
+    gradHL.innerHTML = `<stop offset="0%" stop-color="#4f6ef7"/><stop offset="100%" stop-color="#a78bfa"/>`;
+    defs.appendChild(gradPL); defs.appendChild(gradLG); defs.appendChild(gradHL);
+    svg.appendChild(defs);
 
     const { paperToLim, limToGap } = window._flowData;
     const grouped = window._flowGrouped;
@@ -2778,9 +2802,20 @@ function drawFlowEdges() {
         return `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`;
     }
 
+    function addEdge(fromRect, toRect, fromId, toId, gradientId) {
+        if (!fromRect || !toRect) return;
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', makePath(fromRect, toRect));
+        path.setAttribute('class', 'flow-edge');
+        path.setAttribute('stroke', `url(#${gradientId})`);
+        path.setAttribute('data-from', fromId);
+        path.setAttribute('data-to', toId);
+        path.setAttribute('data-grad', gradientId);
+        svg.appendChild(path);
+    }
+
     // paper → limitation 엣지
     if (grouped) {
-        // 그룹 모드: paper → limgroup
         const limNodes = window._flowLimNodes || [];
         const paperIds = new Set();
         limNodes.forEach(n => paperIds.add(n.paperId));
@@ -2788,14 +2823,7 @@ function drawFlowEdges() {
             const fromRect = getNodeRect(pid);
             const grpNode = limNodes.find(n => n.paperId === pid);
             const toRect = grpNode ? getNodeRect(grpNode.id) : null;
-            if (fromRect && toRect) {
-                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                path.setAttribute('d', makePath(fromRect, toRect));
-                path.setAttribute('class', 'flow-edge');
-                path.setAttribute('data-from', pid);
-                path.setAttribute('data-to', grpNode.id);
-                svg.appendChild(path);
-            }
+            addEdge(fromRect, toRect, pid, grpNode?.id, 'edgeGradPL');
         });
         // limgroup → gap
         limNodes.forEach(grpNode => {
@@ -2806,42 +2834,15 @@ function drawFlowEdges() {
                 }
             });
             gapIndices.forEach(gapId => {
-                const fromRect = getNodeRect(grpNode.id);
-                const toRect = getNodeRect(gapId);
-                if (fromRect && toRect) {
-                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                    path.setAttribute('d', makePath(fromRect, toRect));
-                    path.setAttribute('class', 'flow-edge');
-                    path.setAttribute('data-from', grpNode.id);
-                    path.setAttribute('data-to', gapId);
-                    svg.appendChild(path);
-                }
+                addEdge(getNodeRect(grpNode.id), getNodeRect(gapId), grpNode.id, gapId, 'edgeGradLG');
             });
         });
     } else {
         paperToLim.forEach(e => {
-            const fromRect = getNodeRect(e.from);
-            const toRect = getNodeRect(e.to);
-            if (fromRect && toRect) {
-                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                path.setAttribute('d', makePath(fromRect, toRect));
-                path.setAttribute('class', 'flow-edge');
-                path.setAttribute('data-from', e.from);
-                path.setAttribute('data-to', e.to);
-                svg.appendChild(path);
-            }
+            addEdge(getNodeRect(e.from), getNodeRect(e.to), e.from, e.to, 'edgeGradPL');
         });
         limToGap.forEach(e => {
-            const fromRect = getNodeRect(e.from);
-            const toRect = getNodeRect(e.to);
-            if (fromRect && toRect) {
-                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                path.setAttribute('d', makePath(fromRect, toRect));
-                path.setAttribute('class', 'flow-edge');
-                path.setAttribute('data-from', e.from);
-                path.setAttribute('data-to', e.to);
-                svg.appendChild(path);
-            }
+            addEdge(getNodeRect(e.from), getNodeRect(e.to), e.from, e.to, 'edgeGradLG');
         });
     }
 }
@@ -2887,7 +2888,11 @@ function setupFlowInteractions() {
 
     function clearHighlight() {
         allNodes.forEach(n => { n.classList.remove('highlighted', 'dimmed'); });
-        if (svg) svg.querySelectorAll('.flow-edge').forEach(e => { e.classList.remove('highlighted', 'dimmed'); });
+        if (svg) svg.querySelectorAll('.flow-edge').forEach(e => {
+            e.classList.remove('highlighted', 'dimmed');
+            const origGrad = e.getAttribute('data-grad');
+            if (origGrad) e.setAttribute('stroke', `url(#${origGrad})`);
+        });
     }
 
     allNodes.forEach(node => {
@@ -2901,8 +2906,12 @@ function setupFlowInteractions() {
                 else n.classList.add('dimmed');
             });
             if (svg) svg.querySelectorAll('.flow-edge').forEach(e => {
-                if (connEdges.has(e)) e.classList.add('highlighted');
-                else e.classList.add('dimmed');
+                if (connEdges.has(e)) {
+                    e.classList.add('highlighted');
+                    e.setAttribute('stroke', 'url(#edgeGradHL)');
+                } else {
+                    e.classList.add('dimmed');
+                }
             });
         });
 
@@ -3094,30 +3103,30 @@ function renderResults() {
                     </div>
                     <div class="flow-graph-section" id="flowGraphSection">
                         <div class="flow-graph-toggle" onclick="toggleFlowGraph()">
-                            <span>관계도 (Papers → Limitations → GAPs)</span>
+                            <span>Relationship Graph</span>
                             <span class="toggle-arrow" id="flowGraphArrow">&#x25BC;</span>
                         </div>
                         <div class="flow-graph-wrapper" id="flowGraphWrapper">
                             <div class="flow-graph-container" id="flowGraphContainer">
                                 <svg class="flow-svg-overlay" id="flowSvgOverlay"></svg>
                                 <div class="flow-col" id="flowColPapers">
-                                    <div class="flow-col-header">논문 (${papersCount})</div>
+                                    <div class="flow-col-header"><span class="flow-col-icon">&#128196;</span> Papers <span style="opacity:0.5;font-weight:400">${papersCount}</span></div>
                                     <div class="flow-col-body" id="flowBodyPapers"></div>
                                 </div>
                                 <div class="flow-col" id="flowColLims">
-                                    <div class="flow-col-header">한계점</div>
+                                    <div class="flow-col-header"><span class="flow-col-icon">&#9888;&#65039;</span> Limitations</div>
                                     <div class="flow-col-body" id="flowBodyLims"></div>
                                 </div>
                                 <div class="flow-col" id="flowColGaps">
-                                    <div class="flow-col-header">GAP (${gapsCount})</div>
+                                    <div class="flow-col-header"><span class="flow-col-icon">&#128161;</span> GAPs <span style="opacity:0.5;font-weight:400">${gapsCount}</span></div>
                                     <div class="flow-col-body" id="flowBodyGaps"></div>
                                 </div>
                             </div>
                             <div class="flow-legend">
-                                <span><span class="flow-legend-dot" style="background:var(--surface2);border:1px solid var(--border)"></span> 논문</span>
-                                <span><span class="flow-legend-dot" style="background:var(--yellow-light);border:1px solid #e8920b"></span> 한계점</span>
-                                <span><span class="flow-legend-dot" style="background:var(--accent-light);border:1px solid var(--accent)"></span> GAP</span>
-                                <span style="margin-left:auto;font-style:italic;opacity:0.7">노드에 마우스를 올리면 연결 경로가 강조됩니다</span>
+                                <span><span class="flow-legend-dot" style="background:#fff;border:1.5px solid #b0b8d0"></span> Papers</span>
+                                <span><span class="flow-legend-dot" style="background:#fff7ed;border:1.5px solid #e8b560"></span> Limitations</span>
+                                <span><span class="flow-legend-dot" style="background:#eff3ff;border:1.5px solid #7b9af0"></span> GAPs</span>
+                                <span style="margin-left:auto;font-style:italic;opacity:0.55;font-size:0.95em">Hover to highlight connections</span>
                             </div>
                         </div>
                     </div>
