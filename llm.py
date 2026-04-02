@@ -95,6 +95,7 @@ def get_llm(provider: str | None = None, model: str | None = None) -> BaseChatMo
                 "AZURE_OPENAI_API_VERSION", "2024-12-01-preview"
             ),
             azure_deployment=deployment,
+            temperature=0.1,
         )
 
     # ── Claude via AWS Bedrock ──
@@ -108,6 +109,7 @@ def get_llm(provider: str | None = None, model: str | None = None) -> BaseChatMo
         return ChatBedrockConverse(
             model=bedrock_model,
             region_name=os.getenv("AWS_REGION", "us-east-1"),
+            temperature=0.2,
             config=BotoConfig(read_timeout=300, connect_timeout=10, retries={"max_attempts": 2}),
         )
 
@@ -139,7 +141,7 @@ def _build_groq_llm(model: str | None = None) -> BaseChatModel:
     return ChatGroq(
         model=model_name,
         api_key=os.getenv("GROQ_API_KEY"),
-        temperature=0.6,
+        temperature=0.4,
         max_tokens=8192,
         reasoning_effort=reasoning_effort,
     )
