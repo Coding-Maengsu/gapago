@@ -23,8 +23,7 @@ class AgentModelConfig:
 ROUTING_PRESETS: dict[str, dict[str, AgentModelConfig]] = {
     "optimized": {
         # light: 단순 분류/점수화 → groq (빠르고 무료)
-        "query_analysis":      AgentModelConfig(provider="groq", tier="light"),
-        "query_refine":        AgentModelConfig(provider="groq", tier="light"),
+        # query_analysis, query_refine: 정확성 필수 → azure(GPT) 기본 provider 사용
         "meaning_expand":      AgentModelConfig(provider="groq", tier="light"),
         "critic_score":        AgentModelConfig(provider="groq", tier="light"),
         "orchestrator":        AgentModelConfig(provider="groq", tier="light"),
