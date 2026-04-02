@@ -1,7 +1,7 @@
 # 3-5) Critic Score Agent
 from states import AgentState
 from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
-from llm import get_llm
+from llm import get_llm_for_agent
 from utils.parse_json import parse_json
 
 MAX_CRITIC_LOOPS = 2  # 최대 재시도 횟수 (이후 강제 ACCEPT)
@@ -44,7 +44,7 @@ IMPORTANT:
 
 
 def critic_score_node(state: AgentState) -> AgentState:
-    llm = get_llm(provider=state.get("llm_provider"))
+    llm = get_llm_for_agent(state, "critic_score")
     loop_count = state.get("critic_loop_count", 0) or 0
 
     # 최대 루프 횟수 초과 시 강제 ACCEPT

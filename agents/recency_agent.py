@@ -8,7 +8,7 @@ from __future__ import annotations
 from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
 
 from states import AgentState
-from llm import get_llm
+from llm import get_llm, get_llm_for_agent
 from utils.parse_json import parse_json
 from utils.tavily import TavilySearch
 
@@ -99,9 +99,12 @@ For each limitation (identified by limitation_id), determine if recent developme
 
 
 def _search_for_recency(limitations: list, refined_query: str, existing_web: list,
-                        user_domain: str = "", provider: str = None) -> list:
+                        user_domain: str = "", provider: str = None, state: dict = None) -> list:
     """Limitation 맞춤 Tavily 검색 수행. 도메인 자동 판단 + 쿼리 생성."""
-    llm = get_llm(provider=provider)
+    if state:
+        llm = get_llm_for_agent(state, "recency_check")
+    else:
+        llm = get_llm(provider=provider)
 
     # limitation 요약
     lim_summary = "\n".join(
@@ -184,9 +187,8 @@ def recency_check_node(state: AgentState) -> AgentState:
         }
 
     # Step 1: limitation 맞춤 웹 검색
-    provider = state.get("llm_provider")
     user_domain = state.get("research_domain", "")
-    all_web = _search_for_recency(limitations, refined_query, web_results, user_domain, provider=provider)
+    all_web = _search_for_recency(limitations, refined_query, web_results, user_domain, state=state)
 
     # 웹 결과가 여전히 없으면 전체 unresolved
     if not all_web:
@@ -216,7 +218,7 @@ def recency_check_node(state: AgentState) -> AgentState:
         for i, l in enumerate(limitations)
     )
 
-    llm = get_llm(provider=provider)
+    llm = get_llm_for_agent(state, "recency_check")
     messages = [
         SystemMessage(content=RECENCY_PROMPT),
         HumanMessage(content=(

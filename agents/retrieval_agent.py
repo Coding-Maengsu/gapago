@@ -17,7 +17,7 @@ from tools import (
     scienceon_report_search, bm25_rank, _safe_json_loads, _tokenize, _norm,
 )
 from rank_bm25 import BM25Okapi
-from llm import get_llm
+from llm import get_llm, get_llm_for_agent
 from config import Configuration
 from utils.parse_json import parse_json
 from utils.tavily import TavilySearch
@@ -552,7 +552,7 @@ Return a JSON object:
 IMPORTANT: Return ONLY the JSON object. Select exactly {top_k} papers (or fewer if fewer are truly relevant)."""
 
 
-def _llm_rerank(papers: list[dict], query: str, top_k: int, provider: str = None) -> list[dict]:
+def _llm_rerank(papers: list[dict], query: str, top_k: int, provider: str = None, state: dict = None) -> list[dict]:
     """LLM Reranker: BM25 필터링된 논문에서 GAP 분석에 가장 적합한 논문 선별."""
     if len(papers) <= top_k:
         return papers
@@ -572,7 +572,7 @@ def _llm_rerank(papers: list[dict], query: str, top_k: int, provider: str = None
     )
 
     try:
-        llm = get_llm(provider=provider)
+        llm = get_llm_for_agent(state, "paper_retrieval") if state else get_llm(provider=provider)
         response = llm.invoke([HumanMessage(content=prompt)])
         content = response.content if hasattr(response, "content") else str(response)
         parsed = parse_json(content)
@@ -744,7 +744,7 @@ def _paper_retrieval_sync(state: AgentState) -> AgentState:
             print(f"  [CrossEncoder] 2nd stage: {len(raw_papers)} papers")
         else:
             print("  [CrossEncoder] 실패 → LLM Reranker fallback")
-            raw_papers = _llm_rerank(stage1_papers, query, top_k=cfg.reranker_top_k, provider=provider)
+            raw_papers = _llm_rerank(stage1_papers, query, top_k=cfg.reranker_top_k, state=state)
             print(f"  [LLM Reranker] fallback: {len(raw_papers)} papers")
         # backup: 선별되지 않은 논문 (arXiv 우선, BM25 높은 순)
         reranked_ids = {p.get("paper_id") for p in raw_papers}

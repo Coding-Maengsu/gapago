@@ -220,6 +220,9 @@ def _save_result(query: str, state_values: dict, user_id: str = "", parent_sessi
         "web_results": state_values.get("web_results", []),
         "paper_extraction_status": state_values.get("paper_extraction_status", []),
         "messages": messages_out,
+        "llm_provider": state_values.get("llm_provider", "azure"),
+        "model_routing": state_values.get("model_routing"),
+        "output_language": state_values.get("output_language", "auto"),
     }
 
     fname = f"gapago_result_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
@@ -426,7 +429,7 @@ async def delete_history(filename: str):
 
 
 @app.get("/api/analyze")
-async def analyze(query: str, provider: str = "azure", domain: str = "auto", year_range: str = "auto", output_language: str = "auto", user_id: str = "", fast_mode: bool = False):
+async def analyze(query: str, provider: str = "azure", domain: str = "auto", year_range: str = "auto", output_language: str = "auto", user_id: str = "", fast_mode: bool = False, routing_profile: str = "balanced"):
     """
     Start a new analysis pipeline in background. Returns session_id.
     Client should connect to /api/stream/{session_id} for SSE updates.
@@ -463,6 +466,9 @@ async def analyze(query: str, provider: str = "azure", domain: str = "auto", yea
     _sessions[session_id]["graph"] = graph
     _sessions[session_id]["config"] = config_dict
 
+    from model_router import ModelRouter
+    router = ModelRouter(default_provider=provider, profile=routing_profile)
+
     inputs = {
         "messages": [HumanMessage(content=query)],
         "max_iterations": 3,
@@ -472,6 +478,7 @@ async def analyze(query: str, provider: str = "azure", domain: str = "auto", yea
         "output_language": output_language,
         "session_id": session_id,
         "fast_mode": fast_mode,
+        "model_routing": router.to_dict(),
     }
 
     # Launch pipeline in background
@@ -481,7 +488,7 @@ async def analyze(query: str, provider: str = "azure", domain: str = "auto", yea
 
 
 @app.get("/api/explore")
-async def explore(topic: str, session_id: str = "", provider: str = "azure", domain: str = "auto", year_range: str = "auto", output_language: str = "auto", user_id: str = ""):
+async def explore(topic: str, session_id: str = "", provider: str = "azure", domain: str = "auto", year_range: str = "auto", output_language: str = "auto", user_id: str = "", routing_profile: str = "balanced", fast_mode: bool = False):
     """
     Start an exploration (chain re-execution) based on a proposed topic from a previous analysis.
     Links the new session to the parent session for hierarchical history.
@@ -512,6 +519,9 @@ async def explore(topic: str, session_id: str = "", provider: str = "azure", dom
     _sessions[new_session_id]["graph"] = graph
     _sessions[new_session_id]["config"] = config_dict
 
+    from model_router import ModelRouter
+    router = ModelRouter(default_provider=provider, profile=routing_profile)
+
     inputs = {
         "messages": [HumanMessage(content=topic)],
         "max_iterations": 3,
@@ -519,6 +529,9 @@ async def explore(topic: str, session_id: str = "", provider: str = "azure", dom
         "llm_provider": provider,
         "year_range": year_range,
         "output_language": output_language,
+        "fast_mode": fast_mode,
+        "model_routing": router.to_dict(),
+        "session_id": new_session_id,
     }
 
     asyncio.create_task(_run_pipeline(new_session_id, graph, config_dict, inputs))
@@ -595,6 +608,8 @@ def _build_chat_state(data: dict, query: str = "") -> dict:
         "papers": data.get("papers", []),
         "messages": [],
         "llm_provider": data.get("llm_provider", "azure"),
+        "model_routing": data.get("model_routing"),
+        "output_language": data.get("output_language", "auto"),
     }
 
 

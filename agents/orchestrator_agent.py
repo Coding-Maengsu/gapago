@@ -8,7 +8,7 @@ import json
 from collections import Counter
 from langchain_core.messages import AIMessage
 from langgraph.types import Command
-from llm import get_llm
+from llm import get_llm_for_agent
 
 # ── 필수 실행 순서 (코드 레벨 강제) ──
 MANDATORY_SEQUENCE = [
@@ -64,6 +64,7 @@ def _build_orchestrator_prompt(
     papers_count = len(state.get("papers", []) or [])
     limitations_count = len(state.get("limitations", []) or [])
     gaps_count = len(state.get("gaps", []) or [])
+    fast_mode = state.get("fast_mode", False)
 
     feedback_str = json.dumps(feedback, ensure_ascii=False) if feedback else "None"
 
@@ -111,6 +112,18 @@ def _build_orchestrator_prompt(
 
     actions_str = "\n".join(available_actions) if available_actions else "No actions available — proceed to END."
 
+    # fast_mode 컨텍스트 — 강제가 아닌 가이드라인 제공
+    fast_hint = ""
+    if fast_mode:
+        fast_hint = (
+            "\n## ⚡ FAST MODE 활성화됨\n"
+            "사용자가 빠른 분석을 요청했습니다. 속도와 품질의 균형을 판단하세요:\n"
+            "- optional 에이전트(limitation_eval, recency_check, critic_score)는 **스킵 가능**하나,\n"
+            "  현재 데이터 품질이 낮다고 판단되면 실행해도 됩니다.\n"
+            "- 예: limitation이 매우 적거나 feedback에 품질 문제가 있으면 eval 실행 고려.\n"
+            "- 판단 기준: 스킵해도 최종 결과에 큰 영향이 없는가?\n"
+        )
+
     # 품질 게이트 권장 메시지
     quality_hint = ""
     if recommended_action:
@@ -133,7 +146,7 @@ You decide which agent to run next based on the current state.
 - Papers found: {papers_count}
 - Limitations extracted: {limitations_count}
 - Gaps inferred: {gaps_count}
-{quality_hint}
+{fast_hint}{quality_hint}
 
 ## Available Actions
 {actions_str}
@@ -205,7 +218,7 @@ def orchestrator_node(state: dict) -> Command:
     prompt = _build_orchestrator_prompt(completed, next_mandatory, feedback, state)
 
     try:
-        llm = get_llm(provider=state.get("llm_provider"))
+        llm = get_llm_for_agent(state, "orchestrator")
         response = llm.invoke(prompt)
         response_text = response.content if hasattr(response, "content") else str(response)
         decision = _parse_decision(response_text, fallback=next_mandatory)

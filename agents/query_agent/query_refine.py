@@ -27,7 +27,7 @@ from pydantic import BaseModel, Field
 from typing import List
 
 from states import AgentState
-from llm import get_llm
+from llm import get_llm_for_agent
 from prompts.system import make_system_prompt
 from utils.parse_json import parse_json
 
@@ -118,7 +118,7 @@ def query_refinement_node(state: AgentState) -> AgentState:
         and suggested_query
     )
 
-    llm = get_llm(provider=state.get("llm_provider"))
+    llm = get_llm_for_agent(state, "query_refine")
     structured_refine_llm = llm.with_structured_output(RefinedQuery)
 
     if is_apa_clear and existing_keywords:

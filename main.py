@@ -193,10 +193,28 @@ def save_result(query: str, state_values: dict) -> Path:
 async def run():
     config_dict = {"configurable": {"thread_id": random_uuid()}, "recursion_limit": 30} # 최대 노드 실행 개수 지정 (순환 로직에 빠지지 않기 위함)
 
+    # --- 라우팅 프로파일 선택 (provider 선택보다 먼저) ---
+    print("\n=== 라우팅 프로파일 선택 ===")
+    print("  0) balanced  - 단일 모델 (기본값, 직접 provider 선택)")
+    print("  1) optimized - 에이전트별 최적화 (단순→groq, 핵심→claude)")
+    print("  2) quality   - 최고 품질 (핵심 작업 claude 활용)")
+    print("  3) speed     - 최대 속도 (전체 groq, rate limit 주의)")
+    profile_map = {"0": "balanced", "1": "optimized", "2": "quality", "3": "speed"}
+    profile_choice = input("\n선택 (기본값: balanced) > ").strip()
+    routing_profile = profile_map.get(profile_choice, "balanced")
+    print(f"  → {routing_profile} 선택됨")
+
     # --- LLM Provider 선택 ---
     from llm import select_provider_interactive
     import os
-    selected_provider = select_provider_interactive()
+    from model_router import ModelRouter, PROFILE_DEFAULT_PROVIDERS
+
+    if routing_profile == "balanced":
+        selected_provider = select_provider_interactive()
+    else:
+        selected_provider = PROFILE_DEFAULT_PROVIDERS.get(routing_profile, "azure")
+        print(f"\n  → 프로파일 '{routing_profile}'의 기본 provider: {selected_provider} (자동 선택)")
+
     os.environ["LLM_PROVIDER"] = selected_provider
 
     # lru_cache 초기화 (provider 변경 반영)
@@ -251,6 +269,8 @@ async def run():
     if not user_input:
         user_input = "Domain adaptation in clinical drug"
 
+    router = ModelRouter(default_provider=selected_provider, profile=routing_profile)
+
     inputs = {
         "messages": [HumanMessage(content=user_input)],
         "max_iterations": 3,
@@ -259,6 +279,7 @@ async def run():
         "year_range": year_range,
         "output_language": output_language,
         "fast_mode": fast_mode,
+        "model_routing": router.to_dict(),
     }
 
     print_divider("[STEP 1] 초기 실행")
