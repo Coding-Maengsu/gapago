@@ -1230,7 +1230,7 @@ def _verify_limitations(limitations: list[dict], paper_sections: dict, state: di
     Returns: 검증 플래그가 추가된 limitation 리스트
     """
     routing = state.get("model_routing")
-    if not routing or routing.get("profile", "balanced") == "balanced":
+    if not routing:
         return limitations
 
     print("  🔍 [verify] 교차 검증 시작...")
@@ -1614,7 +1614,7 @@ def limitation_extract_node(state: AgentState) -> AgentState:
     if dedup_removed:
         print(f"  [dedup] {before_dedup} → {len(all_limitations)} ({dedup_removed}개 중복 제거)")
 
-    # ── 교차 검증 (optimized/speed 프로파일에서만 실행) ──
+    # ── 교차 검증 ──
     all_limitations = _verify_limitations(all_limitations, paper_sections, state)
 
     # ── 검증 통계를 state에 기록 ──

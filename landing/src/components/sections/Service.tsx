@@ -7,7 +7,7 @@ export default function Service() {
     <section id="service" className="py-16 md:py-20">
       <Container>
         <SectionHeading
-          title="GAPAGO가 하는 일"
+          title="GAPAGO 핵심 기능"
           highlightText="GAPAGO"
           subtitle="연구자가 가장 많은 시간을 사용하는 문헌 분석 과정, GAPAGO가 대신 합니다"
         />

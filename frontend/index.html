@@ -1749,22 +1749,10 @@
     <button class="new-btn" onclick="newAnalysis()">+ 새 분석</button>
 
     <div class="settings-section">
-        <div id="providerGroup">
-            <label>LLM 프로바이더</label>
-            <select id="provider">
-                <option value="" disabled selected>선택해주세요</option>
-                <option value="azure">Azure OpenAI (GPT)</option>
-                <option value="claude">Claude (Anthropic)</option>
-                <option value="exaone">EXAONE (Local)</option>
-            </select>
-        </div>
-        <label>연도 범위</label>
-        <select id="yearRange">
-            <option value="" disabled selected>선택해주세요</option>
-            <option value="auto">자동 (AI 추천)</option>
-            <option value="1y">최근 1년</option>
-            <option value="3y">최근 3년</option>
-            <option value="5y">최근 5년</option>
+        <label>모드 선택</label>
+        <select id="routingProfile">
+            <option value="optimized" selected>Optimized (에이전트별 최적화)</option>
+            <option value="quality">Quality (최고 품질, Claude 활용)</option>
         </select>
         <label>답변 언어</label>
         <select id="outputLanguage">
@@ -1773,14 +1761,16 @@
             <option value="ko">한국어</option>
             <option value="en">English</option>
         </select>
-        <label>모드 선택</label>
-        <select id="routingProfile" onchange="toggleProviderGroup()">
-            <option value="balanced" selected>Balanced (단일 모델)</option>
-            <option value="optimized">Optimized (에이전트별 최적화)</option>
-            <option value="quality">Quality (최고 품질, Claude 활용)</option>
-            <option value="speed">Speed (최대 속도)</option>
+        <label>연도 범위</label>
+        <select id="yearRange">
+            <option value="" disabled selected>선택해주세요</option>
+            <option value="auto">자동 (AI 추천)</option>
+            <option value="1y">최근 1년</option>
+            <option value="3y">최근 3년</option>
+            <option value="5y">최근 5년</option>
         </select>
-        <label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer">
+        <label title="일부 분석 단계를 생략하여 속도를 높입니다. 품질이 다소 낮아질 수 있습니다."
+               style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer">
             <input type="checkbox" id="fastMode" style="width:16px;height:16px;cursor:pointer">
             <span>Fast Mode</span>
             <span style="font-size:0.75em;color:var(--text-light)">(빠른 분석, 품질 트레이드오프)</span>
@@ -2121,17 +2111,6 @@ function fillQuery(q) {
     toggleSendBtn();
 }
 
-function toggleProviderGroup() {
-    const profile = document.getElementById('routingProfile').value;
-    const group = document.getElementById('providerGroup');
-    if (profile === 'balanced') {
-        group.style.display = '';
-    } else {
-        group.style.display = 'none';
-    }
-}
-// 초기 상태 설정
-toggleProviderGroup();
 
 function setInputEnabled(enabled) {
     document.getElementById('queryInput').disabled = !enabled;
@@ -2282,10 +2261,7 @@ function newAnalysis() {
 }
 
 function validateOptions() {
-    const routingProfile = document.getElementById('routingProfile')?.value || 'balanced';
-    const ids = routingProfile === 'balanced'
-        ? ['provider', 'yearRange', 'outputLanguage']
-        : ['yearRange', 'outputLanguage'];
+    const ids = ['yearRange', 'outputLanguage'];
     let valid = true;
     ids.forEach(id => {
         const el = document.getElementById(id);
@@ -2317,11 +2293,9 @@ async function startAnalysis() {
     if (!query) { document.getElementById('queryInput').focus(); return; }
     if (!validateOptions()) return;
 
-    const routingProfile = document.getElementById('routingProfile')?.value || 'balanced';
-    const PROFILE_DEFAULT_PROVIDERS = { optimized: 'azure', quality: 'azure', speed: 'groq' };
-    const provider = routingProfile === 'balanced'
-        ? document.getElementById('provider').value
-        : PROFILE_DEFAULT_PROVIDERS[routingProfile] || 'azure';
+    const routingProfile = document.getElementById('routingProfile')?.value || 'optimized';
+    const PROFILE_DEFAULT_PROVIDERS = { optimized: 'azure', quality: 'azure' };
+    const provider = PROFILE_DEFAULT_PROVIDERS[routingProfile] || 'azure';
     const domain = 'auto';
     const yearRange = document.getElementById('yearRange').value;
     const outputLanguage = document.getElementById('outputLanguage').value || 'auto';
@@ -3353,11 +3327,9 @@ async function exploreDirection(topic) {
     // Fill query input and start new analysis
     document.getElementById('queryInput').value = topic;
 
-    const exploreRoutingProfile = document.getElementById('routingProfile')?.value || 'balanced';
-    const PROFILE_DEFAULTS_EXPLORE = { optimized: 'azure', quality: 'azure', speed: 'groq' };
-    const provider = exploreRoutingProfile === 'balanced'
-        ? document.getElementById('provider').value
-        : PROFILE_DEFAULTS_EXPLORE[exploreRoutingProfile] || 'azure';
+    const exploreRoutingProfile = document.getElementById('routingProfile')?.value || 'optimized';
+    const PROFILE_DEFAULTS_EXPLORE = { optimized: 'azure', quality: 'azure' };
+    const provider = PROFILE_DEFAULTS_EXPLORE[exploreRoutingProfile] || 'azure';
     const domain = 'auto';
     const yearRange = document.getElementById('yearRange').value;
     const outputLanguage = document.getElementById('outputLanguage').value || 'auto';
