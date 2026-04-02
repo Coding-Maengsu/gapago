@@ -145,10 +145,20 @@ def _clear_checkpoints(thread_id: str):
         return
     try:
         checkpointer = graph.checkpointer
-        if hasattr(checkpointer, 'storage'):
-            checkpointer.storage.pop(thread_id, None)
-        if hasattr(checkpointer, 'writes'):
-            checkpointer.writes.pop(thread_id, None)
+        if hasattr(checkpointer, 'delete_thread'):
+            checkpointer.delete_thread(thread_id)
+        else:
+            # fallback: 수동 정리
+            if hasattr(checkpointer, 'storage'):
+                checkpointer.storage.pop(thread_id, None)
+            if hasattr(checkpointer, 'writes'):
+                for k in list(checkpointer.writes.keys()):
+                    if k[0] == thread_id:
+                        del checkpointer.writes[k]
+            if hasattr(checkpointer, 'blobs'):
+                for k in list(checkpointer.blobs.keys()):
+                    if k[0] == thread_id:
+                        del checkpointer.blobs[k]
     except Exception as e:
         print(f"[reaper] checkpoint cleanup error for {thread_id}: {e}")
 
@@ -324,6 +334,8 @@ async def _run_pipeline(session_id: str, graph, config_dict: dict, inputs: dict 
         drainer.cancel()
         cleanup_progress(session_id)
         cancel_registry.cleanup(session_id)
+        # 파이프라인 종료 즉시 체크포인트 해제 (reaper 대기 없이 메모리 확보)
+        _clear_checkpoints(session_id)
 
 
 # ── Endpoints ───────────────────────────────────────────────────────
