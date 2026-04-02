@@ -1222,8 +1222,7 @@ def _verify_limitations(limitations: list[dict], paper_sections: dict, state: di
 
     Returns: 검증 플래그가 추가된 limitation 리스트
     """
-    routing = state.get("model_routing")
-    if not routing:
+    if not limitations:
         return limitations
 
     print("  🔍 [verify] 교차 검증 시작...")
@@ -1275,7 +1274,8 @@ def _verify_limitations(limitations: list[dict], paper_sections: dict, state: di
         except Exception as e:
             print(f"  ⚠️ [verify] {pid} 검증 실패: {e}")
 
-    # 플래그 추가
+    # 검증 실패 한계점 제거
+    verified_limitations = []
     for i, lim in enumerate(limitations):
         result = verify_results.get(i)
         if result:
@@ -1283,18 +1283,22 @@ def _verify_limitations(limitations: list[dict], paper_sections: dict, state: di
                 result.get("quote_check") == "FOUND"
                 and result.get("claim_check") == "VALID"
             )
-            lim["verified"] = is_valid
             if is_valid:
+                lim["verified"] = True
+                verified_limitations.append(lim)
                 verified_count += 1
             else:
                 failed_count += 1
-                lim["verify_detail"] = {
-                    "quote_check": result.get("quote_check"),
-                    "claim_check": result.get("claim_check"),
-                }
+                print(f"  ❌ [verify] 제거: {lim.get('paper_id')} — "
+                      f"quote={result.get('quote_check')}, claim={result.get('claim_check')}")
+        else:
+            # 검증되지 않은 항목은 유지 (검증 대상이 아닌 경우)
+            lim["verified"] = None
+            verified_limitations.append(lim)
 
-    print(f"  ✅ [verify] 교차 검증 완료: verified={verified_count}, failed={failed_count}, unchecked={len(limitations) - verified_count - failed_count}")
-    return limitations
+    removed = len(limitations) - len(verified_limitations)
+    print(f"  ✅ [verify] 교차 검증 완료: verified={verified_count}, removed={failed_count}, unchecked={len(verified_limitations) - verified_count}")
+    return verified_limitations
 
 
 # =====================================================================
