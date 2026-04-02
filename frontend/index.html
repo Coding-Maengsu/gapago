@@ -1731,6 +1731,9 @@
         .flow-legend-dot { display: inline-block; width: 11px; height: 11px; border-radius: 4px; margin-right: 5px; vertical-align: middle; }
 
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
 </head>
 <body>
 
@@ -2303,7 +2306,7 @@ async function startAnalysis() {
     const providerLabels = { azure: 'Azure GPT', claude: 'Claude', gemini: 'Gemini', exaone: 'EXAONE' };
     const yearLabels = { auto: '자동 추천', '1y': '최근 1년', '3y': '최근 3년', '5y': '최근 5년' };
     const langLabels = { auto: '자동 감지', ko: '한국어', en: 'English' };
-    destroyFlowGraph();
+    destroyCyGraph();
     pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: { provider: providerLabels[provider] || provider, yearRange: yearLabels[yearRange] || yearRange, outputLanguage: langLabels[outputLanguage] || outputLanguage } };
     _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
     timelineDetails = {};
@@ -2411,7 +2414,7 @@ async function reconnectToSession(sessionId, query) {
     localStorage.setItem('gapago_active_session', sessionId);
     document.getElementById('queryInput').value = query || '';
     setInputEnabled(false);
-    destroyFlowGraph();
+    destroyCyGraph();
     pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: {} };
     _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
     timelineDetails = {};
@@ -2839,30 +2842,27 @@ function updateLivePreview() {
     panel.innerHTML = html;
 }
 
-// ── 관계도 그래프 (Vanilla JS/SVG) ──
+// ── 관계도 그래프 (Cytoscape) ──
 
-const EDGE_COLORS = {
-    paperToLim: { start: '#b0b8d0', end: '#e8b560' },
-    limToGap:   { start: '#e8b560', end: '#7b9af0' },
-};
-
-function buildFlowGraphData() {
+function buildCyGraphData() {
     const papers = pipelineData.papers || [];
     const limitations = pipelineData.limitations || [];
     const gaps = pipelineData.gaps || [];
     const paperIds = new Set(papers.map(p => p.paper_id));
 
+    // 유효한 limitation만 (paper가 존재)
     const validLimitations = limitations
         .map((l, i) => ({ ...l, _idx: i }))
         .filter(l => paperIds.has(l.paper_id));
 
-    // paper → limitation edges
-    const edges = [];
+    // paper → limitation 엣지
+    const paperToLim = [];
     validLimitations.forEach(l => {
-        edges.push({ from: l.paper_id, to: `lim-${l._idx}`, grad: 'edgeGradPL' });
+        paperToLim.push({ from: l.paper_id, to: `lim-${l._idx}` });
     });
 
-    // limitation → gap edges (supporting_papers matching)
+    // limitation → gap 엣지 (supporting_papers 매칭)
+    const limToGap = [];
     const limToGapSet = new Set();
     gaps.forEach((gap, gi) => {
         (gap.supporting_papers || []).forEach(pid => {
@@ -2870,59 +2870,78 @@ function buildFlowGraphData() {
                 const key = `lim-${l._idx}->gap-${gi}`;
                 if (!limToGapSet.has(key)) {
                     limToGapSet.add(key);
-                    edges.push({ from: `lim-${l._idx}`, to: `gap-${gi}`, grad: 'edgeGradLG' });
+                    limToGap.push({ from: `lim-${l._idx}`, to: `gap-${gi}` });
                 }
             });
         });
     });
 
-    return { papers, validLimitations, gaps, edges };
+    return { papers, validLimitations, gaps, paperToLim, limToGap };
 }
 
-function renderFlowGraph() {
-    const container = document.getElementById('flowGraphContainer');
-    const svg = document.getElementById('flowSvgOverlay');
-    const colPapers = document.getElementById('flowColPapers');
-    const colLims = document.getElementById('flowColLims');
-    const colGaps = document.getElementById('flowColGaps');
-    if (!container || !svg || !colPapers || !colLims || !colGaps) return;
+function buildCyElements() {
+    const data = buildCyGraphData();
+    const { papers, validLimitations, gaps, paperToLim, limToGap } = data;
+    const elements = [];
 
-    const data = buildFlowGraphData();
-    const { papers, validLimitations, gaps, edges } = data;
+    if (!papers.length && !gaps.length) return elements;
 
-    if (!papers.length && !gaps.length) {
-        container.innerHTML = '<div class="flow-graph-empty">관계도를 표시할 데이터가 없습니다</div>';
-        return;
+    // 한계점 그룹핑 (60개 초과 시 논문별 그룹)
+    const groupLimitations = validLimitations.length > 60;
+
+    // 논문 노드
+    papers.forEach((p, i) => {
+        const fullTitle = p.title || p.paper_id || '';
+        const title = truncate(fullTitle, 28);
+        const meta = [p.venue, p.year].filter(Boolean).join(', ');
+        elements.push({ data: { id: p.paper_id, label: title, fullLabel: fullTitle, meta, nodeType: 'paper', index: i } });
+    });
+
+    // 한계점 노드
+    if (groupLimitations) {
+        const byPaper = {};
+        validLimitations.forEach(l => {
+            if (!byPaper[l.paper_id]) byPaper[l.paper_id] = [];
+            byPaper[l.paper_id].push(l);
+        });
+        Object.entries(byPaper).forEach(([pid, lims]) => {
+            const paper = papers.find(p => p.paper_id === pid);
+            const label = (paper ? truncate(paper.title || '', 18) : pid.slice(0, 12)) + ` (${lims.length})`;
+            const grpId = `limgrp-${pid}`;
+            elements.push({ data: { id: grpId, label, nodeType: 'lim', paperId: pid } });
+            // paper → limgroup edge
+            elements.push({ data: { source: pid, target: grpId, edgeType: 'paper-lim' } });
+            // limgroup → gap edges
+            const gapTargets = new Set();
+            lims.forEach(l => {
+                limToGap.filter(e => e.from === `lim-${l._idx}`).forEach(e => gapTargets.add(e.to));
+            });
+            gapTargets.forEach(gid => {
+                elements.push({ data: { source: grpId, target: gid, edgeType: 'lim-gap' } });
+            });
+        });
+    } else {
+        validLimitations.forEach(l => {
+            const fullClaim = l.claim || l.limitation_text || l.text || l.content || '(한계점)';
+            const claim = truncate(fullClaim, 32);
+            elements.push({ data: { id: `lim-${l._idx}`, label: claim, fullLabel: fullClaim, nodeType: 'lim', paperId: l.paper_id } });
+        });
+        // paper → lim edges
+        paperToLim.forEach(e => {
+            elements.push({ data: { source: e.from, target: e.to, edgeType: 'paper-lim' } });
+        });
+        // lim → gap edges
+        limToGap.forEach(e => {
+            elements.push({ data: { source: e.from, target: e.to, edgeType: 'lim-gap' } });
+        });
     }
 
-    // Update counts
-    const cntP = document.getElementById('flowPaperCount');
-    const cntL = document.getElementById('flowLimCount');
-    const cntG = document.getElementById('flowGapCount');
-    if (cntP) cntP.textContent = papers.length;
-    if (cntL) cntL.textContent = validLimitations.length;
-    if (cntG) cntG.textContent = gaps.length;
-
-    // Render paper nodes
-    colPapers.innerHTML = papers.map((p, i) => {
-        const title = p.title || p.paper_id || '';
-        const meta = [p.venue, p.year].filter(Boolean).join(', ');
-        return `<div class="flow-node flow-node-paper" data-id="${esc(p.paper_id)}" data-idx="${i}">
-            <div class="flow-node-title">${esc(title)}</div>
-            ${meta ? `<div class="flow-node-meta">${esc(meta)}</div>` : ''}
-        </div>`;
-    }).join('');
-
-    // Render limitation nodes
-    colLims.innerHTML = validLimitations.map(l => {
-        const claim = l.claim || l.limitation_text || l.text || l.content || '(한계점)';
-        return `<div class="flow-node flow-node-lim" data-id="lim-${l._idx}" data-from="${esc(l.paper_id)}">
-            <div class="flow-node-claim">${esc(claim)}</div>
-        </div>`;
-    }).join('');
-
-    // Render GAP nodes
-    colGaps.innerHTML = gaps.map((g, i) => {
+    // GAP 노드 (크기 = 연결된 엣지 수에 비례)
+    const gapEdgeCounts = {};
+    elements.filter(e => e.data.edgeType === 'lim-gap').forEach(e => {
+        gapEdgeCounts[e.data.target] = (gapEdgeCounts[e.data.target] || 0) + 1;
+    });
+    gaps.forEach((g, i) => {
         const axisLabel = g.axis_label || g.axis || '';
         const ac = getAxisColor(axisLabel);
         const stmt = g.gap_statement || '';
@@ -2990,80 +3009,202 @@ function renderFlowGraph() {
         svg.appendChild(edgeGroup);
     }
 
-    // Interactions: hover highlight via BFS
-    function setupInteractions() {
-        const allNodes = container.querySelectorAll('.flow-node');
+    function expandLim(limNode) {
+        const limId = limNode.id();
+        if (expandedLims.has(limId)) return;
+        expandedLims.add(limId);
+        // 연결된 Paper 노드 + paper-lim 엣지 표시
+        const incomingEdges = limNode.incomers('edge[edgeType="paper-lim"]');
+        const paperNodes = incomingEdges.sources();
+        paperNodes.removeClass('cy-collapsed');
+        incomingEdges.removeClass('cy-collapsed');
+    }
 
-        function getConnected(nodeId) {
-            const connected = new Set([nodeId]);
-            const allEdges = svg.querySelectorAll('.flow-edge');
-            let frontier = [nodeId];
-            for (let d = 0; d < 3; d++) {
-                const next = [];
-                frontier.forEach(nid => {
-                    allEdges.forEach(edge => {
-                        const f = edge.getAttribute('data-from'), t = edge.getAttribute('data-to');
-                        if (f === nid && !connected.has(t)) { connected.add(t); next.push(t); }
-                        if (t === nid && !connected.has(f)) { connected.add(f); next.push(f); }
-                    });
-                });
-                frontier = next;
+    function collapseGap(gapNode) {
+        const gapId = gapNode.id();
+        if (!expandedGaps.has(gapId)) return;
+        expandedGaps.delete(gapId);
+        gapNode.data('label', gapNode.data('badgeLabel'));
+        // 연결된 Lim 숨김 (다른 GAP에 연결되지 않은 것만)
+        const incomingEdges = gapNode.incomers('edge[edgeType="lim-gap"]');
+        const limNodes = incomingEdges.sources();
+        incomingEdges.addClass('cy-collapsed');
+        limNodes.forEach(lim => {
+            const otherGapEdges = lim.outgoers('edge[edgeType="lim-gap"]').filter(e => expandedGaps.has(e.target().id()));
+            if (otherGapEdges.length === 0) {
+                collapseLim(lim);
+                lim.addClass('cy-collapsed');
             }
-            return connected;
-        }
-
-        function clearHighlight() {
-            allNodes.forEach(n => n.classList.remove('highlighted', 'dimmed'));
-            svg.querySelectorAll('.flow-edge').forEach(e => {
-                e.classList.remove('highlighted', 'dimmed');
-                const g = e.getAttribute('data-grad');
-                if (g) e.setAttribute('stroke', `url(#${g})`);
-            });
-        }
-
-        allNodes.forEach(node => {
-            node.addEventListener('mouseenter', () => {
-                const nodeId = node.getAttribute('data-id');
-                const connected = getConnected(nodeId);
-                allNodes.forEach(n => {
-                    if (connected.has(n.getAttribute('data-id'))) n.classList.add('highlighted');
-                    else n.classList.add('dimmed');
-                });
-                svg.querySelectorAll('.flow-edge').forEach(e => {
-                    const f = e.getAttribute('data-from'), t = e.getAttribute('data-to');
-                    if (connected.has(f) && connected.has(t)) {
-                        e.classList.add('highlighted');
-                        e.setAttribute('stroke', 'url(#edgeGradHL)');
-                    } else e.classList.add('dimmed');
-                });
-            });
-            node.addEventListener('mouseleave', clearHighlight);
-
-            // Click to select detail panel
-            node.addEventListener('click', () => {
-                const idx = parseInt(node.getAttribute('data-idx'));
-                if (node.classList.contains('flow-node-gap') && !isNaN(idx)) selectGap(idx);
-                else if (node.classList.contains('flow-node-paper') && !isNaN(idx)) selectPaper(idx);
-            });
-        });
-
-        // Redraw edges on scroll
-        container.querySelectorAll('.flow-col-body').forEach(col => {
-            col.addEventListener('scroll', () => requestAnimationFrame(drawEdges));
         });
     }
 
-    requestAnimationFrame(() => { drawEdges(); setupInteractions(); });
-    window.addEventListener('resize', drawEdges);
+    function collapseLim(limNode) {
+        const limId = limNode.id();
+        expandedLims.delete(limId);
+        const incomingEdges = limNode.incomers('edge[edgeType="paper-lim"]');
+        const paperNodes = incomingEdges.sources();
+        incomingEdges.addClass('cy-collapsed');
+        paperNodes.forEach(p => {
+            const otherLimEdges = p.outgoers('edge[edgeType="paper-lim"]').filter(e => !e.target().hasClass('cy-collapsed'));
+            if (otherLimEdges.length === 0) p.addClass('cy-collapsed');
+        });
+    }
+
+    function highlightNeighborhood(node) {
+        const nodeType = node.data('nodeType');
+        let connected;
+        if (nodeType === 'paper') {
+            const hop1 = node.outgoers();
+            const hop2 = hop1.nodes().outgoers();
+            connected = node.union(hop1).union(hop2);
+        } else if (nodeType === 'gap') {
+            const hop1 = node.incomers();
+            const hop2 = hop1.nodes().incomers();
+            connected = node.union(hop1).union(hop2);
+        } else {
+            connected = node.closedNeighborhood();
+        }
+        // 보이는 요소 중에서만 dim
+        const visible = cy.elements().filter(e => !e.hasClass('cy-collapsed'));
+        visible.addClass('dimmed');
+        connected.filter(e => !e.hasClass('cy-collapsed')).removeClass('dimmed').addClass('highlighted');
+    }
+
+    function clearHighlight() {
+        cy.elements().removeClass('highlighted dimmed');
+    }
+
+    cy.on('mouseover', 'node', function(e) {
+        if (lockedNode) return;
+        highlightNeighborhood(e.target);
+        const fullLabel = e.target.data('fullLabel');
+        if (fullLabel) cy.container().setAttribute('title', fullLabel);
+    });
+
+    cy.on('mouseout', 'node', function() {
+        if (lockedNode) return;
+        clearHighlight();
+        cy.container().removeAttribute('title');
+    });
+
+    cy.on('tap', 'node', function(e) {
+        const node = e.target;
+        const nodeType = node.data('nodeType');
+        const index = node.data('index');
+
+        // Toggle lock
+        if (lockedNode && lockedNode.id() === node.id()) {
+            lockedNode = null;
+            clearHighlight();
+            return;
+        }
+
+        lockedNode = node;
+        clearHighlight();
+        highlightNeighborhood(node);
+
+        // Collapse/Expand + detail panel
+        if (nodeType === 'gap') {
+            if (expandedGaps.has(node.id())) {
+                collapseGap(node);
+            } else {
+                expandGap(node);
+            }
+            if (index !== undefined) selectGap(index);
+        } else if (nodeType === 'lim') {
+            if (expandedLims.has(node.id())) {
+                collapseLim(node);
+            } else {
+                expandLim(node);
+            }
+            const paperId = node.data('paperId');
+            const pIdx = (pipelineData.papers || []).findIndex(p => p.paper_id === paperId);
+            if (pIdx >= 0) selectPaper(pIdx);
+        } else if (nodeType === 'paper' && index !== undefined) {
+            selectPaper(index);
+        }
+    });
+
+    cy.on('tap', function(e) {
+        if (e.target === cy) {
+            lockedNode = null;
+            clearHighlight();
+        }
+    });
+
+    // ── 더블클릭 줌인 ──
+    cy.on('dbltap', 'node', function(e) {
+        const node = e.target;
+        const neighborhood = node.closedNeighborhood();
+        cy.animate({ fit: { eles: neighborhood, padding: 50 }, duration: 400 });
+    });
+
+    // ── Semantic zoom (3단계) ──
+    const ZOOM_DOT = 0.4;
+    const ZOOM_MID = 0.8;
+    let currentZoomMode = 'card';
+    let _zoomTimer = null;
+    cy.on('zoom', function() {
+        clearTimeout(_zoomTimer);
+        _zoomTimer = setTimeout(function() {
+            const z = cy.zoom();
+            let mode;
+            if (z < ZOOM_DOT) mode = 'dot';
+            else if (z < ZOOM_MID) mode = 'mid';
+            else mode = 'card';
+            if (mode === currentZoomMode) return;
+            // 이전 모드 클래스 제거
+            cy.elements().removeClass('zoom-dot zoom-mid');
+            if (mode === 'dot') {
+                cy.elements().addClass('zoom-dot');
+            } else if (mode === 'mid') {
+                cy.elements().addClass('zoom-mid');
+            }
+            currentZoomMode = mode;
+        }, 50);
+    });
+
+    // ── 초기 collapse + 진입 애니메이션 ──
+    cy.one('layoutstop', function() {
+        // 모든 요소 숨김
+        cy.elements().style('opacity', 0);
+        collapseAll();
+
+        // 1단계: GAP 노드 fade-in (0~400ms)
+        const gapNodes = cy.nodes('[nodeType="gap"]');
+        gapNodes.removeClass('cy-collapsed');
+        gapNodes.forEach((n, i) => {
+            setTimeout(() => {
+                n.animate({ style: { opacity: 1 } }, { duration: 400 });
+            }, i * 80);
+        });
+
+        // 2단계: lim-gap 엣지 라인 (400ms~)
+        const limGapEdges = cy.edges('[edgeType="lim-gap"]');
+        setTimeout(() => {
+            limGapEdges.forEach(e => {
+                e.animate({ style: { opacity: 0.6 } }, { duration: 350 });
+            });
+        }, gapNodes.length * 80 + 200);
+
+        // collapsed 된 노드들은 opacity 초기화 (display:none이므로 안 보임)
+        setTimeout(() => {
+            cy.nodes('.cy-collapsed').style('opacity', 1);
+            cy.edges('.cy-collapsed').style('opacity', 1);
+        }, gapNodes.length * 80 + 600);
+    });
 }
 
-function destroyFlowGraph() {
-    // Clean up resize listener if needed
+function destroyCyGraph() {
+    if (window._cyInstance) {
+        window._cyInstance.destroy();
+        window._cyInstance = null;
+    }
 }
 
 
 function renderResults() {
-    destroyFlowGraph();
+    destroyCyGraph();
     const area = document.getElementById('resultArea');
     area.style.display = 'block';
 
@@ -3150,7 +3291,7 @@ function renderResults() {
     let reportActionsHTML = '';
     if (pipelineData.report) {
         reportActionsHTML = `<div class="result-report-actions">
-            <button class="btn-preview" onclick="openMdViewer()"><button onclick="downloadReport('md')">다운로드 .md</button>#128196; 미리보기</button>
+            <button class="btn-preview" onclick="openMdViewer()">&#128196; 미리보기</button>
             <button onclick="downloadReport('md')">다운로드 .md</button>
             <button onclick="downloadReport('docx')">다운로드 .docx</button>
         </div>`;
@@ -3174,27 +3315,15 @@ function renderResults() {
                         </div>
                     </div>
                     <div class="flow-graph-section" id="flowGraphSection">
-                        <div class="section-title">Relationship Graph (Papers → Limitations → GAPs)</div>
-                        <div class="flow-graph-container" id="flowGraphContainer">
-                            <svg class="flow-svg-overlay" id="flowSvgOverlay"></svg>
-                            <div class="flow-col">
-                                <div class="flow-col-header"><span class="flow-col-icon">&#128196;</span> Papers <span id="flowPaperCount" style="opacity:0.5;font-weight:400"></span></div>
-                                <div class="flow-col-body" id="flowColPapers"></div>
-                            </div>
-                            <div class="flow-col">
-                                <div class="flow-col-header"><span class="flow-col-icon">&#9888;&#65039;</span> Limitations <span id="flowLimCount" style="opacity:0.5;font-weight:400"></span></div>
-                                <div class="flow-col-body" id="flowColLims"></div>
-                            </div>
-                            <div class="flow-col">
-                                <div class="flow-col-header"><span class="flow-col-icon">&#128161;</span> GAPs <span id="flowGapCount" style="opacity:0.5;font-weight:400"></span></div>
-                                <div class="flow-col-body" id="flowColGaps"></div>
-                            </div>
+                        <div class="section-title">관계도 (Papers → Limitations → GAPs)</div>
+                        <div class="cy-container" id="cyContainer">
+                            <button class="cy-fit-btn" onclick="if(window._cyInstance) window._cyInstance.animate({fit:{padding:30},duration:300})" title="전체 보기">⊞</button>
                         </div>
-                        <div class="flow-legend">
-                            <span><span class="flow-legend-dot" style="background:#fff;border:1.5px solid #b0b8d0"></span> Papers</span>
-                            <span><span class="flow-legend-dot" style="background:#fff7ed;border:1.5px solid #e8b560"></span> Limitations</span>
-                            <span><span class="flow-legend-dot" style="background:#eff3ff;border:1.5px solid #7b9af0"></span> GAPs</span>
-                            <span style="margin-left:auto;font-style:italic;opacity:0.55;font-size:0.95em">Hover to highlight connections</span>
+                        <div class="cy-legend">
+                            <span><span class="cy-legend-dot" style="background:#3b5998;border:1px solid #2d4373"></span> 논문</span>
+                            <span><span class="cy-legend-dot" style="background:#fffbeb;border:1px solid #f59e0b"></span> 한계점</span>
+                            <span><span class="cy-legend-dot" style="background:#eef0fb;border:1px solid #5469d4"></span> GAP</span>
+                            <span style="margin-left:auto;font-style:italic;opacity:0.7">클릭 강조 · 더블클릭 줌인 · ⊞ 전체보기</span>
                         </div>
                     </div>
                 </div>
@@ -3202,8 +3331,8 @@ function renderResults() {
         </div>
     `;
 
-    // 관계도 Flow Graph 초기화
-    requestAnimationFrame(() => renderFlowGraph());
+    // 관계도 Cytoscape 초기화
+    requestAnimationFrame(() => initCyGraph());
 }
 
 function getGapDetailHTML(index) {
@@ -3346,7 +3475,7 @@ async function exploreDirection(topic) {
     const outputLanguage = document.getElementById('outputLanguage').value;
 
     setInputEnabled(false);
-    destroyFlowGraph();
+    destroyCyGraph();
     pipelineData = { refined_query: '', keywords: [], papers: [], total_searched: 0, limitations: [], limitation_eval: {}, recency_status: {}, gaps: [], report: '', analysisOptions: {} };
     _progressData = { node: '', detail: '', current: 0, total: 0, progress: 0, pipeline_progress_pct: 0, elapsed_s: 0, estimated_remaining_s: 0 };
     timelineDetails = {};
