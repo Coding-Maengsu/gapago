@@ -150,17 +150,18 @@
 - Human-in-the-Loop: query_subgraph에서 scope=TOO_BROAD/TOO_NARROW 시 사용자 인터럽트
 
 ## 11. Model Routing (`model_router.py`)
-- 프로파일 기반 에이전트별 LLM 배정
-- **optimized 프로파일**:
-  - Azure GPT (기본): query_analysis, query_refine, limitation_eval, recency_check (정확성 필수 작업)
-  - Groq Qwen3-32B (light): meaning_expand, critic_score, orchestrator, gap_classify, limitation_verify
+- 프로파일 기반 에이전트별 LLM 배정, `get_llm_for_agent(state, agent_name)` 함수로 통합 접근
+- **optimized 프로파일** (기본):
+  - Azure GPT (기본 provider): query_analysis, query_refine, meaning_expand, limitation_eval, recency_check, critic_score, gap_classify, limitation_verify 등 대부분 에이전트 (환각 방지)
+  - Groq Qwen3-32B (light): orchestrator만
   - Claude (heavy): limitation_extract, response
   - Groq Qwen3-32B (heavy): gap_reasoning
-- **quality 프로파일**: 핵심 작업(limitation, response, eval) → Claude, 추론 → Groq, 나머지 → Azure GPT
+- **quality 프로파일**: limitation_extract, limitation_eval, response, recency_check, limitation_verify → Claude, gap_reasoning → Groq, 나머지 → Azure GPT
+- 프로파일 기본 provider: optimized → azure, quality → azure
 
 ## 12. Fast Mode
 - CrossEncoder 리랭킹 스킵
 - limitation_eval Call 1 스킵
 - 검색 논문 수 축소
 - 경량 임베딩 모델 사용 (MiniLM-L6-v2)
-- 전체 provider를 Groq (Qwen3-32B)로 전환 (speed 프로파일)
+- 오케스트레이터 모드에서는 LLM이 유동적으로 선택적 에이전트(limitation_eval, recency_check, critic_score) 스킵 판단
