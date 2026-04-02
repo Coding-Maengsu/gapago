@@ -592,6 +592,158 @@
             color: var(--text);
             border-color: var(--accent);
         }
+        .result-report-actions button.btn-preview {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+        .result-report-actions button.btn-preview:hover {
+            opacity: 0.88;
+            color: #fff;
+        }
+
+        /* ── MD Viewer Modal ── */
+        #mdViewerOverlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(10,14,30,0.55);
+            backdrop-filter: blur(3px);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+        }
+        #mdViewerOverlay.open { display: flex; }
+        #mdViewerModal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            width: min(860px, 92vw);
+            max-height: 88vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.22);
+            overflow: hidden;
+        }
+        #mdViewerHeader {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 22px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        #mdViewerHeader h3 {
+            margin: 0;
+            font-size: 1em;
+            font-weight: 600;
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        #mdViewerHeader h3 span.md-badge {
+            background: var(--accent);
+            color: #fff;
+            font-size: 0.72em;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+        }
+        #mdViewerClose {
+            background: none;
+            border: none;
+            font-size: 1.3em;
+            cursor: pointer;
+            color: var(--text-dim);
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: background 0.15s;
+        }
+        #mdViewerClose:hover { background: var(--surface2); color: var(--text); }
+        #mdViewerTabs {
+            display: flex;
+            gap: 0;
+            padding: 0 22px;
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .md-tab {
+            padding: 10px 18px;
+            font-size: 0.82em;
+            font-weight: 500;
+            color: var(--text-dim);
+            border: none;
+            background: none;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+        .md-tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+        .md-tab:hover:not(.active) { color: var(--text); }
+        #mdViewerBody {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px 28px;
+        }
+        #mdRendered {
+            line-height: 1.75;
+            color: var(--text);
+            font-size: 0.92em;
+        }
+        #mdRendered h1 { font-size: 1.5em; margin: 0 0 16px; color: var(--text); border-bottom: 2px solid var(--border); padding-bottom: 8px; }
+        #mdRendered h2 { font-size: 1.2em; margin: 24px 0 10px; color: var(--text); }
+        #mdRendered h3 { font-size: 1.05em; margin: 18px 0 8px; color: var(--text); }
+        #mdRendered ul, #mdRendered ol { padding-left: 22px; margin: 8px 0; }
+        #mdRendered li { margin: 4px 0; }
+        #mdRendered p { margin: 10px 0; }
+        #mdRendered hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+        #mdRendered strong { color: var(--accent); }
+        #mdRendered code { background: var(--surface2); padding: 1px 6px; border-radius: 4px; font-size: 0.88em; }
+        #mdRaw {
+            font-family: 'SFMono-Regular', 'Consolas', monospace;
+            font-size: 0.82em;
+            line-height: 1.65;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: var(--text-dim);
+            background: var(--surface2);
+            padding: 18px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+        }
+        #mdViewerFooter {
+            padding: 12px 22px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        #mdViewerFooter button {
+            padding: 7px 16px;
+            font-size: 0.82em;
+            font-family: inherit;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text-dim);
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.15s;
+        }
+        #mdViewerFooter button:hover { background: var(--surface2); color: var(--text); border-color: var(--accent); }
+        #mdViewerFooter button.primary {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+        #mdViewerFooter button.primary:hover { opacity: 0.88; }
 
         .result-panels {
             display: flex;
@@ -1706,13 +1858,13 @@ let pipelineData = {
 
 // Axis color palette for GAP visualization
 const AXIS_COLORS = [
-    { bg: '#eff3ff', color: '#3659c9', border: '#7b9af0' },
-    { bg: '#f3effb', color: '#6d45b8', border: '#a88de0' },
-    { bg: '#edf8f2', color: '#18804a', border: '#6bc99a' },
-    { bg: '#fef6ed', color: '#b56e0a', border: '#edb95e' },
-    { bg: '#fef0f1', color: '#c13d4b', border: '#f09da4' },
-    { bg: '#edf6fc', color: '#2572a8', border: '#72b5e0' },
-    { bg: '#f6f0fb', color: '#8040b8', border: '#bb8ee6' },
+    { bg: '#eef0fb', color: '#5469d4', border: '#5469d4' },
+    { bg: '#f3eefa', color: '#7c5cbf', border: '#7c5cbf' },
+    { bg: '#eaf6f0', color: '#0d9668', border: '#0d9668' },
+    { bg: '#fef5e7', color: '#c27a0e', border: '#c27a0e' },
+    { bg: '#feeef0', color: '#d44a4a', border: '#d44a4a' },
+    { bg: '#e9f4fb', color: '#2e7dba', border: '#2e7dba' },
+    { bg: '#f4eefb', color: '#8e4ec6', border: '#8e4ec6' },
 ];
 function getAxisColor(axisName) {
     // Deterministic color based on axis name hash
@@ -2984,6 +3136,7 @@ function renderResults() {
     let reportActionsHTML = '';
     if (pipelineData.report) {
         reportActionsHTML = `<div class="result-report-actions">
+            <button class="btn-preview" onclick="openMdViewer()"><button onclick="downloadReport('md')">다운로드 .md</button>#128196; 미리보기</button>
             <button onclick="downloadReport('md')">다운로드 .md</button>
             <button onclick="downloadReport('docx')">다운로드 .docx</button>
         </div>`;
@@ -3428,6 +3581,103 @@ function richText(str) {
     s = s.replace(/\n/g, '<br>');
     return s;
 }
+
+// ── MD Viewer ──────────────────────────────────────────────
+function openMdViewer() {
+    const md = buildReportMd();
+    // Render tab
+    document.getElementById('mdRendered').innerHTML = mdToHtmlRich(md);
+    // Raw tab
+    document.getElementById('mdRaw').textContent = md;
+    // Default to rendered tab
+    switchMdTab('rendered');
+    document.getElementById('mdViewerOverlay').classList.add('open');
+}
+
+function closeMdViewer() {
+    document.getElementById('mdViewerOverlay').classList.remove('open');
+}
+
+function switchMdTab(tab) {
+    document.getElementById('mdRendered').style.display = tab === 'rendered' ? 'block' : 'none';
+    document.getElementById('mdRaw').style.display = tab === 'raw' ? 'block' : 'none';
+    document.querySelectorAll('.md-tab').forEach(btn => btn.classList.remove('active'));
+    document.getElementById('mdTab-' + tab).classList.add('active');
+}
+
+function mdToHtmlRich(md) {
+    // Table of contents awareness + richer conversion
+    let html = md
+        .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
+        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/(?<!\w)_(.+?)_(?!\w)/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/^---$/gm, '<hr>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>')
+        // Wrap consecutive <li> in <ul>
+        .replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>')
+        // Paragraphs
+        .split(/\n{2,}/)
+        .map(block => {
+            if (/^<(h[1-4]|ul|hr|li)/.test(block.trim())) return block;
+            const trimmed = block.trim().replace(/\n/g, '<br>');
+            return trimmed ? `<p>${trimmed}</p>` : '';
+        })
+        .join('\n');
+    return html;
+}
+
+function copyMdToClipboard() {
+    const md = buildReportMd();
+    navigator.clipboard.writeText(md).then(() => {
+        const btn = document.getElementById('mdCopyBtn');
+        const orig = btn.textContent;
+        btn.textContent = '✓ 복사됨';
+        setTimeout(() => { btn.textContent = orig; }, 1800);
+    });
+}
+
+// Close modal on overlay click
+document.addEventListener('DOMContentLoaded', function() {
+    const overlay = document.getElementById('mdViewerOverlay');
+    if (overlay) {
+        overlay.addEventListener('click', function(e) {
+            if (e.target === overlay) closeMdViewer();
+        });
+    }
+    // Keyboard ESC
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeMdViewer();
+    });
+});
 </script>
+
+<!-- MD Viewer Modal -->
+<div id="mdViewerOverlay">
+    <div id="mdViewerModal">
+        <div id="mdViewerHeader">
+            <h3>📄 리포트 미리보기 <span class="md-badge">MD</span></h3>
+            <button id="mdViewerClose" onclick="closeMdViewer()" title="닫기">✕</button>
+        </div>
+        <div id="mdViewerTabs">
+            <button class="md-tab active" id="mdTab-rendered" onclick="switchMdTab('rendered')">렌더링 보기</button>
+            <button class="md-tab" id="mdTab-raw" onclick="switchMdTab('raw')">원본 코드</button>
+        </div>
+        <div id="mdViewerBody">
+            <div id="mdRendered"></div>
+            <pre id="mdRaw" style="display:none"></pre>
+        </div>
+        <div id="mdViewerFooter">
+            <button id="mdCopyBtn" onclick="copyMdToClipboard()">📋 클립보드 복사</button>
+            <button onclick="downloadReport('md')">⬇ .md 다운로드</button>
+            <button class="primary" onclick="closeMdViewer()">닫기</button>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
