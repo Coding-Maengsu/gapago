@@ -2327,7 +2327,7 @@ async function startAnalysis() {
     const outputLanguage = document.getElementById('outputLanguage').value || 'auto';
 
     setInputEnabled(false);
-    const providerLabels = { azure: 'Azure GPT', claude: 'Claude', groq: 'Groq', exaone: 'EXAONE' };
+    const providerLabels = { azure: 'Azure GPT', claude: 'Claude', groq: 'Qwen3-32B', exaone: 'EXAONE' };
     const yearLabels = { auto: '자동 추천', '1y': '최근 1년', '3y': '최근 3년', '5y': '최근 5년' };
     const langLabels = { auto: '자동 감지', ko: '한국어', en: 'English' };
     destroyFlowGraph();
