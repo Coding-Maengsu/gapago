@@ -873,7 +873,7 @@ def _load_doi_full_text(paper: Paper) -> dict:
             return sections
 
     if doi:
-        print(f"  [fulltext:doi] full text 확보 불가 (abstract fallback): {doi}")
+        print(f"  [fulltext:doi] full text 확보 불가 (full text 실패): {doi}")
     return {}
 
 
@@ -1058,13 +1058,13 @@ def _build_prompt(paper: Paper, sections: dict) -> str:
     2-track 방식 프롬프트 구성.
     Track 1: 저자 기술 섹션
     Track 2: 구조 분석 섹션
-    fallback: abstract (Track 1+2 모두 없을 때)
+    full text 섹션이 없으면 None 반환.
     """
     track1 = {k: v for k, v in sections.items() if k in TRACK1_KEYS}
     track2 = {k: v for k, v in sections.items() if k in TRACK2_KEYS}
 
-    # fallback: 모두 없으면 abstract 사용
-    use_fallback = not track1 and not track2
+    if not track1 and not track2:
+        return None  # full text 없으면 추출 불가
 
     lines = [
         f"paper_id: {paper.paper_id}",
@@ -1073,21 +1073,15 @@ def _build_prompt(paper: Paper, sections: dict) -> str:
         "",
     ]
 
-    if use_fallback:
-        lines += [
-            "## FALLBACK: Abstract Only",
-            paper.abstract,
-        ]
-    else:
-        if track1:
-            lines.append("## Track 1: Author-Stated Sections")
-            for k, v in track1.items():
-                lines += [f"### [{k.upper()}]", v, ""]
+    if track1:
+        lines.append("## Track 1: Author-Stated Sections")
+        for k, v in track1.items():
+            lines += [f"### [{k.upper()}]", v, ""]
 
-        if track2:
-            lines.append("## Track 2: Structural Analysis Sections")
-            for k, v in track2.items():
-                lines += [f"### [{k.upper()}]", v, ""]
+    if track2:
+        lines.append("## Track 2: Structural Analysis Sections")
+        for k, v in track2.items():
+            lines += [f"### [{k.upper()}]", v, ""]
 
     return "\n".join(lines)
 
@@ -1117,8 +1111,7 @@ Sections: introduction, method, experiment, discussion
    - track: "author_stated" or "structural"
    - source_section: section name (e.g., "conclusion", "method", "experiment")
 3. Do NOT infer gaps. Only extract limitations from the provided text.
-4. If only abstract is provided (FALLBACK), extract 1 limitation maximum.
-5. If input text appears truncated, summarize and complete the limitation based on available context. Never output incomplete sentences.
+4. If input text appears truncated, summarize and complete the limitation based on available context. Never output incomplete sentences.
 
 ## Output Format (strictly JSON list)
 [
@@ -1362,9 +1355,15 @@ def limitation_extract_node(state: AgentState) -> AgentState:
         sections = _load_full_text_sections(paper)
         if not sections:
             result["fulltext_failed"] = True
+            print(f"  ⚠️ {paper.paper_id}: full text 없음 → 스킵")
+            return result
 
         # 프롬프트 구성
         paper_prompt = _build_prompt(paper, sections)
+        if paper_prompt is None:
+            result["fulltext_failed"] = True
+            print(f"  ⚠️ {paper.paper_id}: 유효 섹션 없음 → 스킵")
+            return result
 
         # LLM 호출
         messages = [
@@ -1376,28 +1375,10 @@ def limitation_extract_node(state: AgentState) -> AgentState:
             response = llm.invoke(messages)
             content = response.content if hasattr(response, "content") else str(response)
         except Exception as e:
-            # 콘텐츠 필터 등으로 실패 시 abstract만으로 재시도
-            if "content_filter" in str(e) or "content management policy" in str(e):
-                print(f"  ⚠️ 콘텐츠 필터 차단 → abstract fallback 재시도: {paper.paper_id}")
-                fallback_prompt = _build_prompt(paper, {})
-                fallback_messages = [
-                    {"role": "system", "content": SYSTEM_PROMPT + lang_instruction},
-                    {"role": "user", "content": fallback_prompt},
-                ]
-                try:
-                    response = llm.invoke(fallback_messages)
-                    content = response.content if hasattr(response, "content") else str(response)
-                    result["errors"].append(f"[limitation_extract] Content filter triggered for {paper.paper_id}, used abstract fallback")
-                except Exception as e2:
-                    result["llm_failed"] = True
-                    result["errors"].append(f"[limitation_extract] LLM failed even with abstract fallback for {paper.paper_id}: {e2}")
-                    print(f"  ⚠️ Abstract fallback도 실패: {paper.paper_id} ({e2})")
-                    content = "[]"
-            else:
-                result["llm_failed"] = True
-                result["errors"].append(f"[limitation_extract] LLM failed for {paper.paper_id}: {e}")
-                print(f"  ⚠️ LLM 호출 실패: {paper.paper_id} ({e})")
-                content = "[]"
+            result["llm_failed"] = True
+            result["errors"].append(f"[limitation_extract] LLM failed for {paper.paper_id}: {e}")
+            print(f"  ⚠️ LLM 호출 실패: {paper.paper_id} ({e})")
+            content = "[]"
 
         result["content"] = content
 
@@ -1454,11 +1435,10 @@ def limitation_extract_node(state: AgentState) -> AgentState:
 
     # ── Step 1.5: Full text 실패 논문을 backup 논문으로 대체 ──
     if fulltext_fail_count > 0:
+        failed_ids = {pid for pid, sec in paper_sections.items() if not sec}
         backup_raw = state.get("backup_papers") or []
+        replacements = []
         if backup_raw:
-            failed_ids = {pid for pid, sec in paper_sections.items() if not sec}
-            # backup 중 full text 로드 가능한 논문으로 대체 (arXiv 우선, 그 외도 시도)
-            replacements = []
             used_backup_ids = set()
             # arXiv 우선 정렬: arXiv가 앞으로
             sorted_backup = sorted(backup_raw, key=lambda bp: (0 if bp.get("paper_id", "").lower().startswith("arxiv:") else 1))
@@ -1477,18 +1457,26 @@ def limitation_extract_node(state: AgentState) -> AgentState:
                 except Exception:
                     continue
 
-            if replacements:
-                # 실패 논문 제거 + 대체 논문 추가
-                original_count = len(papers)
-                papers = [p for p in papers if p.paper_id not in failed_ids]
-                for rep_paper, rep_sections in replacements:
-                    papers.append(rep_paper)
-                    paper_sections[rep_paper.paper_id] = rep_sections
-                # 실패 카운트 업데이트
-                new_fail = fulltext_fail_count - len(replacements)
-                print(f"  [fulltext_replace] {len(replacements)}편 대체 완료 "
-                      f"(실패 {fulltext_fail_count} → {max(0, new_fail)}편)")
-                fulltext_fail_count = max(0, new_fail)
+        # 실패 논문 완전 제거 + 대체 논문 추가
+        papers = [p for p in papers if p.paper_id not in failed_ids]
+        for rep_paper, rep_sections in replacements:
+            papers.append(rep_paper)
+            paper_sections[rep_paper.paper_id] = rep_sections
+
+        replaced = len(replacements)
+        removed = len(failed_ids) - replaced
+        print(f"  [fulltext_filter] full text 실패 {len(failed_ids)}편: "
+              f"{replaced}편 대체, {removed}편 제거 → 최종 {len(papers)}편")
+        fulltext_fail_count = 0  # 실패 논문은 모두 제거됨
+
+    if not papers:
+        print("  ⚠️ full text 가용 논문이 없어 limitation 추출 불가")
+        return {
+            "messages": [AIMessage(content="No papers with full text available for limitation extraction.", name="limitation_extract")],
+            "limitations": [],
+            "paper_extraction_status": [],
+            "errors": errors + ["[limitation_extract] All papers failed full text loading — no limitations extracted"],
+        }
 
     report_progress(
         session_id, "limitation_extract",
@@ -1512,10 +1500,17 @@ def limitation_extract_node(state: AgentState) -> AgentState:
         for paper in batch:
             sections = paper_sections.get(paper.paper_id, {})
             paper_prompt = _build_prompt(paper, sections)
+            if paper_prompt is None:
+                # full text 실패 논문이 배치에 포함된 경우 스킵
+                print(f"  ⚠️ 배치 내 {paper.paper_id}: 유효 섹션 없음 → 스킵")
+                continue
             # 배치 시 각 논문 텍스트를 4000자로 제한
             if len(paper_prompt) > 4000:
                 paper_prompt = paper_prompt[:4000] + "\n... (truncated)"
             batch_prompt_parts.append(f"=== PAPER: {paper.paper_id} ===\n{paper_prompt}")
+
+        if not batch_prompt_parts:
+            return batch_result
 
         combined_prompt = "\n\n".join(batch_prompt_parts)
         combined_prompt += (
@@ -1601,9 +1596,7 @@ def limitation_extract_node(state: AgentState) -> AgentState:
                     type="partial_limitations", data=partial,
                 )
 
-    # fulltext/LLM 실패 요약을 errors에 기록
-    if fulltext_fail_count:
-        errors.append(f"[limitation_extract] Full text load failed for {fulltext_fail_count}/{len(papers)} papers (abstract fallback used)")
+    # LLM 실패 요약을 errors에 기록
     if llm_fail_count:
         errors.append(f"[limitation_extract] LLM call failed for {llm_fail_count}/{len(papers)} papers")
 
@@ -1638,8 +1631,6 @@ def limitation_extract_node(state: AgentState) -> AgentState:
         has_sections = bool(paper_sections.get(pid))
         if lim_cnt > 0 and has_sections:
             status = "success"
-        elif lim_cnt > 0 and not has_sections:
-            status = "abstract_fallback"
         else:
             status = "failed"
         paper_extraction_status.append({

@@ -711,7 +711,15 @@ async def clarify(session_id: str, response: str):
     """Resume pipeline after human clarification."""
     session = _sessions.get(session_id)
     if not session:
-        raise HTTPException(404, "Session not found or expired")
+        # SQLite fallback — 세션이 존재했는지 확인하여 원인별 안내
+        from utils.session_store import get_session
+        db_session = get_session(session_id)
+        if db_session:
+            raise HTTPException(
+                410,
+                "서버가 재시작되어 분석 세션이 소실되었습니다. 새로운 분석을 시작해주세요.",
+            )
+        raise HTTPException(404, "존재하지 않는 세션입니다.")
 
     graph = session["graph"]
     config_dict = session["config"]

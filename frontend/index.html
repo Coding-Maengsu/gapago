@@ -3417,7 +3417,18 @@ async function sendClarification(response) {
     try {
         const params = new URLSearchParams({ session_id: currentSessionId, response });
         const resp = await fetch(`api/clarify?${params}`);
-        if (!resp.ok) { showError(`명확화 오류 (${resp.status}): ${await resp.text()}`); return; }
+        if (!resp.ok) {
+            const body = await resp.text();
+            let msg;
+            try { msg = JSON.parse(body).detail; } catch { msg = body; }
+            if (resp.status === 410) {
+                showError(msg || '서버가 재시작되어 세션이 소실되었습니다. 새로운 분석을 시작해주세요.');
+                setInputEnabled(true);
+            } else {
+                showError(`명확화 오류 (${resp.status}): ${msg}`);
+            }
+            return;
+        }
         const data = await resp.json();
         await connectToStream(currentSessionId, data.events_count || 0);
     } catch (e) { showError(e.message); }
