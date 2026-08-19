@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" agent="Claude">
+  <diagram id="pipeline" name="GAPAGO Pipeline Architecture">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1920" pageHeight="1080" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- ORCHESTRATOR BOUNDARY -->
+        <mxCell id="orc" value="" style="rounded=1;whiteSpace=wrap;html=1;strokeWidth=2;arcSize=8;dashed=1;dashPattern=8 4;fillColor=#ffcc99;strokeColor=#FFB570;fillStyle=hatch;opacity=30;" vertex="1" parent="1">
+          <mxGeometry x="70" y="47" width="1340" height="773" as="geometry"/>
+        </mxCell>
+        <mxCell id="orc_title" value="&lt;font color=&quot;#E67E22&quot;&gt;&lt;b&gt;⚙ ORCHESTRATOR&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=center;fontSize=19;" vertex="1" parent="1">
+          <mxGeometry x="620" y="-90" width="180" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="orch" value="&lt;b&gt;orchestrator&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#888&quot;&gt;Groq Qwen3-32B&lt;br&gt;Command(goto=...)&lt;br&gt;동적 라우팅 · 모든 에이전트 제어&lt;br&gt;max 15 steps · max 2 reruns/agent&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#E67E22;strokeWidth=1.5;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="602" y="-55" width="215" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_orc_boundary" style="endArrow=none;dashed=1;html=1;rounded=0;strokeColor=#E67E22;strokeWidth=3;" edge="1" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="710" y="25" as="sourcePoint"/>
+            <mxPoint x="710" y="47" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- START -->
+        <mxCell id="start" value="&lt;b&gt;Start&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2C3E50;strokeWidth=2;fontSize=17;" vertex="1" parent="1">
+          <mxGeometry x="-50" y="200" width="60" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- 1. QUERY ANALYSIS -->
+        <mxCell id="sg1" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF9E7;strokeColor=#D4AC0D;strokeWidth=2;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="100" y="120" width="300" height="240" as="geometry"/>
+        </mxCell>
+        <mxCell id="sg1_title" value="&lt;font color=&quot;#D4AC0D&quot;&gt;&lt;b&gt;QUERY ANALYSIS AGENT&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=center;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="140" y="90" width="220" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="qa" value="&lt;b&gt;query_analysis&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#888&quot;&gt;Azure GPT · SemRank scope&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D4AC0D;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="150" y="140" width="200" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="hc" value="&lt;b&gt;human_clarify&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#888&quot;&gt;interrupt · user input&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D4AC0D;strokeWidth=1.5;fontSize=11;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="140" y="215" width="105" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="qr" value="&lt;b&gt;query_refine&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#888&quot;&gt;Azure GPT · APA&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D4AC0D;strokeWidth=1.5;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="260" y="215" width="105" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="sg1_note" value="&lt;font style=&quot;font-size:9px;color:#999&quot;&gt;TOO_BROAD / TOO_NARROW → clarify&lt;br&gt;SEARCHABLE → refine&lt;/font&gt;" style="text;html=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="145" y="275" width="220" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_qa_hc" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#D4AC0D;strokeWidth=1.5;" edge="1" source="qa" target="hc" parent="1"/>
+        <mxCell id="e_hc_qa" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#D4AC0D;strokeWidth=1;dashed=1;" edge="1" source="hc" target="qa" parent="1">
+          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="130" y="240"/><mxPoint x="130" y="165"/></Array></mxGeometry>
+        </mxCell>
+        <mxCell id="e_qa_qr" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#D4AC0D;strokeWidth=1.5;" edge="1" source="qa" target="qr" parent="1"/>
+
+        <!-- 2. SEARCH & RETRIEVAL -->
+        <mxCell id="sg2" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAF2F8;strokeColor=#2E86C1;strokeWidth=2;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="450" y="120" width="320" height="240" as="geometry"/>
+        </mxCell>
+        <mxCell id="sg2_title" value="&lt;font color=&quot;#2E86C1&quot;&gt;&lt;b&gt;SEARCH &amp;amp; RETRIEVAL AGENT&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=center;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="480" y="90" width="260" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="me" value="&lt;b&gt;meaning_expand&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#888&quot;&gt;Azure GPT · keyword expansion&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2E86C1;strokeWidth=1.5;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="490" y="138" width="240" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="pr" value="&lt;b&gt;paper_retrieval&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#888&quot;&gt;BM25 + FAISS + CrossEncoder&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2E86C1;strokeWidth=1.5;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="490" y="192" width="240" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_me_pr" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#2E86C1;strokeWidth=1.5;" edge="1" source="me" target="pr" parent="1"/>
+        <mxCell id="t1" value="&lt;b&gt;arXiv&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8E8E8;strokeColor=#BBB;strokeWidth=1;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="468" y="248" width="62" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="t2" value="&lt;b&gt;Crossref&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8E8E8;strokeColor=#BBB;strokeWidth=1;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="534" y="248" width="62" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="t3" value="&lt;b&gt;S2&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8E8E8;strokeColor=#BBB;strokeWidth=1;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="600" y="248" width="62" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="t4" value="&lt;b&gt;OpenAlex&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8E8E8;strokeColor=#BBB;strokeWidth=1;fontSize=9;" vertex="1" parent="1">
+          <mxGeometry x="666" y="248" width="62" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="t5" value="&lt;b&gt;ScienceON&lt;br&gt;논문&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8E8E8;strokeColor=#BBB;strokeWidth=1;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="468" y="278" width="62" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="t6" value="&lt;b&gt;ScienceON&lt;br&gt;특허&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8E8E8;strokeColor=#BBB;strokeWidth=1;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="534" y="278" width="62" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="t7" value="&lt;b&gt;ScienceON&lt;br&gt;보고서&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8E8E8;strokeColor=#BBB;strokeWidth=1;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="600" y="278" width="62" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="t8" value="&lt;b&gt;Tavily Web&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8E8E8;strokeColor=#BBB;strokeWidth=1;fontSize=8;" vertex="1" parent="1">
+          <mxGeometry x="666" y="278" width="62" height="28" as="geometry"/>
+        </mxCell>
+        <mxCell id="tools_label" value="&lt;font style=&quot;font-size:9px;color:#636E72&quot;&gt;&lt;b&gt;8 Search Sources (parallel)&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="510" y="312" width="200" height="18" as="geometry"/>
+        </mxCell>
+
+        <!-- 3. LIMITATION EXTRACTION -->
+        <mxCell id="sg3" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDEDEC;strokeColor=#CB4335;strokeWidth=2;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="820" y="120" width="560" height="280" as="geometry"/>
+        </mxCell>
+        <mxCell id="sg3_title" value="&lt;font color=&quot;#CB4335&quot;&gt;&lt;b&gt;LIMITATION EXTRACTION AGENT&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=center;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="920" y="90" width="280" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="le" value="&lt;b&gt;limitation_extract&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#888&quot;&gt;Claude · full text only · 2-track&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CB4335;strokeWidth=1.5;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="845" y="145" width="190" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="vf" value="&lt;b&gt;cross_verify&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#888&quot;&gt;quote + claim check&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CB4335;strokeWidth=1.5;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="845" y="215" width="190" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_le_vf" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#CB4335;strokeWidth=1.5;" edge="1" source="le" target="vf" parent="1"/>
+        <mxCell id="sg3_note" value="&lt;font style=&quot;font-size:10px;color:#CB4335&quot;&gt;&lt;b&gt;verified=False → removed&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="855" y="268" width="170" height="20" as="geometry"/>
+        </mxCell>
+
+        <!-- Quality Eval sub-box -->
+        <mxCell id="sg4" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fad9d5;strokeColor=#ae4132;strokeWidth=2;arcSize=8;dashed=1;dashPattern=8 8;" vertex="1" parent="1">
+          <mxGeometry x="1070" y="135" width="280" height="155" as="geometry"/>
+        </mxCell>
+        <mxCell id="sg4_title" value="&lt;font color=&quot;#FF6666&quot;&gt;&lt;b&gt;QUALITY EVALUATION&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=center;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="140" width="200" height="20" as="geometry"/>
+        </mxCell>
+        <mxCell id="lev" value="&lt;b&gt;limitation_eval&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#888&quot;&gt;Azure GPT · FActScore + Prometheus&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#FF9999;strokeWidth=1.5;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1095" y="168" width="230" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="w_strong" value="&lt;b&gt;strong → 1.0&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D5F5E3;strokeColor=#1E8449;strokeWidth=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1085" y="230" width="80" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="w_weak" value="&lt;b&gt;weak → 0.3&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDEBD0;strokeColor=#CA6F1E;strokeWidth=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1175" y="230" width="80" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="w_remove" value="&lt;b&gt;remove ✕&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDEDEC;strokeColor=#CB4335;strokeWidth=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1265" y="230" width="70" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_vf_lev" value="&lt;font style=&quot;font-size:10px&quot;&gt;verified=True&lt;/font&gt;" style="rounded=1;strokeColor=#2C3E50;strokeWidth=2;" edge="1" source="vf" target="lev" parent="1"/>
+
+        <!-- RECENCY CHECK -->
+        <mxCell id="rc" value="&lt;b&gt;recency_check&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#888&quot;&gt;Azure GPT + Tavily&lt;br&gt;unresolved 1.0 · partial 0.5 · resolved 0.0&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=1.5;fontSize=12;dashed=1;dashPattern=12 12;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="440" width="280" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- 5. GAP INFERENCE -->
+        <mxCell id="sg5" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F8F5;strokeColor=#17A589;strokeWidth=2;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="540" width="280" height="170" as="geometry"/>
+        </mxCell>
+        <mxCell id="sg5_title" value="&lt;font color=&quot;#17A589&quot;&gt;&lt;b&gt;GAP INFERENCE AGENT&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=center;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1090" y="510" width="220" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="gi" value="&lt;b&gt;gap_infer&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#888&quot;&gt;Groq Qwen3-32B&lt;br&gt;dynamic axes · barriers · urgency scoring&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#17A589;strokeWidth=1.5;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1095" y="565" width="215" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="sg5_note" value="&lt;font style=&quot;font-size:9px;color:#888&quot;&gt;weight = recency × eval_quality&lt;/font&gt;" style="text;html=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="630" width="175" height="18" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_rc_gi" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#2C3E50;strokeWidth=2;" edge="1" source="rc" target="gi" parent="1"/>
+
+        <!-- 6. CRITIC & RESPONSE -->
+        <mxCell id="sg6" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#D6EAF8;strokeColor=#2874A6;strokeWidth=2;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="700" y="540" width="310" height="230" as="geometry"/>
+        </mxCell>
+        <mxCell id="sg6_title" value="&lt;font color=&quot;#2874A6&quot;&gt;&lt;b&gt;CRITIC &amp;amp; RESPONSE AGENT&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=center;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="740" y="510" width="230" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="cs" value="&lt;b&gt;critic_score&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#888&quot;&gt;Azure GPT · LLM-as-Judge&lt;br&gt;3 metrics (0.0~1.0)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2874A6;strokeWidth=1.5;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="730" y="560" width="250" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="fr" value="&lt;b&gt;final_response&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#888&quot;&gt;Claude · 5-section Markdown report&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2874A6;strokeWidth=1.5;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="730" y="640" width="250" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_cs_fr" value="&lt;font style=&quot;font-size:10px;color:#2874A6&quot;&gt;&lt;b&gt;ACCEPT&lt;/b&gt;&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#2874A6;strokeWidth=1.5;" edge="1" source="cs" target="fr" parent="1"/>
+        <mxCell id="e_gi_cs" style="rounded=1;strokeColor=#2C3E50;strokeWidth=2;" edge="1" source="gi" target="cs" parent="1"/>
+
+        <!-- END -->
+        <mxCell id="endnode" value="&lt;b&gt;End&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#2C3E50;strokeColor=#2C3E50;strokeWidth=2;fontSize=14;fontColor=#FFFFFF;" vertex="1" parent="1">
+          <mxGeometry x="580" y="645" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="e_fr_end" style="rounded=1;strokeColor=#2C3E50;strokeWidth=2;" edge="1" source="fr" target="endnode" parent="1"/>
+
+        <!-- 7. FOLLOW-UP CHAT -->
+        <mxCell id="sg7" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF5E7;strokeColor=#CA6F1E;strokeWidth=2;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="260" y="600" width="240" height="160" as="geometry"/>
+        </mxCell>
+        <mxCell id="sg7_title" value="&lt;font color=&quot;#CA6F1E&quot;&gt;&lt;b&gt;FOLLOW-UP CHAT AGENT&lt;/b&gt;&lt;/font&gt;" style="text;html=1;align=center;fontSize=14;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="290" y="575" width="180" height="24" as="geometry"/>
+        </mxCell>
+        <mxCell id="gca" value="&lt;b&gt;gap_chat_agent&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px;color:#888&quot;&gt;POST /api/chat&lt;br&gt;pipeline result as context&lt;br&gt;multi-turn · User ↔ AI&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CA6F1E;strokeWidth=1.5;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="285" y="630" width="190" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- MAIN FLOW -->
+        <mxCell id="e_start_qa" style="rounded=1;strokeColor=#2C3E50;strokeWidth=2;" edge="1" source="start" target="qa" parent="1"/>
+        <mxCell id="e_qr_me" style="rounded=1;strokeColor=#2C3E50;strokeWidth=2;" edge="1" source="qr" target="me" parent="1"/>
+        <mxCell id="e_pr_le" style="rounded=1;strokeColor=#2C3E50;strokeWidth=2;" edge="1" source="pr" target="le" parent="1"/>
+
+        <!-- lev PASS → rc -->
+        <mxCell id="e_lev_rc" value="&lt;font style=&quot;font-size:10px;color:#17A589&quot;&gt;&lt;b&gt;PASS&lt;/b&gt;&lt;/font&gt;" style="rounded=1;strokeColor=#17A589;strokeWidth=2;" edge="1" source="lev" target="rc" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="1210" y="350"/><mxPoint x="1200" y="420"/></Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- fr → gca result context -->
+        <mxCell id="e_fr_gca" value="&lt;font style=&quot;font-size:10px;color:#CA6F1E&quot;&gt;&lt;b&gt;result context&lt;/b&gt;&lt;/font&gt;" style="rounded=1;strokeColor=#CA6F1E;strokeWidth=1.5;dashed=1;" edge="1" source="fr" target="gca" parent="1"/>
+
+        <!-- FEEDBACK LOOPS -->
+        <mxCell id="e_retry" value="&lt;font style=&quot;font-size:10px;color:#CB4335&quot;&gt;&lt;b&gt;RETRY&lt;/b&gt;&lt;/font&gt;" style="rounded=1;strokeColor=#CB4335;strokeWidth=1.5;dashed=1;" edge="1" source="lev" target="le" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="1210" y="125"/><mxPoint x="940" y="125"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_redo" value="&lt;font style=&quot;font-size:10px;color:#2E86C1&quot;&gt;&lt;b&gt;REDO_RETRIEVAL&lt;/b&gt;&lt;/font&gt;" style="rounded=1;strokeColor=#2E86C1;strokeWidth=1.5;dashed=1;" edge="1" source="cs" target="me" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="855" y="460"/><mxPoint x="610" y="460"/><mxPoint x="610" y="400"/></Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_refine" value="&lt;font style=&quot;font-size:10px;color:#D4AC0D&quot;&gt;&lt;b&gt;REFINE_QUERY&lt;/b&gt;&lt;/font&gt;" style="rounded=1;strokeColor=#D4AC0D;strokeWidth=1.5;dashed=1;" edge="1" source="cs" target="qa" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points"><mxPoint x="730" y="588"/><mxPoint x="100" y="588"/><mxPoint x="100" y="165"/></Array>
+          </mxGeometry>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
