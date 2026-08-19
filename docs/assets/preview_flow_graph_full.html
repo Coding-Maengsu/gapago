@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flow Graph Preview — Full Scale (15 Papers / 20 Limitations / 5 GAPs)</title>
+<style>
+    :root {
+        --surface: #ffffff;
+        --surface2: #f0f2f8;
+        --border: #d0d4e4;
+        --border-light: #eceef5;
+        --text: #2d3250;
+        --text-dim: #5e6687;
+        --text-light: #8e94ab;
+        --accent: #4f6ef7;
+        --accent-light: #eef0fb;
+        --yellow-light: #fef8ec;
+        --radius-lg: 14px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f6fa; padding: 40px; color: var(--text); }
+    h1 { font-size: 1.3em; margin-bottom: 8px; color: #2d3250; }
+    .subtitle { font-size: 0.85em; color: #8891ad; margin-bottom: 24px; }
+
+    /* ── Flow Graph ── */
+    .flow-graph-section { border-top: 1.5px solid var(--border-light); padding-top: 18px; }
+
+    .flow-graph-container { display: flex; gap: 0; position: relative; min-height: 360px; max-height: 600px; border: 1.5px solid var(--border-light); border-radius: var(--radius-lg); background: #fafbfe; overflow: hidden; box-shadow: 0 2px 12px rgba(80, 90, 140, 0.06); }
+
+    .flow-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .flow-col-header { padding: 12px 16px; font-size: 0.82em; font-weight: 700; color: #4a5073; border-bottom: 1.5px solid var(--border-light); background: linear-gradient(180deg, #f4f5fb 0%, #edeef6 100%); flex-shrink: 0; display: flex; align-items: center; gap: 7px; letter-spacing: -0.01em; }
+    .flow-col-header .flow-col-icon { font-size: 1.1em; }
+    .flow-col-body { flex: 1; overflow-y: auto; padding: 10px; position: relative; z-index: 2; }
+    .flow-col-body::-webkit-scrollbar { width: 4px; }
+    .flow-col-body::-webkit-scrollbar-thumb { background: #d0d4e4; border-radius: 4px; }
+    .flow-col + .flow-col { border-left: 1.5px solid var(--border-light); }
+
+    .flow-node { padding: 10px 13px; border-radius: 10px; font-size: 0.82em; margin-bottom: 7px; cursor: pointer; border: 1.5px solid transparent; transition: all 0.2s ease; position: relative; line-height: 1.45; word-break: keep-all; overflow-wrap: break-word; }
+    .flow-node:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(80, 90, 140, 0.12); }
+    .flow-node.highlighted { border-color: #4f6ef7; box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.15); z-index: 3; transform: translateY(-1px); }
+    .flow-node.dimmed { opacity: 0.12; transform: none; }
+
+    .flow-node-paper { background: #ffffff; border-color: #d8dce8; }
+    .flow-node-paper:hover { border-color: #b0b8d0; }
+    .flow-node-paper .flow-node-title { font-weight: 600; line-height: 1.45; color: #2d3250; }
+    .flow-node-paper .flow-node-meta { font-size: 0.82em; color: #8891ad; margin-top: 4px; }
+
+    .flow-node-lim { background: #fff7ed; border-color: #f5d9a8; }
+    .flow-node-lim:hover { border-color: #e8b560; }
+    .flow-node-lim .flow-node-claim { line-height: 1.45; color: #5c4a1e; }
+
+    .flow-node-gap { border-width: 2px; padding: 12px 14px; }
+    .flow-node-gap .flow-node-axis { font-size: 0.78em; font-weight: 700; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
+    .flow-node-gap .flow-node-statement { line-height: 1.5; font-weight: 500; color: #1e2235; }
+    .flow-node-gap .flow-node-count { font-size: 0.78em; color: #8891ad; margin-top: 5px; display: flex; align-items: center; gap: 4px; }
+
+    .flow-svg-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+    .flow-edge { stroke-width: 1.8; fill: none; opacity: 0.35; transition: opacity 0.25s, stroke-width 0.25s; }
+    .flow-edge.highlighted { opacity: 1; stroke-width: 2.5; }
+    .flow-edge.dimmed { opacity: 0.04; }
+
+    .flow-legend { display: flex; gap: 18px; padding: 10px 16px; font-size: 0.78em; color: #6b7294; border-top: 1.5px solid var(--border-light); background: linear-gradient(180deg, #f4f5fb 0%, #edeef6 100%); flex-wrap: wrap; align-items: center; }
+    .flow-legend-dot { display: inline-block; width: 11px; height: 11px; border-radius: 4px; margin-right: 5px; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<h1>Relationship Graph Preview — Full Scale</h1>
+<div class="subtitle">15 Papers / 20 Limitations / 5 GAPs</div>
+
+<div class="flow-graph-section">
+    <div class="flow-graph-container" id="flowGraphContainer">
+        <svg class="flow-svg-overlay" id="flowSvgOverlay"></svg>
+
+        <div class="flow-col">
+            <div class="flow-col-header"><span class="flow-col-icon">&#128196;</span> Papers <span style="opacity:0.5;font-weight:400">15</span></div>
+            <div class="flow-col-body" id="colPapers"></div>
+        </div>
+        <div class="flow-col">
+            <div class="flow-col-header"><span class="flow-col-icon">&#9888;&#65039;</span> Limitations <span style="opacity:0.5;font-weight:400">20</span></div>
+            <div class="flow-col-body" id="colLims"></div>
+        </div>
+        <div class="flow-col">
+            <div class="flow-col-header"><span class="flow-col-icon">&#128161;</span> GAPs <span style="opacity:0.5;font-weight:400">5</span></div>
+            <div class="flow-col-body" id="colGaps"></div>
+        </div>
+    </div>
+    <div class="flow-legend">
+        <span><span class="flow-legend-dot" style="background:#fff;border:1.5px solid #b0b8d0"></span> Papers</span>
+        <span><span class="flow-legend-dot" style="background:#fff7ed;border:1.5px solid #e8b560"></span> Limitations</span>
+        <span><span class="flow-legend-dot" style="background:#eff3ff;border:1.5px solid #7b9af0"></span> GAPs</span>
+        <span style="margin-left:auto;font-style:italic;opacity:0.55;font-size:0.95em">Hover to highlight connections</span>
+    </div>
+</div>
+
+<script>
+// ── Mock data ──
+const PAPERS = [
+    { id: 'p1',  title: 'LoRA: Low-Rank Adaptation of Large Language Models', meta: '2022 · ICLR' },
+    { id: 'p2',  title: 'QLoRA: Efficient Finetuning of Quantized LLMs', meta: '2023 · NeurIPS' },
+    { id: 'p3',  title: 'Parameter-Efficient Fine-Tuning for Low-Resource Language Adaptation in Multilingual BERT', meta: '2024 · ACL Findings' },
+    { id: 'p4',  title: 'Leveraging Parameter Efficient Training Methods for Low Resource Text Classification: A case study in Marathi', meta: '2024 · IEEE I2CT' },
+    { id: 'p5',  title: 'ARD-LoRA: Dynamic Rank Allocation for Parameter-Efficient Fine-Tuning', meta: '2025 · arXiv' },
+    { id: 'p6',  title: 'Challenges in Adapting Multilingual LLMs to Low-Resource Languages', meta: '2024 · EMNLP' },
+    { id: 'p7',  title: 'OPLoRA: Orthogonal Projection LoRA Prevents Catastrophic Forgetting in Continual Learning', meta: '2024 · ICML' },
+    { id: 'p8',  title: 'LoLDU: Low-Rank Adaptation via Lower-Diag-Upper Decomposition', meta: '2024 · arXiv' },
+    { id: 'p9',  title: 'LLaMA-Adapter: Efficient Fine-tuning of Language Models with Zero-init Attention', meta: '2023 · ICLR' },
+    { id: 'p10', title: 'Self-Attention Factor-Tuning for Parameter Efficient Transfer Learning', meta: '2025 · AAAI' },
+    { id: 'p11', title: 'Full-parameter fine-tuning vs. LoRA fine-tuning on Low-Resource Languages', meta: '2024 · LREC-COLING' },
+    { id: 'p12', title: 'Sensi-BERT: Towards Sensitivity Driven Fine-Tuning for Parameter Efficient NLP', meta: '2024 · ACL Workshop' },
+    { id: 'p13', title: 'MeTA-LoRA: Data-Efficient Multi-Task Fine-Tuning for Multilingual Models', meta: '2025 · arXiv' },
+    { id: 'p14', title: 'Targeted Lexical Injection: Unlocking Latent Cross-lingual Transfer in Multilingual BERT', meta: '2025 · NAACL' },
+    { id: 'p15', title: 'adaptMLLM: Fine-Tuning Multilingual Language Models for Low-Resource African Languages', meta: '2024 · AfriNLP Workshop' },
+];
+
+const LIMS = [
+    { id: 'l1',  from: 'p1',  claim: 'LoRA applies uniform rank across all layers, ignoring layer-specific redundancy patterns in transformer architectures' },
+    { id: 'l2',  from: 'p2',  claim: 'QLoRA evaluation limited to English-centric benchmarks, lacking validation on low-resource and multilingual settings' },
+    { id: 'l3',  from: 'p3',  claim: 'Evaluation restricted to text classification tasks on a single low-resource language with no cross-task generalization' },
+    { id: 'l4',  from: 'p4',  claim: 'Experiments conducted only on Marathi datasets with limited diversity in text domains and task types' },
+    { id: 'l5',  from: 'p3',  claim: 'No comparison with other PEFT methods beyond LoRA and standard adapters for multilingual settings' },
+    { id: 'l6',  from: 'p5',  claim: 'Dynamic rank allocation heuristic lacks principled optimization and has not been validated on models larger than 7B parameters' },
+    { id: 'l7',  from: 'p6',  claim: 'Non-IID data distributions across low-resource languages prevent effective parameter sharing in LoRA-based federation' },
+    { id: 'l8',  from: 'p7',  claim: 'Orthogonal projection approach tested only on English continual learning benchmarks with no multilingual evaluation' },
+    { id: 'l9',  from: 'p8',  claim: 'Lower-Diag-Upper decomposition shows diminishing returns on models with fewer than 1B parameters' },
+    { id: 'l10', from: 'p9',  claim: 'Zero-init attention adapter evaluated only on vision-language tasks, not on pure NLP text classification or generation' },
+    { id: 'l11', from: 'p10', claim: 'Self-attention factor tuning assumes homogeneous attention heads across layers, ignoring head specialization' },
+    { id: 'l12', from: 'p11', claim: 'Comparison between full fine-tuning and LoRA limited to 3 low-resource languages, insufficient for generalization claims' },
+    { id: 'l13', from: 'p6',  claim: 'Dialectal variation and code-mixing patterns remain unmodeled due to insufficient tokenizer coverage' },
+    { id: 'l14', from: 'p12', claim: 'Sensitivity-driven selection criterion validated only on GLUE benchmark, unclear applicability to multilingual tasks' },
+    { id: 'l15', from: 'p13', claim: 'Multi-task LoRA routing evaluated on high-resource language pairs only, no low-resource transfer validation' },
+    { id: 'l16', from: 'p14', claim: 'Lexical injection approach requires target language wordlists that may not exist for extremely low-resource languages' },
+    { id: 'l17', from: 'p15', claim: 'Evaluation limited to 4 African languages with similar typological features, lacking coverage of tonal or agglutinative languages' },
+    { id: 'l18', from: 'p2',  claim: 'Memory savings of QLoRA diminish proportionally with model size reductions below 10B parameters' },
+    { id: 'l19', from: 'p5',  claim: 'Inter-layer redundancy modeling uses static heuristics that fail to adapt to task-specific correlation structures' },
+    { id: 'l20', from: 'p11', claim: 'No evaluation of computational efficiency trade-offs between LoRA variants under fixed hardware budget constraints' },
+];
+
+const AXIS_COLORS = [
+    { bg: '#eff3ff', color: '#3659c9', border: '#7b9af0' },
+    { bg: '#f3effb', color: '#6d45b8', border: '#a88de0' },
+    { bg: '#edf8f2', color: '#18804a', border: '#6bc99a' },
+    { bg: '#fef6ed', color: '#b56e0a', border: '#edb95e' },
+    { bg: '#fef0f1', color: '#c13d4b', border: '#f09da4' },
+];
+
+const GAPS = [
+    { id: 'g1', axis: 'EVALUATION SCOPE', stmt: 'Lack of comprehensive multilingual benchmarks with cross-task, cross-lingual evaluation for LoRA-based PEFT methods', papers: 6, ci: 0 },
+    { id: 'g2', axis: 'DYNAMIC RANK ALLOCATION', stmt: 'Adaptive rank assignment mechanisms for LoRA lack principled optimization across heterogeneous transformer layers', papers: 3, ci: 1 },
+    { id: 'g3', axis: 'SCALABILITY CONSTRAINTS', stmt: 'LoRA-based methods fail to maintain performance and scalability on large-scale models exceeding 10B parameters in low-resource multilingual settings', papers: 4, ci: 2 },
+    { id: 'g4', axis: 'LINGUISTIC DIVERSITY', stmt: 'Current LoRA implementations cannot handle dialectal variation, code-mixing, and typologically diverse low-resource languages', papers: 3, ci: 3 },
+    { id: 'g5', axis: 'CONTINUAL LEARNING', stmt: 'Unresolved adaptability of LoRA-based methods in continual and transfer learning scenarios for multilingual NLP', papers: 2, ci: 4 },
+];
+
+// limitation → gap mapping
+const LIM_TO_GAP = {
+    l1: ['g2'], l2: ['g1','g3'], l3: ['g1'], l4: ['g1'], l5: ['g1'],
+    l6: ['g2','g3'], l7: ['g4'], l8: ['g5'], l9: ['g3'], l10: ['g1'],
+    l11: ['g2'], l12: ['g1'], l13: ['g4'], l14: ['g1'], l15: ['g1'],
+    l16: ['g4'], l17: ['g1'], l18: ['g3'], l19: ['g2'], l20: ['g3'],
+};
+
+// ── Render nodes ──
+document.getElementById('colPapers').innerHTML = PAPERS.map(p =>
+    `<div class="flow-node flow-node-paper" data-id="${p.id}">
+        <div class="flow-node-title">${p.title}</div>
+        <div class="flow-node-meta">${p.meta}</div>
+    </div>`
+).join('');
+
+document.getElementById('colLims').innerHTML = LIMS.map(l =>
+    `<div class="flow-node flow-node-lim" data-id="${l.id}" data-from="${l.from}">
+        <div class="flow-node-claim">${l.claim}</div>
+    </div>`
+).join('');
+
+document.getElementById('colGaps').innerHTML = GAPS.map(g => {
+    const ac = AXIS_COLORS[g.ci];
+    return `<div class="flow-node flow-node-gap" data-id="${g.id}" style="background:${ac.bg};border-color:${ac.border}">
+        <div class="flow-node-axis" style="color:${ac.color}">${g.axis}</div>
+        <div class="flow-node-statement">${g.stmt}</div>
+        <div class="flow-node-count"><span style="color:${ac.color}">&#9679;</span> ${g.papers} papers</div>
+    </div>`;
+}).join('');
+
+// ── Build edges ──
+const EDGES = [];
+LIMS.forEach(l => EDGES.push({ from: l.from, to: l.id, grad: 'edgeGradPL' }));
+LIMS.forEach(l => {
+    (LIM_TO_GAP[l.id] || []).forEach(gid => EDGES.push({ from: l.id, to: gid, grad: 'edgeGradLG' }));
+});
+
+const EDGE_COLORS = {
+    paperToLim: { start: '#b0b8d0', end: '#e8b560' },
+    limToGap:   { start: '#e8b560', end: '#7b9af0' },
+};
+
+function drawEdges() {
+    const svg = document.getElementById('flowSvgOverlay');
+    const container = document.getElementById('flowGraphContainer');
+    const cRect = container.getBoundingClientRect();
+    svg.setAttribute('viewBox', `0 0 ${cRect.width} ${cRect.height}`);
+    svg.innerHTML = '';
+
+    const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    ['PL','LG','HL'].forEach((k, i) => {
+        const colors = [
+            [EDGE_COLORS.paperToLim.start, EDGE_COLORS.paperToLim.end],
+            [EDGE_COLORS.limToGap.start, EDGE_COLORS.limToGap.end],
+            ['#4f6ef7', '#a78bfa'],
+        ];
+        const grad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
+        grad.id = `edgeGrad${k}`; grad.setAttribute('x1','0%'); grad.setAttribute('x2','100%');
+        grad.innerHTML = `<stop offset="0%" stop-color="${colors[i][0]}"/><stop offset="100%" stop-color="${colors[i][1]}"/>`;
+        defs.appendChild(grad);
+    });
+    svg.appendChild(defs);
+
+    EDGES.forEach(e => {
+        const fromEl = container.querySelector(`[data-id="${e.from}"]`);
+        const toEl = container.querySelector(`[data-id="${e.to}"]`);
+        if (!fromEl || !toEl) return;
+        const fr = fromEl.getBoundingClientRect();
+        const tr = toEl.getBoundingClientRect();
+        // Skip edges where nodes are scrolled out of view
+        if (fr.bottom < cRect.top || fr.top > cRect.bottom) return;
+        if (tr.bottom < cRect.top || tr.top > cRect.bottom) return;
+
+        const x1 = fr.right - cRect.left, y1 = (fr.top + fr.bottom) / 2 - cRect.top;
+        const x2 = tr.left - cRect.left,  y2 = (tr.top + tr.bottom) / 2 - cRect.top;
+        const dx = Math.abs(x2 - x1) * 0.45;
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', `M${x1},${y1} C${x1+dx},${y1} ${x2-dx},${y2} ${x2},${y2}`);
+        path.setAttribute('class', 'flow-edge');
+        path.setAttribute('stroke', `url(#${e.grad})`);
+        path.setAttribute('data-from', e.from);
+        path.setAttribute('data-to', e.to);
+        path.setAttribute('data-grad', e.grad);
+        svg.appendChild(path);
+    });
+}
+
+function setupInteractions() {
+    const container = document.getElementById('flowGraphContainer');
+    const allNodes = container.querySelectorAll('.flow-node');
+    const svg = document.getElementById('flowSvgOverlay');
+
+    function getConnected(nodeId) {
+        const connected = new Set([nodeId]);
+        const edges = svg.querySelectorAll('.flow-edge');
+        let frontier = [nodeId];
+        for (let d = 0; d < 3; d++) {
+            const next = [];
+            frontier.forEach(nid => {
+                edges.forEach(edge => {
+                    const f = edge.getAttribute('data-from'), t = edge.getAttribute('data-to');
+                    if (f === nid && !connected.has(t)) { connected.add(t); next.push(t); }
+                    if (t === nid && !connected.has(f)) { connected.add(f); next.push(f); }
+                });
+            });
+            frontier = next;
+        }
+        return connected;
+    }
+
+    function clearHighlight() {
+        allNodes.forEach(n => n.classList.remove('highlighted', 'dimmed'));
+        svg.querySelectorAll('.flow-edge').forEach(e => {
+            e.classList.remove('highlighted', 'dimmed');
+            const g = e.getAttribute('data-grad');
+            if (g) e.setAttribute('stroke', `url(#${g})`);
+        });
+    }
+
+    allNodes.forEach(node => {
+        node.addEventListener('mouseenter', () => {
+            const nodeId = node.getAttribute('data-id');
+            const connected = getConnected(nodeId);
+            allNodes.forEach(n => {
+                if (connected.has(n.getAttribute('data-id'))) n.classList.add('highlighted');
+                else n.classList.add('dimmed');
+            });
+            svg.querySelectorAll('.flow-edge').forEach(e => {
+                const f = e.getAttribute('data-from'), t = e.getAttribute('data-to');
+                if (connected.has(f) && connected.has(t)) {
+                    e.classList.add('highlighted');
+                    e.setAttribute('stroke', 'url(#edgeGradHL)');
+                } else e.classList.add('dimmed');
+            });
+        });
+        node.addEventListener('mouseleave', clearHighlight);
+    });
+
+    // Redraw edges on scroll
+    container.querySelectorAll('.flow-col-body').forEach(col => {
+        col.addEventListener('scroll', () => requestAnimationFrame(drawEdges));
+    });
+}
+
+window.addEventListener('load', () => {
+    requestAnimationFrame(() => { drawEdges(); setupInteractions(); });
+});
+window.addEventListener('resize', drawEdges);
+</script>
+</body>
+</html>
