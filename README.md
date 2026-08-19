@@ -208,6 +208,20 @@ python scripts/run_once.py "연구 주제"    # 비대화형 1회 실행
 pytest tests/
 ```
 
+### 평가 프레임워크
+
+[`evaluation/`](evaluation) 에 두 가지 벤치마크가 있습니다. 상세 절차는 [`evaluation/README.md`](evaluation/README.md) 와 [`evaluation/WORKFLOW.md`](evaluation/WORKFLOW.md) 참조.
+
+| 벤치마크 | 대상 | 진입점 |
+|---|---|---|
+| **LitSearch** ([arXiv:2407.14228](https://arxiv.org/abs/2407.14228)) | Query + Retrieval 에이전트 종단 평가 | `evaluation/litsearch_benchmark.py` |
+| **Scope Classification** | Query 에이전트의 TOO_BROAD/SEARCHABLE/TOO_NARROW 판정 | `evaluation/evaluate_scope_classification.py` |
+
+```bash
+python evaluation/run_evaluation.py     # 실행
+python evaluation/analyze_results.py     # 결과 분석
+```
+
 ---
 
 ## API
@@ -290,6 +304,7 @@ pytest tests/
 ├── frontend/index.html      분석 앱 UI (단일 파일 SPA)
 ├── landing/                 랜딩 페이지 (React 19 + Vite + Tailwind)
 │
+├── evaluation/              평가 프레임워크 (LitSearch 벤치마크 · scope 분류 벤치마크)
 ├── scripts/                 평가 · 벤치마크 · 단발 실행 스크립트
 ├── tests/                   pytest 테스트
 ├── legacy/                  구 데모 UI (Streamlit · Gradio) — 현재 미사용
