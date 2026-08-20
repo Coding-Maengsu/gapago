@@ -1,6 +1,6 @@
 """
 고정 파이프라인 vs 오케스트레이터 모드 비교 스크립트
-사용법: python tests/compare_modes.py "연구 주제"
+사용법: python scripts/compare_modes.py "연구 주제"
 """
 import asyncio
 import json

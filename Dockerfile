@@ -1,13 +1,25 @@
 # =============================================================================
-# GAPAGO — 연구 GAP 분석 멀티 에이전트
+# GAPAGO — 논문 한계점에서 미해결 연구 공백을 찾는 멀티 에이전트
 #
 #   빌드 : docker build -t gapago .
-#   배치 : docker run --rm -v $(pwd)/data:/app/data -v $(pwd)/results:/app/results \
-#            --env-file .env gapago /app/data/input_sample.json /app/results/output.json
-#   서버 : docker run --rm -p 8000:8000 --env-file .env gapago serve
+#   서버 : docker run --rm -p 8000:8000 --env-file .env gapago
+#   분석 : docker run --rm --env-file .env \
+#            -v $(pwd)/data:/app/data -v $(pwd)/results:/app/results \
+#            gapago analyze --input /app/data/input_sample.json --output /app/results/out.json
 #
 # API 키는 이미지에 굽지 않는다. 반드시 실행 시 환경변수로 주입한다.
 # =============================================================================
+
+# ── 1단계: 랜딩 페이지 빌드 ──────────────────────────────────────────────────
+# 이 단계가 없으면 컨테이너의 / 가 분석 앱으로 대체돼 Render 배포와 화면이 달라진다.
+FROM node:20-slim AS landing
+WORKDIR /landing
+COPY landing/package.json landing/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY landing/ ./
+RUN npm run build
+
+# ── 2단계: 애플리케이션 ──────────────────────────────────────────────────────
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -27,10 +39,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+COPY --from=landing /landing/dist ./landing/dist
 RUN chmod +x run_agent.sh
 
-# 키는 값 없이 선언만 한다 (docker run -e / --env-file 로 주입).
-# 빈 문자열이 아니라 미설정 상태로 두어야 코드의 기본값 로직이 동작한다.
+# 키는 값 없이 두고 docker run -e / --env-file 로 주입한다.
 ENV LLM_PROVIDER=azure \
     RERANK_MODELS=light \
     ORT_DISABLE_GPU_DEVICE_ENUMERATION=1
@@ -38,3 +50,4 @@ ENV LLM_PROVIDER=azure \
 EXPOSE 8000
 
 ENTRYPOINT ["./run_agent.sh"]
+CMD ["serve"]

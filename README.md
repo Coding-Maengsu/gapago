@@ -25,7 +25,7 @@ cd gapago
 cp .env.example .env          # 키 입력 (LLM provider 1개 + TAVILY_API_KEY)
 
 docker build -t gapago .
-docker run --rm -p 8000:8000 --env-file .env gapago serve
+docker run --rm -p 8000:8000 --env-file .env gapago
 # → http://localhost:8000
 ```
 
@@ -34,18 +34,26 @@ docker run --rm -p 8000:8000 --env-file .env gapago serve
 ```bash
 docker run --rm --env-file .env \
   -v $(pwd)/data:/app/data -v $(pwd)/results:/app/results \
-  gapago /app/data/input_sample.json /app/results/output.json
+  gapago analyze --input /app/data/input_sample.json --output /app/results/output.json
 ```
 
 ### 로컬 (Python 3.10+)
 
 ```bash
-pip install -r requirements.txt          # 정확한 재현이 필요하면 requirements-lock.txt
-cp .env.example .env
+./run_agent.sh setup     # venv · 의존성 · 랜딩 빌드 · .env 점검을 한 번에
+./run_agent.sh serve     # 웹 서버 → http://localhost:8000
+```
 
-./run_agent.sh serve                     # 웹 서버
-./run_agent.sh                           # 배치 1회 (data/input_sample.json)
-python main.py                           # CLI 대화형
+실행 방법은 셋뿐입니다. `setup` 외의 인자는 그대로 `main.py` 로 전달되므로
+`./run_agent.sh --help` 가 곧 전체 사용법입니다.
+
+```bash
+./run_agent.sh serve                        # 웹 서버
+./run_agent.sh analyze "연구 주제"            # 1회 분석 → outputs/ 에 JSON
+./run_agent.sh chat                         # 터미널 대화형
+
+# 옵션은 --help 에 전부 나옵니다
+./run_agent.sh analyze --input data/input_sample.json --output results/out.json --fast
 ```
 
 ### 입력 형식
@@ -109,8 +117,8 @@ LLM이 매 스텝 상태를 보고 다음 에이전트를 정하는 오케스트
 
 ```
 .
-├── main.py                  CLI · 배치 진입점
-├── run_agent.sh             실행 스크립트 (배치 / 서버)
+├── run_agent.sh             입구 — setup + main.py 로 전달
+├── main.py                  CLI 정의 (serve · analyze · chat)
 ├── Dockerfile
 │
 ├── api/main.py              FastAPI 서버 — SSE 스트리밍, 세션 관리
@@ -138,7 +146,7 @@ LLM이 매 스텝 상태를 보고 다음 에이전트를 정하는 오케스트
 │
 ├── data/input_sample.json   배치 입력 예시
 ├── evaluation/              평가 프레임워크 (LitSearch · scope 분류 벤치마크)
-├── scripts/                 평가 · 벤치마크 · 단발 실행 스크립트
+├── scripts/                 평가 · 벤치마크 · 프로파일링 도구
 ├── tests/                   pytest
 └── docs/                    설정 · API · 스펙 · 설계 문서
 ```
@@ -161,19 +169,15 @@ Groundedness · Specificity · Relevance 를 1~5점으로 채점합니다(Promet
 
 ---
 
-## 그 밖의 실행 방법
+## 평가 · 개발 도구
 
 ```bash
-# 웹 서버 (랜딩 페이지까지 빌드하려면)
-cd landing && npm install && npm run build && cd ..
-uvicorn api.main:app --port 8000
+python scripts/evaluate.py --result-file outputs/gapago_result_*.json   # baseline LLM 과 품질 비교
+python scripts/compare_modes.py "연구 주제"                              # 고정 vs 오케스트레이터 모드
+python scripts/profile_timing.py                                        # 단계별 소요 시간
 
-# 평가 · 벤치마크
-python scripts/evaluate.py --result-file outputs/gapago_result_*.json   # baseline LLM 과 비교
-python scripts/compare_modes.py "연구 주제"                              # 고정 vs 오케스트레이터
 python evaluation/run_evaluation.py                                     # LitSearch · scope 벤치마크
-
-pytest tests/
+pytest
 ```
 
 ## 배포

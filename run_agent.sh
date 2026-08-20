@@ -2,61 +2,90 @@
 # =============================================================================
 # GAPAGO 실행 스크립트
 #
-#   배치 분석 : ./run_agent.sh [입력JSON] [출력JSON]
-#               인자 생략 시 data/input_sample.json → results/output.json
-#   웹 서버   : ./run_agent.sh serve [포트]     (기본 8000)
+#   ./run_agent.sh setup                 환경 준비 (venv · 의존성 · 랜딩 빌드 · .env 점검)
+#   ./run_agent.sh serve                 웹 서버
+#   ./run_agent.sh analyze "연구 주제"     1회 분석
+#   ./run_agent.sh --help                전체 사용법
 #
-# 필요한 API 키는 환경변수로 주입한다. .env.example 참고.
+# setup 을 제외한 모든 인자는 main.py 로 그대로 전달된다.
+# 즉 실행 옵션의 정의는 main.py 의 argparse 한 곳에만 존재한다.
 # =============================================================================
 set -euo pipefail
 
-ORIG_PWD="$PWD"
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# 호출자가 넘긴 상대경로는 호출 시점의 디렉터리 기준으로 확정한다.
-# (아래에서 APP_DIR 로 이동하므로, 여기서 절대경로로 바꿔두지 않으면 깨진다)
-abspath() {
-    case "$1" in
-        /*) printf '%s\n' "$1" ;;
-        *)  printf '%s\n' "$ORIG_PWD/$1" ;;
-    esac
-}
-
 cd "$APP_DIR"
 
-# ── 웹 서버 모드 ─────────────────────────────────────────────────────────────
-if [ "${1:-}" = "serve" ]; then
-    PORT="${2:-8000}"
-    echo "[GAPAGO] 웹 서버 시작 — http://0.0.0.0:${PORT}"
-    exec python -m uvicorn api.main:app --host 0.0.0.0 --port "$PORT"
+VENV="$APP_DIR/.venv"
+MIN_PY="3.10"
+
+# 컨테이너 등 venv 가 필요 없는 환경에서는 시스템 python 을 그대로 쓴다
+pick_python() {
+    if [ -x "$VENV/bin/python" ]; then
+        echo "$VENV/bin/python"
+    elif command -v python3 >/dev/null 2>&1; then
+        echo "python3"
+    else
+        echo "python"
+    fi
+}
+
+check_python_version() {
+    local py="$1"
+    "$py" - "$MIN_PY" <<'EOF'
+import sys
+need = tuple(int(x) for x in sys.argv[1].split("."))
+if sys.version_info[:2] < need:
+    sys.exit(f"Python {sys.argv[1]} 이상이 필요합니다 (현재 {sys.version.split()[0]})")
+EOF
+}
+
+# ── setup ────────────────────────────────────────────────────────────────────
+if [ "${1:-}" = "setup" ]; then
+    echo "[1/4] Python 확인"
+    BOOTSTRAP_PY="$(command -v python3 || command -v python)"
+    check_python_version "$BOOTSTRAP_PY"
+    echo "      $("$BOOTSTRAP_PY" -V)"
+
+    echo "[2/4] 가상환경 · 의존성"
+    if [ ! -d "$VENV" ]; then
+        "$BOOTSTRAP_PY" -m venv "$VENV"
+        echo "      .venv 생성"
+    fi
+    "$VENV/bin/pip" install --quiet --upgrade pip
+    "$VENV/bin/pip" install -r "$APP_DIR/requirements.txt"
+
+    echo "[3/4] .env 점검"
+    if [ ! -f "$APP_DIR/.env" ]; then
+        cp "$APP_DIR/.env.example" "$APP_DIR/.env"
+        echo "      .env 를 생성했습니다. 키를 채운 뒤 다시 실행하세요."
+        echo "      최소 요구: TAVILY_API_KEY + LLM provider 1개"
+        exit 1
+    fi
+    missing=""
+    grep -qE '^TAVILY_API_KEY=.+' "$APP_DIR/.env" || missing="$missing TAVILY_API_KEY"
+    grep -qE '^(AZURE_OPENAI_API_KEY|AWS_ACCESS_KEY_ID|GROQ_API_KEY|GOOGLE_API_KEY)=.+' "$APP_DIR/.env" \
+        || missing="$missing LLM_PROVIDER_KEY"
+    if [ -n "$missing" ]; then
+        echo "      ⚠ 값이 비어 있습니다:$missing"
+        echo "        자세한 설명은 docs/CONFIGURATION.md 참고"
+    else
+        echo "      필수 키 확인 완료"
+    fi
+
+    echo "[4/4] 랜딩 페이지"
+    if command -v npm >/dev/null 2>&1; then
+        (cd "$APP_DIR/landing" && npm install --silent && npm run build --silent)
+        echo "      빌드 완료"
+    else
+        echo "      npm 이 없어 건너뜁니다. / 는 분석 앱으로 대체됩니다."
+    fi
+
+    echo
+    echo "준비 완료. 다음을 실행하세요:"
+    echo "  ./run_agent.sh serve"
+    exit 0
 fi
 
-# ── 배치 분석 모드 ───────────────────────────────────────────────────────────
-INPUT_FILE="${1:-}"
-OUTPUT_FILE="${2:-}"
-
-if [ -n "$INPUT_FILE" ]; then
-    INPUT_FILE="$(abspath "$INPUT_FILE")"
-else
-    INPUT_FILE="$APP_DIR/data/input_sample.json"
-fi
-
-if [ -n "$OUTPUT_FILE" ]; then
-    OUTPUT_FILE="$(abspath "$OUTPUT_FILE")"
-else
-    OUTPUT_FILE="$APP_DIR/results/output.json"
-fi
-
-if [ ! -f "$INPUT_FILE" ]; then
-    echo "[ERROR] 입력 파일을 찾을 수 없습니다: $INPUT_FILE" >&2
-    echo "        사용법: ./run_agent.sh <입력JSON> <출력JSON>" >&2
-    exit 1
-fi
-
-mkdir -p "$(dirname "$OUTPUT_FILE")"
-
-echo "[GAPAGO] 배치 분석 시작"
-echo "  Input  : $INPUT_FILE"
-echo "  Output : $OUTPUT_FILE"
-
-exec python main.py --input "$INPUT_FILE" --output "$OUTPUT_FILE"
+# ── 그 외 전부 main.py 로 전달 ────────────────────────────────────────────────
+PY="$(pick_python)"
+exec "$PY" "$APP_DIR/main.py" "$@"

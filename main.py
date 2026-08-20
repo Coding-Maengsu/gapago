@@ -7,25 +7,36 @@ GAPAGO - Research GAP Analysis Multi-Agent System
 """
 
 # =====================================================================
-# 0. 환경 설정
+# 0. 최상위 import 는 표준 라이브러리만
 # =====================================================================
+# 무거운 의존성(langgraph/langchain)을 최상위에서 import 하지 않는다.
+# 덕분에 의존성 설치 전에도 `python main.py --help` 가 동작한다.
+from __future__ import annotations
+
 import argparse
 import asyncio
 import json
 import re
-from core import config  # noqa: F401
+import sys
 import uuid
+from functools import lru_cache
 from pathlib import Path
 from datetime import datetime
-# =====================================================================
-# 1. 그래프 빌드
-# =====================================================================
-from graphs.graph import build_graph
-from langchain_core.messages import HumanMessage
 
-app = build_graph()
-OUTPUT_DIR = Path("outputs")
-OUTPUT_DIR.mkdir(exist_ok=True)
+BASE_DIR = Path(__file__).resolve().parent
+OUTPUT_DIR = BASE_DIR / "outputs"
+
+
+@lru_cache(maxsize=1)
+def get_graph():
+    """LangGraph 그래프를 최초 1회만 빌드해 재사용한다 (api/main.py 와 동일한 패턴)."""
+    from graphs.graph import build_graph
+    return build_graph()
+
+
+def _load_env():
+    """GAPAGO 모듈보다 먼저 .env 를 로드한다. 각 서브커맨드 진입 시 최초 1회."""
+    from core import config  # noqa: F401
 
 async def aenumerate(aiter, start=0):
     i = start
@@ -202,9 +213,15 @@ def save_result(query: str, state_values: dict, output_path: str | None = None) 
 # =====================================================================
 # 3. 배치 실행 — 입력 JSON 하나로 무인 실행 (Docker / CI 용)
 # =====================================================================
-async def run_batch(input_path: str, output_path: str | None = None):
+async def run_batch(graph, input_path: str | None = None, output_path: str | None = None,
+                    query: str | None = None, overrides: dict | None = None):
     """
-    입력 JSON 을 읽어 사용자 입력 없이 파이프라인을 끝까지 실행한다.
+    사용자 입력 없이 파이프라인을 끝까지 실행한다.
+
+    입력은 두 방식 중 하나:
+      - query   : 주제 문자열을 직접 전달
+      - input_path: 아래 형식의 JSON 파일
+    CLI 플래그(overrides)는 JSON 값보다 우선한다.
 
     입력 JSON 형식:
       {
@@ -216,6 +233,7 @@ async def run_batch(input_path: str, output_path: str | None = None):
       }
     """
     import os
+    from langchain_core.messages import HumanMessage
     from core.llm import get_llm
     from core.model_router import ModelRouter, PROFILE_DEFAULT_PROVIDERS
 
@@ -224,11 +242,17 @@ async def run_batch(input_path: str, output_path: str | None = None):
     os.environ.setdefault("TAVILY_MAX_RESULTS", "3")
     os.environ.setdefault("SCIENCEON_DEFAULT_ROW_COUNT", "10")
 
-    input_data = json.loads(Path(input_path).read_text(encoding="utf-8"))
+    input_data = {}
+    if input_path:
+        input_data = json.loads(Path(input_path).read_text(encoding="utf-8"))
+    if query:
+        input_data["query"] = query          # 위치 인자가 JSON 의 query 를 덮어쓴다
+    input_data.update(overrides or {})       # CLI 플래그가 최우선
 
-    user_input      = input_data.get("query", "")
+    user_input = input_data.get("query", "")
     if not user_input:
-        raise ValueError(f"{input_path}: 'query' 필드가 비어 있습니다.")
+        src = input_path or "(입력 없음)"
+        raise ValueError(f"{src}: 'query' 가 비어 있습니다.")
     routing_profile = input_data.get("routing_profile", "optimized")
     fast_mode       = input_data.get("fast_mode", False)
     year_range      = input_data.get("year_range", "auto")
@@ -273,7 +297,7 @@ async def run_batch(input_path: str, output_path: str | None = None):
 
     print_divider("[STEP 1] 파이프라인 시작")
     interrupted, latest_clarify_prompt = await print_stream_events_and_capture_interrupt(
-        app, inputs, config_dict
+        graph, inputs, config_dict
     )
 
     # Human-in-the-Loop 인터럽트: 배치 모드에서는 첫 번째 후보를 자동 선택
@@ -290,15 +314,15 @@ async def run_batch(input_path: str, output_path: str | None = None):
                 auto_response = candidates[min(candidates)]
                 print(f"  → 자동 선택: {auto_response}")
 
-        app.update_state(config_dict, {"messages": [HumanMessage(content=auto_response)]})
+        graph.update_state(config_dict, {"messages": [HumanMessage(content=auto_response)]})
 
         print_divider("[STEP 2] 파이프라인 재개")
         interrupted, latest_clarify_prompt = await print_stream_events_and_capture_interrupt(
-            app, None, config_dict
+            graph, None, config_dict
         )
 
     print_divider("[STEP 3] 결과 저장")
-    final_state = app.get_state(config_dict)
+    final_state = graph.get_state(config_dict)
     values = final_state.values if final_state else {}
     save_result(user_input, values, output_path)
 
@@ -306,7 +330,7 @@ async def run_batch(input_path: str, output_path: str | None = None):
 # =====================================================================
 # 4. 대화형 실행
 # =====================================================================
-async def run():
+async def run(graph):
     config_dict = {"configurable": {"thread_id": random_uuid()}, "recursion_limit": 30} # 최대 노드 실행 개수 지정 (순환 로직에 빠지지 않기 위함)
 
     # --- 라우팅 프로파일 선택 (provider 선택보다 먼저) ---
@@ -320,6 +344,7 @@ async def run():
 
     # --- LLM Provider 선택 ---
     import os
+    from langchain_core.messages import HumanMessage
     from core.model_router import ModelRouter, PROFILE_DEFAULT_PROVIDERS
 
     selected_provider = PROFILE_DEFAULT_PROVIDERS.get(routing_profile, "azure")
@@ -396,7 +421,7 @@ async def run():
 
     # 첫 실행은 inputs 사용
     interrupted, latest_clarify_prompt = await print_stream_events_and_capture_interrupt(
-        app, inputs, config_dict
+        graph, inputs, config_dict
     )
 
     # -----------------------------------------------------------------
@@ -436,7 +461,7 @@ async def run():
                 user_response = selected_direction
 
         # 사용자 답변을 messages에 추가
-        app.update_state(
+        graph.update_state(
             config_dict,
             {
                 "messages": [HumanMessage(content=user_response)],
@@ -447,7 +472,7 @@ async def run():
 
         # resume 시에는 stream_input = None
         interrupted, latest_clarify_prompt = await print_stream_events_and_capture_interrupt(
-            app, None, config_dict
+            graph, None, config_dict
         )
 
     # -----------------------------------------------------------------
@@ -455,7 +480,7 @@ async def run():
     # -----------------------------------------------------------------
     print_divider("[STEP 4] 최종 상태")
 
-    final_state = app.get_state(config_dict)
+    final_state = graph.get_state(config_dict)
     values = final_state.values if final_state else {}
 
     print("next =", final_state.next if final_state else None)
@@ -476,17 +501,94 @@ async def run():
             interactive_chat_loop(values)
 
 # =====================================================================
-# 5. 진입점
+# 5. 진입점 — serve / analyze / chat
 # =====================================================================
-if __name__ == "__main__":
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="GAPAGO — 연구 GAP 분석 멀티 에이전트",
+        prog="main.py",
+        description="GAPAGO — 논문 한계점에서 미해결 연구 공백을 찾는 멀티 에이전트",
+        epilog="예) python main.py serve\n"
+               "    python main.py analyze \"domain adaptation in drug discovery\"\n"
+               "    python main.py analyze --input data/input_sample.json --output results/out.json",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--input",  help="입력 JSON 경로. 지정 시 배치 모드로 무인 실행")
-    parser.add_argument("--output", help="결과 JSON 경로. 미지정 시 outputs/ 에 자동 생성")
+    sub = parser.add_subparsers(dest="command", metavar="{serve,analyze,chat}")
+
+    # ── serve ──
+    p_serve = sub.add_parser("serve", help="FastAPI 웹 서버 실행")
+    p_serve.add_argument("--host", default="0.0.0.0", help="바인드 주소 (기본 0.0.0.0)")
+    p_serve.add_argument("--port", type=int, default=None,
+                         help="포트. 미지정 시 $PORT 환경변수, 그것도 없으면 8000")
+    p_serve.add_argument("--reload", action="store_true", help="코드 변경 시 자동 재시작 (개발용)")
+
+    # ── analyze ──
+    p_an = sub.add_parser("analyze", help="무인 1회 분석 → JSON 저장")
+    p_an.add_argument("query", nargs="?", help="연구 주제. --input 대신 문자열로 바로 전달")
+    p_an.add_argument("--input", help="입력 JSON 경로 (query 외 옵션까지 담고 싶을 때)")
+    p_an.add_argument("--output", help="결과 JSON 경로. 미지정 시 outputs/ 에 자동 생성")
+    p_an.add_argument("--profile", choices=["optimized", "quality"], default=None,
+                      help="모델 라우팅 프로파일 (기본 optimized)")
+    p_an.add_argument("--fast", action="store_true", help="Fast 모드 — 속도 우선")
+    p_an.add_argument("--year", choices=["auto", "1y", "3y", "5y"], default=None,
+                      help="논문 연도 범위 (기본 auto)")
+    p_an.add_argument("--lang", choices=["auto", "ko", "en"], default=None,
+                      help="리포트 출력 언어 (기본 auto)")
+
+    # ── chat ──
+    sub.add_parser("chat", help="터미널 대화형 실행 (질문 되묻기 · 결과 후속 대화)")
+    return parser
+
+
+def _cmd_serve(args):
+    import os
+    _load_env()
+    import uvicorn
+
+    port = args.port or int(os.getenv("PORT", "8000"))
+    if not (BASE_DIR / "landing" / "dist" / "index.html").exists():
+        print("[안내] landing/dist 가 없어 / 는 분석 앱으로 대체됩니다.")
+        print("       랜딩 페이지까지 보려면: cd landing && npm install && npm run build")
+    # import 문자열로 넘겨야 --reload 가 동작하고, 이 프로세스가 FastAPI 를 직접 import 하지 않는다
+    uvicorn.run("api.main:app", host=args.host, port=port, reload=args.reload, workers=1)
+
+
+def _cmd_analyze(args, parser):
+    if not args.query and not args.input:
+        parser.error(
+            "분석할 주제가 필요합니다.\n"
+            '  python main.py analyze "domain adaptation in drug discovery"\n'
+            "  python main.py analyze --input data/input_sample.json"
+        )
+    _load_env()
+    overrides = {
+        "routing_profile": args.profile,
+        "fast_mode": True if args.fast else None,
+        "year_range": args.year,
+        "output_language": args.lang,
+    }
+    asyncio.run(run_batch(get_graph(), args.input, args.output,
+                          query=args.query,
+                          overrides={k: v for k, v in overrides.items() if v is not None}))
+
+
+def main():
+    parser = _build_parser()
+    if len(sys.argv) == 1:
+        parser.print_help()
+        return 0
     args = parser.parse_args()
 
-    if args.input:
-        asyncio.run(run_batch(args.input, args.output))
+    if args.command == "serve":
+        _cmd_serve(args)
+    elif args.command == "analyze":
+        _cmd_analyze(args, parser)
+    elif args.command == "chat":
+        _load_env()
+        asyncio.run(run(get_graph()))
     else:
-        asyncio.run(run())
+        parser.print_help()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
