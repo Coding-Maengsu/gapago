@@ -149,7 +149,7 @@
 - limitation_eval → limitation_extract: RETRY 조건 충족 시 재추출
 - Human-in-the-Loop: query_subgraph에서 scope=TOO_BROAD/TOO_NARROW 시 사용자 인터럽트
 
-## 11. Model Routing (`model_router.py`)
+## 11. Model Routing (`core/model_router.py`)
 - 프로파일 기반 에이전트별 LLM 배정, `get_llm_for_agent(state, agent_name)` 함수로 통합 접근
 - **optimized 프로파일** (기본):
   - Azure GPT (기본 provider): query_analysis, query_refine, meaning_expand, limitation_eval, recency_check, critic_score, gap_classify, limitation_verify 등 대부분 에이전트 (환각 방지)

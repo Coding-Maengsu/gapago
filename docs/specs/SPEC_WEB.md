@@ -4,7 +4,11 @@
 
 ## 1. 개요
 
-GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 인터페이스를 제공한다. 세 가지 구현이 존재하며, 메인 프론트엔드는 Vanilla JS SPA(`frontend/index.html`)이고, Streamlit(`app.py`)과 Gradio(`app_gradio.py`)는 대안 구현이다.
+GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 인터페이스를 제공한다.
+분석 앱은 Vanilla JS SPA(`frontend/index.html`)이고, 별도로 React 기반 랜딩 페이지(`landing/`)가 있다.
+
+> 과거에 존재하던 Streamlit(`app.py`)·Gradio(`app_gradio.py`) 대안 구현은 제거되었다.
+> 관련 내용은 git 이력에서 확인할 수 있다.
 
 **주요 변경 (2026-04-03):**
 - optimized 프로파일에서 Groq 경량 라우팅 축소 (환각 방지 — query_analysis 등 azure로 복귀)
@@ -36,11 +40,10 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 
 | 구현 | 프레임워크 | 파일 | 용도 |
 |------|-----------|------|------|
-| **메인 웹 UI** | HTML5 + CSS3 + Vanilla JavaScript | `frontend/index.html` | 프로덕션 SPA (~2,700줄) |
-| **대안 UI 1** | Streamlit (Python) | `app.py` | Python 네이티브 웹 UI |
-| **대안 UI 2** | Gradio (Python) | `app_gradio.py` | 경량 인터페이스 |
+| **분석 앱** | HTML5 + CSS3 + Vanilla JavaScript | `frontend/index.html` | 프로덕션 SPA (약 3,700줄) |
+| **랜딩 페이지** | React 19 + Vite + Tailwind CSS 4 | `landing/` | 소개 페이지 |
 
-- 외부 CSS/JS 프레임워크 없음 (React, Vue, Svelte 미사용)
+- 분석 앱은 외부 CSS/JS 프레임워크를 쓰지 않는다 (인라인 CSS + Vanilla JS)
 - 실시간 통신: Server-Sent Events (SSE)
 - 세션 저장: localStorage
 - 백엔드 API: FastAPI (`api/main.py`)
@@ -101,7 +104,6 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 ### 3.3 페이지 상태 (5가지)
 
 #### 상태 1: 초기 (Empty State)
-- 히어로 이미지 (`middle_image.png`)
 - 설명 텍스트 (한국어/영어)
 - **분석 소요 시간 안내 문구**: "🧠 단순 검색이 아닌 논문 원문 기반 심층 분석을 수행합니다. ⏱️ 정확한 응답을 위해 5~10분이 소요될 수 있습니다."
 - **예시 쿼리 카드** (6개 카테고리, 각 2개 쿼리)
@@ -291,76 +293,7 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 
 ---
 
-## 4. Streamlit UI (`app.py`)
-
-### 4.1 구조
-
-**사이드바:**
-- 앱 타이틀 + 브랜딩
-- "New Analysis" 버튼
-- Settings 확장 패널:
-  - LLM Provider 드롭다운
-  - Research Domain 드롭다운
-- 분석 히스토리 섹션
-
-**메인 콘텐츠:**
-- 헤더: "GAPAGO — Research GAP Analyzer"
-- 쿼리 입력 텍스트 필드
-- 실행 버튼
-
-### 4.2 파이프라인 시각화
-
-9개 노드별 확장 가능한 섹션(Expander):
-
-| 노드 | 표시 내용 |
-|------|----------|
-| Query Analysis | 정제된 쿼리, 키워드, 범위 수준 |
-| Paper Retrieval | 논문 수 + DataFrame 테이블 |
-| Limitation Extraction | 한계점 수 + 포맷된 카드 |
-| Limitation Evaluation | 판정 뱃지, 품질 점수 바 차트, 유형 분포 차트 |
-| Recency Check | Unresolved/Partial/Resolved 메트릭 |
-| GAP Inference | GAP 카드 (별점 랭킹, 축 라벨) |
-| Critic Score | 코드 블록 출력 |
-| Final Response | 마크다운 보고서 |
-
-### 4.3 Human-in-the-Loop UI
-- AI 명확화 프롬프트 표시
-- 보충 답변 입력 필드
-- Resume / Skip 버튼
-
-### 4.4 결과 저장
-- 자동 저장: `outputs/gapago_result_YYYYMMDD_HHMMSS.json`
-- 히스토리에서 과거 결과 로드 가능
-
----
-
-## 5. Gradio UI (`app_gradio.py`)
-
-### 5.1 구조
-
-**입력 영역:**
-- 쿼리 텍스트박스 (2줄)
-- LLM Provider 드롭다운 (`azure`, `claude`, `gemini`)
-- Research Domain 드롭다운
-- Analyze 버튼
-
-**탭 구성:**
-
-| 탭 | 내용 |
-|----|------|
-| Progress | 실시간 파이프라인 상태 (마크다운) |
-| Papers | 검색된 논문 테이블 (마크다운) |
-| Research GAPs | 식별된 갭 상세 (마크다운) |
-| Final Report | 최종 분석 보고서 (마크다운) |
-
-### 5.2 특징
-- `yield` 패턴으로 스트리밍 출력
-- 실시간 진행 콜백
-- 결과 자동 저장: `/tmp/gapago_outputs/`
-
----
-
-## 6. 디자인 시스템
+## 4. 디자인 시스템
 
 ### 6.1 색상 팔레트 (CSS 변수)
 
@@ -390,25 +323,11 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 
 ---
 
-## 7. 정적 자산
+## 5. 정적 자산
 
-| 파일 | 크기 | 용도 |
-|------|------|------|
-| `frontend/logo.png` | 96 KB | 브랜드 로고 |
-| `frontend/new_logo.png` | 27 KB | 업데이트된 로고 |
-| `frontend/middle_image.png` | 23 KB | 초기 화면 히어로 이미지 |
-| `logo.png` (루트) | - | API 정적 서빙용 |
+| 파일 | 용도 |
+|------|------|
+| `frontend/new_logo.png` | 브랜드 로고. `api/main.py` 의 `/new_logo.png` 라우트가 서빙하며
+  분석 앱과 **랜딩 페이지 양쪽**이 이 경로를 참조한다 |
 
----
-
-## 8. 구현별 비교
-
-| 기능 | 메인 (Vanilla JS) | Streamlit | Gradio |
-|------|-------------------|-----------|--------|
-| 실시간 스트리밍 | SSE (네이티브) | 그래프 실행 콜백 | yield 스트리밍 |
-| 세션 관리 | localStorage | st.session_state | 없음 |
-| 히스토리 | API 기반 | 파일 기반 | 없음 |
-| 반응형 | 3 브레이크포인트 | Streamlit 기본 | Gradio 기본 |
-| Human-in-the-Loop | SSE interrupt | Interrupt UI | 미지원 |
-| 결과 내보내기 | .md/.docx 다운로드 | JSON 저장 | JSON 저장 |
-| 배포 | FastAPI 정적 서빙 | `streamlit run` | `gradio launch` |
+> 과거의 `logo.png`·`middle_image.png` 와 해당 라우트는 참조가 없어 제거되었다.

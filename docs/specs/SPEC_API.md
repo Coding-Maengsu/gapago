@@ -586,7 +586,7 @@ _sessions[session_id] = {
 
 ## 7. 설정 (Configuration)
 
-**파일:** `config.py`
+**파일:** `core/config.py`
 
 `Configuration` dataclass로 환경변수에서 로딩되며, LangGraph `RunnableConfig`를 통한 요청별 오버라이드를 지원한다.
 
@@ -612,7 +612,7 @@ class Configuration:
 
 ## 8. LLM 프로바이더
 
-**파일:** `llm.py`
+**파일:** `core/llm.py`
 
 `get_llm(provider, model)` 팩토리 함수, `@lru_cache(maxsize=8)` 캐싱.
 
@@ -626,7 +626,7 @@ class Configuration:
 
 > **Note:** `gemini` / `google` 프로바이더는 코드에 유지되나 사용자 선택 목록에서 제거됨.
 
-**에이전트별 LLM 라우팅** (`model_router.py`):
+**에이전트별 LLM 라우팅** (`core/model_router.py`):
 
 `get_llm_for_agent(state, agent_name)` 함수로 에이전트별 최적 provider를 자동 배정.
 `model_routing` state 필드가 없으면 기존 `llm_provider` fallback.
@@ -651,7 +651,7 @@ class Configuration:
 
 ## 9. 검색 도구
 
-**파일:** `tools.py`
+**파일:** `core/tools/`
 
 ### 9.1 검색 함수 목록
 
@@ -717,7 +717,7 @@ bm25_rank(papers, query_text, top_k=30) -> List[dict]
 
 ## 10. 데이터 모델
 
-**파일:** `states.py`
+**파일:** `core/states.py`
 
 ### 10.1 Pydantic 모델
 
@@ -818,6 +818,3 @@ services:
 
 ### 12.5 `utils/logging.py` — LangSmith 트레이싱
 - 환경변수 기반 LangSmith 초기화
-
-### 12.6 `utils/vis_graph.py` — 그래프 시각화
-- LangGraph 파이프라인 시각화 유틸리티

@@ -189,14 +189,14 @@ API 키는 Render Dashboard의 Environment에서 주입합니다.
 
 ## 문서
 
-| 문서 | 내용 |
+**[`docs/README.md`](docs/README.md) 에서 시작하세요** — 목적별로 정리된 인덱스입니다.
+
+| 자주 찾는 것 | 문서 |
 |---|---|
-| [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | 환경 변수 전체 · 모델 라우팅 프로파일 · Fast Mode |
-| [`docs/API.md`](docs/API.md) | HTTP API 레퍼런스 |
-| [`docs/specs/`](docs/specs) | 에이전트 · API · 웹 · 한계점 시스템 상세 스펙 |
-| [`docs/design/`](docs/design) | 설계서 · 메모리/비용 전략 |
-| [`docs/reports/`](docs/reports) | 기술보고서 · 검증 리포트 |
-| [`docs/assets/`](docs/assets) | 파이프라인 다이어그램 |
+| 환경 변수 · 모델 라우팅 · Fast Mode | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) |
+| HTTP API 레퍼런스 | [`docs/API.md`](docs/API.md) |
+| 에이전트별 상세 동작 | [`docs/specs/SPEC_AGENT.md`](docs/specs/SPEC_AGENT.md) |
+| 전체 파이프라인 요약 | [`docs/specs/GAPAGO_팩트시트.md`](docs/specs/GAPAGO_팩트시트.md) |
 
 ---
 

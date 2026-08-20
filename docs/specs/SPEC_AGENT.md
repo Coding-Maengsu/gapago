@@ -4,7 +4,7 @@
 
 GAPAGO의 핵심은 LangGraph StateGraph 기반의 멀티 에이전트 파이프라인이다. 10개의 에이전트 노드가 순차적/조건부로 실행되며(+ 1개 오케스트레이터 에이전트, 1개 파이프라인 외부 대화 에이전트), 사용자의 연구 질문에서 시작하여 논문 검색 → 한계점 추출 → 갭 추론 → 품질 평가 → 최종 보고서를 생성한다.
 
-**LLM 라우팅**: 모든 에이전트는 `get_llm_for_agent(state, agent_name)`을 사용하여 `ModelRouter`가 에이전트별 최적 LLM provider를 자동 배정한다 (`model_router.py`). `model_routing` state 필드가 없으면 기존 `llm_provider`로 fallback.
+**LLM 라우팅**: 모든 에이전트는 `get_llm_for_agent(state, agent_name)`을 사용하여 `ModelRouter`가 에이전트별 최적 LLM provider를 자동 배정한다 (`core/model_router.py`). `model_routing` state 필드가 없으면 기존 `llm_provider`로 fallback.
 
 ---
 
@@ -648,7 +648,7 @@ END
 
 ## 4. 상태 관리 (AgentState)
 
-**파일:** `states.py`
+**파일:** `core/states.py`
 
 ### 4.1 AgentState TypedDict 전체 구조
 
@@ -841,7 +841,7 @@ class CriticScores(BaseModel):
 
 ## 6. 프롬프트 엔지니어링
 
-### 6.1 기본 시스템 프롬프트 (`prompts/system.py`)
+### 6.1 기본 시스템 프롬프트 (`core/prompts.py`)
 
 `make_system_prompt(suffix)` 함수로 공통 기반 + 에이전트별 접미사 결합:
 
@@ -879,7 +879,7 @@ class CriticScores(BaseModel):
 
 ## 7. 평가 프레임워크
 
-**파일:** `evaluate.py`
+**파일:** `scripts/evaluate.py`
 
 ### 7.1 평가 메트릭 (5개, 가중치 합계 1.0)
 
@@ -942,8 +942,7 @@ agents/
 ├── __init__.py                      # 모든 노드 export
 ├── orchestrator_agent.py            # LLM 기반 동적 파이프라인 조율 (GAPAGO_ORCHESTRATOR=1)
 ├── query_agent/
-│   ├── query_analysis.py            # SemRank + CoQuest 기반 쿼리 분석
-│   └── query_refine.py              # APA 기반 쿼리 정제
+│   └── query_analysis.py            # SemRank + CoQuest 기반 쿼리 분석
 ├── meaning_expand_agent.py          # 키워드 확장 (도구 없음)
 ├── retrieval_agent.py               # 멀티소스 논문 검색 오케스트레이터
 ├── limitation_agent.py              # 2-트랙 한계점 추출
@@ -959,10 +958,13 @@ graphs/
 ├── orchestrator_graph.py            # 오케스트레이터 기반 동적 그래프
 └── query_subgraph.py                # 쿼리 서브그래프 (인터럽트)
 
-model_router.py                      # ModelRouter — 에이전트별 LLM 프로바이더 자동 라우팅
-
-prompts/
-└── system.py                        # BASE_SYSTEM_PROMPT + 언어 설정
+core/                                # 에이전트 · 그래프 · API 공용 모듈
+├── config.py                        # 환경변수 기반 설정
+├── llm.py                           # Provider 추상화
+├── model_router.py                  # ModelRouter — 에이전트별 LLM 프로바이더 자동 라우팅
+├── states.py                        # AgentState + Pydantic 모델
+├── prompts.py                       # BASE_SYSTEM_PROMPT + 언어 설정
+└── tools/                           # 검색 소스별 모듈 (arxiv · crossref · s2 · openalex · scienceon)
 
 utils/
 ├── parse_json.py                    # 로버스트 JSON 추출
@@ -970,9 +972,7 @@ utils/
 ├── tavily.py                        # Tavily API 래퍼
 ├── logging.py                       # LangSmith 트레이싱
 ├── session_store.py                 # SQLite 세션 영속화 (서버 재시작 복구)
-├── cancel.py                        # 파이프라인 취소 레지스트리
-└── vis_graph.py                     # 그래프 시각화
+└── cancel.py                        # 파이프라인 취소 레지스트리
 
-states.py                            # AgentState + Pydantic 모델
-evaluate.py                          # 베이스라인 비교 + 메트릭 점수
+scripts/evaluate.py                  # 베이스라인 비교 + 메트릭 점수
 ```
