@@ -244,7 +244,7 @@ if len(_chat_histories[chat_key]) > _MAX_CHAT_MESSAGES:
 
 ### Phase 4: 프론트엔드 404 방어
 
-**파일:** `frontend/index.html`
+**파일:** `web/app/index.html`
 
 #### 4-1. reconnectToSession에 status 체크 추가
 
@@ -471,7 +471,7 @@ HTTP 연결 풀 (재사용):            ~2MB
 | `gapago/api/main.py` | reaper 추가, stop pop→상태변경, 이벤트 상한, completed_at, stream fallback, _save_result 스트리밍 |
 | `gapago/agents/limitation_agent.py` | PDF 워커 8→3, PDF 크기 제한, HTTP 세션 풀링 |
 | `gapago/agents/retrieval_agent.py` | HTTP 세션 풀링 |
-| `frontend/index.html` | reconnect status 체크, 재시도 축소 |
+| `web/app/index.html` | reconnect status 체크, 재시도 축소 |
 | `render.yaml` | ORT_DISABLE_GPU_DEVICE_ENUMERATION 환경변수 |
 | `gapago/graphs/graph.py` | 변경 없음 (reaper에서 checkpointer 접근) |
 

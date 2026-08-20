@@ -14,9 +14,9 @@
 # 이 단계가 없으면 컨테이너의 / 가 분석 앱으로 대체돼 Render 배포와 화면이 달라진다.
 FROM node:20-slim AS landing
 WORKDIR /landing
-COPY landing/package.json landing/package-lock.json ./
+COPY web/landing/package.json web/landing/package-lock.json ./
 RUN npm ci --no-audit --no-fund
-COPY landing/ ./
+COPY web/landing/ ./
 RUN npm run build
 
 # ── 2단계: 애플리케이션 ──────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-COPY --from=landing /landing/dist ./landing/dist
+COPY --from=landing /landing/dist ./web/landing/dist
 RUN chmod +x run_agent.sh
 
 # 키는 값 없이 두고 docker run -e / --env-file 로 주입한다.

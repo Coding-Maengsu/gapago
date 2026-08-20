@@ -35,7 +35,7 @@ inputs = {
 
 ## [LOW] 2. `output_language` 선택 안 하면 빈 문자열 전송
 
-**파일**: `frontend/index.html` — `startAnalysis()`, `exploreDirection()`
+**파일**: `web/app/index.html` — `startAnalysis()`, `exploreDirection()`
 
 ```javascript
 const outputLanguage = document.getElementById('outputLanguage').value;
@@ -52,7 +52,7 @@ API 기본값은 `"auto"`이지만, 빈 문자열이 전달되면 기본값이 �
 
 ## [INFO] 3. 프론트엔드 `gapago/api/chat`에서 `routing_profile` 미전달
 
-**파일**: `frontend/index.html` — `sendChatMessage()`
+**파일**: `web/app/index.html` — `sendChatMessage()`
 
 chat은 POST body로 `session_id`, `message`, `filename`만 전송. `routing_profile`, `output_language` 등은 전송하지 않음.
 
@@ -62,7 +62,7 @@ chat은 POST body로 `session_id`, `message`, `filename`만 전송. `routing_pro
 
 ## [INFO] 4. `gapago/api/clarify`에 파라미터 미전달 (기존 동작)
 
-**파일**: `frontend/index.html` — `resumePipeline()`
+**파일**: `web/app/index.html` — `resumePipeline()`
 
 clarify는 `session_id`와 `response`만 전송. 이것은 main 브랜치에서도 동일한 패턴이며, clarify는 기존 graph state를 resume하므로 이미 state에 `model_routing`이 있음. **이번 브랜치의 신규 문제 아님.**
 
@@ -73,7 +73,7 @@ clarify는 `session_id`와 `response`만 전송. 이것은 main 브랜치에서�
 | 우선순위 | 항목 | 파일 | 수정 내용 |
 |---|---|---|---|
 | HIGH | explore session_id 누락 | `gapago/api/main.py` | inputs에 `"session_id": new_session_id` 추가 |
-| LOW | outputLanguage 빈 문자열 | `frontend/index.html` (2곳) | `\|\| 'auto'` fallback 추가 |
+| LOW | outputLanguage 빈 문자열 | `web/app/index.html` (2곳) | `\|\| 'auto'` fallback 추가 |
 | — | chat routing_profile | — | 수정 불필요 (저장 결과에서 복원됨) |
 | — | clarify 파라미터 | — | 수정 불필요 (기존 동작, graph state에 존재) |
 

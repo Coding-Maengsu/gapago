@@ -339,12 +339,12 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 ### 3.13 `GET /` — 정적 파일 서빙
 
 - 랜딩 페이지(`landing/dist/index.html`) 우선 서빙
-- 랜딩 미빌드 시 `frontend/index.html`로 fallback
+- 랜딩 미빌드 시 `web/app/index.html`로 fallback
 - `/logo.png`, `/new_logo.png`, `/middle_image.png` 정적 이미지 서빙
 
 ### 3.14 `GET /app` — 앱 페이지 서빙
 
-- `frontend/index.html` 반환 (메인 분석 SPA)
+- `web/app/index.html` 반환 (메인 분석 SPA)
 - 랜딩 페이지와 분리된 앱 진입점
 
 ---
@@ -755,7 +755,7 @@ services:
   - type: web
     name: gapago
     runtime: python
-    buildCommand: cd landing && npm install && npm run build && cd .. && pip install -r requirements.txt
+    buildCommand: cd web/landing && npm install && npm run build && cd .. && pip install -r requirements.txt
     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT --workers 1
     envVars:
       - key: PYTHON_VERSION

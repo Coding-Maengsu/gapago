@@ -5,14 +5,14 @@
 ## 1. 개요
 
 GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 인터페이스를 제공한다.
-분석 앱은 Vanilla JS SPA(`frontend/index.html`)이고, 별도로 React 기반 랜딩 페이지(`landing/`)가 있다.
+분석 앱은 Vanilla JS SPA(`web/app/index.html`)이고, 별도로 React 기반 랜딩 페이지(`web/landing/`)가 있다.
 
 > 과거에 존재하던 Streamlit(`app.py`)·Gradio(`app_gradio.py`) 대안 구현은 제거되었다.
 > 관련 내용은 git 이력에서 확인할 수 있다.
 
 **주요 변경 (2026-04-03):**
 - optimized 프로파일에서 Groq 경량 라우팅 축소 (환각 방지 — query_analysis 등 azure로 복귀)
-- Render 배포 시 랜딩페이지 자동 빌드 (`cd landing && npm install && npm run build`, Node 20.18.0)
+- Render 배포 시 랜딩페이지 자동 빌드 (`cd web/landing && npm install && npm run build`, Node 20.18.0)
 - Fast Mode 커스텀 툴팁 추가, Quality 프로파일 라벨 수정
 
 **주요 변경 (2026-04-02):**
@@ -40,8 +40,8 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 
 | 구현 | 프레임워크 | 파일 | 용도 |
 |------|-----------|------|------|
-| **분석 앱** | HTML5 + CSS3 + Vanilla JavaScript | `frontend/index.html` | 프로덕션 SPA (약 3,700줄) |
-| **랜딩 페이지** | React 19 + Vite + Tailwind CSS 4 | `landing/` | 소개 페이지 |
+| **분석 앱** | HTML5 + CSS3 + Vanilla JavaScript | `web/app/index.html` | 프로덕션 SPA (약 3,700줄) |
+| **랜딩 페이지** | React 19 + Vite + Tailwind CSS 4 | `web/landing/` | 소개 페이지 |
 
 - 분석 앱은 외부 CSS/JS 프레임워크를 쓰지 않는다 (인라인 CSS + Vanilla JS)
 - 실시간 통신: Server-Sent Events (SSE)
@@ -50,7 +50,7 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 
 ---
 
-## 3. 메인 웹 UI (`frontend/index.html`)
+## 3. 메인 웹 UI (`web/app/index.html`)
 
 ### 3.1 레이아웃 구조
 
@@ -327,7 +327,7 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 
 | 파일 | 용도 |
 |------|------|
-| `frontend/new_logo.png` | 브랜드 로고. `gapago/api/main.py` 의 `/new_logo.png` 라우트가 서빙하며
+| `web/app/new_logo.png` | 브랜드 로고. `gapago/api/main.py` 의 `/new_logo.png` 라우트가 서빙하며
   분석 앱과 **랜딩 페이지 양쪽**이 이 경로를 참조한다 |
 
 > 과거의 `logo.png`·`middle_image.png` 와 해당 라우트는 참조가 없어 제거되었다.

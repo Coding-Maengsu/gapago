@@ -15,7 +15,7 @@ TODO 문서의 4개 영역(랜딩 페이지, 로딩 페이지, TAB 구성, 기�
 
 | 파일 | 변경 유형 | 설명 |
 |------|----------|------|
-| `frontend/index.html` | **전면 재작성** (1,325줄 → ~2,160줄) | 랜딩·로딩·결과 UI 전면 리디자인 |
+| `web/app/index.html` | **전면 재작성** (1,325줄 → ~2,160줄) | 랜딩·로딩·결과 UI 전면 리디자인 |
 | `gapago/api/main.py` | 수정 | `/api/explore` 엔드포인트, SSE 페이로드 확장 |
 | `gapago/agents/retrieval_agent.py` | 수정 | 동적 k, total_candidates_count, venue 정규화 |
 | `tools.py` | 수정 | 4개 소스 venue 추출 |

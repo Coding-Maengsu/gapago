@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="frontend/new_logo.png" alt="GAPAGO" width="88" />
+<img src="web/app/new_logo.png" alt="GAPAGO" width="88" />
 
 # GAPAGO
 
@@ -141,7 +141,7 @@ LLM이 매 스텝 상태를 보고 다음 에이전트를 정하는 오케스트
 │   │   └── prompts.py           공통 시스템 프롬프트
 │   └── utils/                 progress(SSE) · session_store · cancel · parse_json · tavily
 │
-├── frontend/index.html      분석 앱 UI
+├── web/app/index.html      분석 앱 UI
 ├── landing/                 랜딩 페이지 (React 19 + Vite + Tailwind)
 │
 ├── data/input_sample.json   배치 입력 예시

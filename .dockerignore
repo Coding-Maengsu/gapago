@@ -22,8 +22,8 @@ results/
 *.log
 
 # 프런트 빌드 산출물 (이미지에서 다시 만들거나 불필요)
-landing/node_modules/
-landing/dist/
+web/landing/node_modules/
+web/landing/dist/
 *.tsbuildinfo
 
 # 문서 · 개발 전용

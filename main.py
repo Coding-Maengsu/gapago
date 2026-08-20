@@ -545,9 +545,10 @@ def _cmd_serve(args):
     import uvicorn
 
     port = args.port or int(os.getenv("PORT", "8000"))
-    if not (BASE_DIR / "landing" / "dist" / "index.html").exists():
-        print("[안내] landing/dist 가 없어 / 는 분석 앱으로 대체됩니다.")
-        print("       랜딩 페이지까지 보려면: cd landing && npm install && npm run build")
+    from gapago.paths import LANDING_DIR
+    if not (LANDING_DIR / "index.html").exists():
+        print("[안내] web/landing/dist 가 없어 / 는 분석 앱으로 대체됩니다.")
+        print("       랜딩 페이지까지 보려면: cd web/landing && npm install && npm run build")
     # import 문자열로 넘겨야 --reload 가 동작하고, 이 프로세스가 FastAPI 를 직접 import 하지 않는다
     uvicorn.run("gapago.api.main:app", host=args.host, port=port, reload=args.reload, workers=1)
 

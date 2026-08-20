@@ -17,5 +17,6 @@ DATA_DIR = PROJECT_ROOT / "data"
 CACHE_DIR = PROJECT_ROOT / ".cache"
 
 # 웹 자산
-FRONTEND_DIR = PROJECT_ROOT / "frontend"
-LANDING_DIR = PROJECT_ROOT / "landing" / "dist"
+WEB_DIR = PROJECT_ROOT / "web"
+FRONTEND_DIR = WEB_DIR / "app"
+LANDING_DIR = WEB_DIR / "landing" / "dist"

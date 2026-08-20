@@ -67,4 +67,4 @@ curl -N "http://localhost:8000/api/stream/<session_id>"
 | 경로 | 내용 |
 |---|---|
 | `/` | 랜딩 페이지 (`landing/dist`). 미빌드 시 분석 앱으로 fallback |
-| `/app` | 분석 앱 (`frontend/index.html`) |
+| `/app` | 분석 앱 (`web/app/index.html`) |
