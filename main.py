@@ -24,7 +24,12 @@ from pathlib import Path
 from datetime import datetime
 
 BASE_DIR = Path(__file__).resolve().parent
-OUTPUT_DIR = BASE_DIR / "outputs"
+
+
+def _output_dir():
+    """결과 저장 위치. gapago.paths 를 단일 기준으로 사용한다."""
+    from gapago.paths import OUTPUT_DIR
+    return OUTPUT_DIR
 
 
 @lru_cache(maxsize=1)
@@ -202,7 +207,7 @@ def save_result(query: str, state_values: dict, output_path: str | None = None) 
         path.parent.mkdir(parents=True, exist_ok=True)
     else:
         fname = f"gapago_result_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        path  = OUTPUT_DIR / fname
+        path  = _output_dir() / fname
     path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(f"\n  ✅ 결과 저장 완료 → {path}")
@@ -269,7 +274,7 @@ async def run_batch(graph, input_path: str | None = None, output_path: str | Non
     print(f"  Fast Mode       : {fast_mode}")
     print(f"  Year Range      : {year_range}")
     print(f"  Output Language : {output_language}")
-    print(f"  Output Path     : {output_path or f'{OUTPUT_DIR}/ (자동 생성)'}")
+    print(f"  Output Path     : {output_path or f'{_output_dir()}/ (자동 생성)'}")
 
     get_llm.cache_clear()
     print(f"\n  [warmup] LLM ({selected_provider}) 초기화 중...")
