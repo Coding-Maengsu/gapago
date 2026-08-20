@@ -58,8 +58,10 @@ tmp/
 # =========================
 # 데이터 / 모델 (HPC 필수)
 # =========================
-data/
+data/*
+!data/input_sample.json
 datasets/
+results/
 checkpoints/
 models/
 cache/

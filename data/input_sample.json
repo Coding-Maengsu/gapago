@@ -1,0 +1,7 @@
+{
+  "query": "Domain adaptation in clinical drug discovery",
+  "routing_profile": "optimized",
+  "fast_mode": true,
+  "year_range": "auto",
+  "output_language": "auto"
+}

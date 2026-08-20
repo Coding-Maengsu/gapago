@@ -1,13 +1,18 @@
 """
 GAPAGO - Research GAP Analysis Multi-Agent System
-기존 모듈(agents/, states.py, graph.py, llm.py, utils/)을 활용한 실행 진입점
+
+실행 진입점. 두 가지 모드를 지원한다.
+  대화형 : python main.py
+  배치   : python main.py --input data/input_sample.json --output results/output.json
 """
 
 # =====================================================================
 # 0. 환경 설정
 # =====================================================================
+import argparse
 import asyncio
 import json
+import re
 from core import config  # noqa: F401
 import uuid
 from pathlib import Path
@@ -134,10 +139,13 @@ async def print_stream_events_and_capture_interrupt(app, stream_input, config_di
 # =====================================================================
 # 결과 저장 - evaluate.py가 이 파일을 읽습니다
 # =====================================================================
-def save_result(query: str, state_values: dict) -> Path:
+def save_result(query: str, state_values: dict, output_path: str | None = None) -> Path:
     """
-    파이프라인 완료 후 결과를 outputs/gapago_result_YYYYMMDD_HHMMSS.json 으로 저장.
+    파이프라인 완료 후 결과를 JSON 으로 저장.
     웹 API(_save_result)와 동일한 필드를 포함하여 evaluate.py 호환성 보장.
+
+    output_path 가 주어지면 그 경로에 그대로 쓰고(배치 모드),
+    없으면 outputs/gapago_result_YYYYMMDD_HHMMSS.json 으로 저장한다.
     """
     # messages 직렬화
     messages_out = []
@@ -178,17 +186,125 @@ def save_result(query: str, state_values: dict) -> Path:
         "messages":      messages_out,
     }
 
-    fname = f"gapago_result_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-    path  = OUTPUT_DIR / fname
+    if output_path:
+        path = Path(output_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        fname = f"gapago_result_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        path  = OUTPUT_DIR / fname
     path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(f"\n  ✅ 결과 저장 완료 → {path}")
-    print(f"  평가 실행: python evaluate.py --result-file {path}")
+    print(f"  평가 실행: python scripts/evaluate.py --result-file {path}")
     return path
 
 
 # =====================================================================
-# 3. 실행 로직
+# 3. 배치 실행 — 입력 JSON 하나로 무인 실행 (Docker / CI 용)
+# =====================================================================
+async def run_batch(input_path: str, output_path: str | None = None):
+    """
+    입력 JSON 을 읽어 사용자 입력 없이 파이프라인을 끝까지 실행한다.
+
+    입력 JSON 형식:
+      {
+        "query":           "연구 질문 (필수)",
+        "routing_profile": "optimized",   # optimized | quality
+        "fast_mode":       false,
+        "year_range":      "auto",        # auto | 1y | 3y | 5y
+        "output_language": "auto"         # auto | ko | en
+      }
+    """
+    import os
+    from core.llm import get_llm
+    from core.model_router import ModelRouter, PROFILE_DEFAULT_PROVIDERS
+
+    # 무인 실행이므로 수집량을 보수적으로 고정 (환경변수로 덮어쓸 수 있음)
+    os.environ.setdefault("ARXIV_MAX_RESULTS", "3")
+    os.environ.setdefault("TAVILY_MAX_RESULTS", "3")
+    os.environ.setdefault("SCIENCEON_DEFAULT_ROW_COUNT", "10")
+
+    input_data = json.loads(Path(input_path).read_text(encoding="utf-8"))
+
+    user_input      = input_data.get("query", "")
+    if not user_input:
+        raise ValueError(f"{input_path}: 'query' 필드가 비어 있습니다.")
+    routing_profile = input_data.get("routing_profile", "optimized")
+    fast_mode       = input_data.get("fast_mode", False)
+    year_range      = input_data.get("year_range", "auto")
+    output_language = input_data.get("output_language", "auto")
+
+    # provider: 환경변수 우선, 비어 있으면 프로파일 기본값
+    selected_provider = os.environ.get("LLM_PROVIDER") or PROFILE_DEFAULT_PROVIDERS.get(routing_profile, "azure")
+    os.environ["LLM_PROVIDER"] = selected_provider
+
+    print_divider("[배치 모드] 설정")
+    print(f"  Query           : {user_input}")
+    print(f"  Routing Profile : {routing_profile}")
+    print(f"  LLM Provider    : {selected_provider}")
+    print(f"  Fast Mode       : {fast_mode}")
+    print(f"  Year Range      : {year_range}")
+    print(f"  Output Language : {output_language}")
+    print(f"  Output Path     : {output_path or f'{OUTPUT_DIR}/ (자동 생성)'}")
+
+    get_llm.cache_clear()
+    print(f"\n  [warmup] LLM ({selected_provider}) 초기화 중...")
+    get_llm(provider=selected_provider)
+
+    reasoning_provider = os.getenv("GAP_REASONING_PROVIDER", "")
+    if reasoning_provider:
+        print(f"  [warmup] GAP 추론 LLM ({reasoning_provider}) 초기화 중...")
+        get_llm(provider=reasoning_provider)
+    print("  [warmup] 완료")
+
+    router = ModelRouter(default_provider=selected_provider, profile=routing_profile)
+    config_dict = {"configurable": {"thread_id": random_uuid()}, "recursion_limit": 30}
+
+    inputs = {
+        "messages":        [HumanMessage(content=user_input)],
+        "max_iterations":  3,
+        "research_domain": "auto",
+        "llm_provider":    selected_provider,
+        "year_range":      year_range,
+        "output_language": output_language,
+        "fast_mode":       fast_mode,
+        "model_routing":   router.to_dict(),
+    }
+
+    print_divider("[STEP 1] 파이프라인 시작")
+    interrupted, latest_clarify_prompt = await print_stream_events_and_capture_interrupt(
+        app, inputs, config_dict
+    )
+
+    # Human-in-the-Loop 인터럽트: 배치 모드에서는 첫 번째 후보를 자동 선택
+    while interrupted:
+        print_divider("[INFO] Interrupt 감지 — 자동 진행 (배치 모드)")
+
+        auto_response = user_input
+        if latest_clarify_prompt:
+            candidates = {
+                m.group(1): m.group(2).strip()
+                for m in re.finditer(r"^\s{0,4}(\d)\.\s+(.+)$", latest_clarify_prompt, re.MULTILINE)
+            }
+            if candidates:
+                auto_response = candidates[min(candidates)]
+                print(f"  → 자동 선택: {auto_response}")
+
+        app.update_state(config_dict, {"messages": [HumanMessage(content=auto_response)]})
+
+        print_divider("[STEP 2] 파이프라인 재개")
+        interrupted, latest_clarify_prompt = await print_stream_events_and_capture_interrupt(
+            app, None, config_dict
+        )
+
+    print_divider("[STEP 3] 결과 저장")
+    final_state = app.get_state(config_dict)
+    values = final_state.values if final_state else {}
+    save_result(user_input, values, output_path)
+
+
+# =====================================================================
+# 4. 대화형 실행
 # =====================================================================
 async def run():
     config_dict = {"configurable": {"thread_id": random_uuid()}, "recursion_limit": 30} # 최대 노드 실행 개수 지정 (순환 로직에 빠지지 않기 위함)
@@ -359,5 +475,18 @@ async def run():
             from agents.gap_chat_agent import interactive_chat_loop
             interactive_chat_loop(values)
 
+# =====================================================================
+# 5. 진입점
+# =====================================================================
 if __name__ == "__main__":
-    asyncio.run(run())
+    parser = argparse.ArgumentParser(
+        description="GAPAGO — 연구 GAP 분석 멀티 에이전트",
+    )
+    parser.add_argument("--input",  help="입력 JSON 경로. 지정 시 배치 모드로 무인 실행")
+    parser.add_argument("--output", help="결과 JSON 경로. 미지정 시 outputs/ 에 자동 생성")
+    args = parser.parse_args()
+
+    if args.input:
+        asyncio.run(run_batch(args.input, args.output))
+    else:
+        asyncio.run(run())

@@ -1,0 +1,42 @@
+# 빌드 컨텍스트에서 제외 — 이미지 용량과 빌드 시간을 줄인다
+.git
+.gitignore
+.github
+
+# 시크릿
+.env
+.env.*
+!.env.example
+
+# 파이썬 캐시 / 가상환경
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# 실행 산출물
+outputs/
+results/
+.cache/
+*.log
+
+# 프런트 빌드 산출물 (이미지에서 다시 만들거나 불필요)
+landing/node_modules/
+landing/dist/
+*.tsbuildinfo
+
+# 문서 · 개발 전용
+docs/
+notebooks/
+evaluation/
+scripts/
+tests/
+*.md
+!README.md
+
+# 대용량 / 무관 파일
+*.pdf
+*.tar
+*.zip
+cloudflared
