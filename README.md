@@ -119,12 +119,13 @@ LLM이 매 스텝 상태를 보고 다음 에이전트를 정하는 오케스트
 .
 ├── run_agent.sh             입구 — setup + main.py 로 전달
 ├── main.py                  CLI 정의 (serve · analyze · chat)
-├── Dockerfile
+├── Dockerfile               멀티스테이지 (랜딩 빌드 + 앱)
+├── requirements.txt         직접 의존성 · requirements-lock.txt 는 재현용
 │
 ├── api/main.py              FastAPI 서버 — SSE 스트리밍, 세션 관리
 ├── graphs/                  LangGraph 그래프 (고정 / 오케스트레이터 / 쿼리 서브그래프)
-├── agents/                  에이전트 노드 11종
-│   ├── query_agent/           쿼리 분석 · 정제
+├── agents/                  에이전트 노드 10종
+│   ├── query_agent/           쿼리 분석
 │   ├── retrieval_agent.py     8소스 병렬 검색 + 3단계 리랭킹
 │   ├── limitation_agent.py    전문 기반 한계점 추출
 │   ├── limitation_eval_agent.py  FActScore + Prometheus 품질 검증

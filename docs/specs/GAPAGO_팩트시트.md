@@ -152,7 +152,7 @@
 ## 11. Model Routing (`core/model_router.py`)
 - 프로파일 기반 에이전트별 LLM 배정, `get_llm_for_agent(state, agent_name)` 함수로 통합 접근
 - **optimized 프로파일** (기본):
-  - Azure GPT (기본 provider): query_analysis, query_refine, meaning_expand, limitation_eval, recency_check, critic_score, gap_classify, limitation_verify 등 대부분 에이전트 (환각 방지)
+  - Azure GPT (기본 provider): query_analysis, meaning_expand, limitation_eval, recency_check, critic_score, gap_classify, limitation_verify 등 대부분 에이전트 (환각 방지)
   - Groq Qwen3-32B (light): orchestrator만
   - Claude (heavy): limitation_extract, response
   - Groq Qwen3-32B (heavy): gap_reasoning

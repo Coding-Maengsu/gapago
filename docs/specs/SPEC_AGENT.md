@@ -866,7 +866,6 @@ class CriticScores(BaseModel):
 | 에이전트 | 프롬프트 유형 | 핵심 혁신 |
 |---------|-------------|----------|
 | query_analysis | Structured Output (`QueryResult`) | SemRank + CoQuest |
-| query_refinement | Structured Output (`RefinedQuery`) | APA dominant_interpretation |
 | paper_retrieval | Agent prompt + tool instruction | 멀티소스 오케스트레이션 |
 | limitation_extract | System + user (2-track) | Track 1 vs Track 2 이중 추출 |
 | limitation_eval | Call1 + Call2 system prompts | FActScore + Prometheus + LimAgents + Xu et al. |
@@ -913,7 +912,7 @@ class CriticScores(BaseModel):
 |------|-------------|----------|
 | **SemRank** (Zhang et al., EMNLP 2025) | query_analysis | 쿼리 범위 평가 (broad/specific/narrow) |
 | **CoQuest** (Liu et al., CHI 2024) | query_analysis | 인간-AI 공동 생성 (폭 우선 탐색) |
-| **APA** (Kim et al., EMNLP 2024) | query_refinement | 인지된 모호성과의 정렬 |
+| **APA** (Kim et al., EMNLP 2024) | ~~query_refinement~~ | 인지된 모호성과의 정렬. 해당 노드는 그래프에 연결되지 않아 제거됨 (git 이력 참조) |
 | **FActScore** | limitation_eval | 원자적 사실 검증 |
 | **Prometheus** | limitation_eval | 루브릭 기반 평가 점수 |
 | **LimAgents** | limitation_eval | 항목별 품질 판단 |
