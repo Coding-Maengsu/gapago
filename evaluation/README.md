@@ -1,5 +1,14 @@
 # Evaluation Framework for GAPAGO
 
+> ### ⚠️ 실행 전 알아두세요
+>
+> - 이 벤치마크는 **외부 데이터셋(LitSearch)** 이 필요하며 저장소에 포함돼 있지 않습니다
+>   (`.gitignore` 가 `data/*` 를 제외). 아래 Quick Start 의 준비 단계를 먼저 수행하세요.
+> - CI 에서 실행되지 않습니다. 수동 실행 도구입니다.
+> - **2026-08 이전에 생성된 retrieval 지표(nDCG/Recall/MRR)는 신뢰할 수 없습니다.**
+>   `paper_retrieval_node` 를 `await` 없이 호출하던 버그로 값이 항상 0 이었습니다.
+>   scope 분류 지표는 영향받지 않았습니다.
+
 This directory contains two complementary evaluation approaches:
 
 1. **LitSearch Benchmark**: End-to-end evaluation of Query + Retrieval Agents

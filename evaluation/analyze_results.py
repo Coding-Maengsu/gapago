@@ -15,6 +15,31 @@ from typing import Dict, List
 from collections import defaultdict
 
 
+def _normalize(data: Dict) -> Dict:
+    """
+    결과 파일 스키마를 summary 형태로 통일한다.
+
+    두 종류가 섞여 들어온다.
+      - run_evaluation.py         → {"summary": {"query_metrics": ..., "retrieval_metrics": ...}}
+      - evaluate_scope_classification.py → {"metrics": {...}}   (최상위)
+
+    후자를 그대로 두면 아래 모든 summary 조회가 0.0 을 반환해
+    scope 결과가 전부 0 으로 보인다.
+    """
+    if "summary" in data:
+        return data
+
+    metrics = data.get("metrics")
+    if isinstance(metrics, dict):
+        data = dict(data)
+        data["summary"] = {
+            "query_metrics": metrics,
+            "retrieval_metrics": {},
+            "overall_score": metrics.get("accuracy", 0.0),
+        }
+    return data
+
+
 def load_results(file_paths: List[str]) -> Dict[str, Dict]:
     """Load evaluation results from JSON files."""
     results = {}
@@ -25,7 +50,7 @@ def load_results(file_paths: List[str]) -> Dict[str, Dict]:
 
         # Extract name from file path
         name = Path(file_path).stem
-        results[name] = data
+        results[name] = _normalize(data)
 
     return results
 

@@ -9,6 +9,7 @@ Reference:
     https://arxiv.org/abs/2407.14228
 """
 
+import asyncio
 import json
 import numpy as np
 from typing import List, Dict, Optional, Tuple
@@ -560,7 +561,7 @@ if __name__ == "__main__":
             "session_id": "eval",
         }
 
-        result_state = paper_retrieval_node(state)
+        result_state = asyncio.run(paper_retrieval_node(state))  # async 노드
 
         retrieved_ids = [p.paper_id for p in result_state["papers"]]
         scores = [p.score_bm25 for p in result_state["papers"]]

@@ -320,8 +320,14 @@ python evaluation/evaluate_scope_classification.py \
 ### Monthly Deep Dive
 
 ```bash
-# Full evaluation suite (3 hours)
-./evaluation/run_full_eval.sh  # Create this script
+# Full evaluation suite (~3 hours)
+python evaluation/evaluate_scope_classification.py \
+  --benchmark data/scope_benchmark.json --output results/scope_full.json
+python evaluation/run_evaluation.py \
+  --queries data/litsearch_queries.json --corpus data/litsearch_corpus.json \
+  --output results/litsearch_full.json
+python evaluation/analyze_results.py --results results/*.json \
+  --output results/comparison_report.html --format both
 ```
 
 ## 📚 Additional Resources

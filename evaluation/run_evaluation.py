@@ -9,7 +9,9 @@ Usage:
 
 import argparse
 import sys
+import asyncio
 import json
+import traceback
 from pathlib import Path
 from typing import Dict, List
 
@@ -172,7 +174,10 @@ def retrieval_agent_wrapper(
     )
 
     try:
-        result_state = paper_retrieval_node(state)
+        # paper_retrieval_node 는 async 다. await 없이 부르면 코루틴이 반환되고
+        # 뒤이은 .get() 이 AttributeError 를 내며 아래 except 에 조용히 삼켜져
+        # retrieval 지표가 항상 0 이 된다.
+        result_state = asyncio.run(paper_retrieval_node(state))
 
         papers = result_state.get("papers", [])
         retrieved_ids = []
@@ -194,6 +199,7 @@ def retrieval_agent_wrapper(
 
     except Exception as e:
         print(f"❌ Retrieval Agent error: {e}")
+        traceback.print_exc()
         return RetrievalResult(
             query_id="",
             retrieved_papers=[],
