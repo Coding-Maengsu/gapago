@@ -213,7 +213,7 @@ END
 3. **연도 필터**: `year_range` → YYYY-YYYY 형식 변환 (`_resolve_year_range`)
 4. **1단계: BM25 + FAISS 병렬** → union → 중복 제거
    - BM25 동적 k: `max(10, min(sum(scores > threshold), bm25_top_k))` (기본 50)
-   - FAISS (`_faiss_filter`): SPECTER2/MiniLM 임베딩 + 코사인 유사도
+   - FAISS (`_faiss_filter`): SPECTER2/MiniLM 임베딩 + 코사인 유사도 (ONNX 지원)
    - 두 결과의 합집합으로 후보 풀 확대
 5. **Full text 접근 가능 필터** (`_filter_fulltext_available`): 메타데이터 기반 신뢰도 등급
    - `guaranteed` (3): arXiv (ar5iv HTML 거의 100%)
@@ -224,10 +224,7 @@ END
    - 모델 tier: `auto` (GPU→full `BGE-reranker-v2-m3`, CPU→light `ms-marco-MiniLM`)
    - `reranker_top_k` (기본 15) 최종 선별
 
-**Embedding/CrossEncoder 모델 (lazy load):**
-
-> `backend="onnx"` 를 먼저 시도하나 `optimum`·`onnxruntime` 은 기본 설치에 없으므로
-> 실제로는 PyTorch 경로로 동작한다. 기동 로그에서 어느 쪽인지 확인할 수 있다.
+**Embedding/CrossEncoder 모델 (lazy load, ONNX 지원):**
 
 | 용도 | Light (CPU) | Full (GPU) |
 |------|-------------|------------|
@@ -915,7 +912,7 @@ class CriticScores(BaseModel):
 |------|-------------|----------|
 | **SemRank** (Zhang et al., EMNLP 2025) | query_analysis | 쿼리 범위 평가 (broad/specific/narrow) |
 | **CoQuest** (Liu et al., CHI 2024) | query_analysis | 인간-AI 공동 생성 (폭 우선 탐색) |
-| **APA** (Kim et al., EMNLP 2024) | ~~query_refinement~~ | 인지된 모호성과의 정렬. 해당 노드는 그래프에 연결되지 않아 제거됨 (git 이력 참조) |
+| **APA** (Kim et al., EMNLP 2024) | query_analysis · query_refine | 인지된 모호성과의 정렬 |
 | **FActScore** | limitation_eval | 원자적 사실 검증 |
 | **Prometheus** | limitation_eval | 루브릭 기반 평가 점수 |
 | **LimAgents** | limitation_eval | 항목별 품질 판단 |
@@ -944,7 +941,8 @@ agents/
 ├── __init__.py                      # 모든 노드 export
 ├── orchestrator_agent.py            # LLM 기반 동적 파이프라인 조율 (GAPAGO_ORCHESTRATOR=1)
 ├── query_agent/
-│   └── query_analysis.py            # SemRank + CoQuest 기반 쿼리 분석
+│   ├── query_analysis.py            # SemRank + CoQuest + APA 기반 쿼리 분석
+│   └── query_refine.py              # APA dominant_interpretation 기반 정제
 ├── meaning_expand_agent.py          # 키워드 확장 (도구 없음)
 ├── retrieval_agent.py               # 멀티소스 논문 검색 오케스트레이터
 ├── limitation_agent.py              # 2-트랙 한계점 추출

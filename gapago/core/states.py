@@ -83,6 +83,32 @@ class ScopeAssessment(BaseModel):
     )
 
 
+class AmbiguitySignals(BaseModel):
+    """
+    APA — Alignment with Perceived Ambiguity (Kim et al., EMNLP 2024, arXiv:2404.11972)
+
+    LLM 이 스스로 판단한 질문의 모호성을 구조화한다. 모호하다고 판단되면
+    가능한 해석을 나열하고 그중 가장 그럴듯한 것(dominant_interpretation)을 고른다.
+    query_refine 은 이 값을 정제의 출발점으로 사용한다.
+    """
+    perceived_ambiguous: bool = Field(
+        default=False,
+        description="LLM 이 스스로 판단하기에 이 질문이 여러 해석을 허용하는가"
+    )
+    interpretations: List[str] = Field(
+        default_factory=list,
+        description="모호한 경우 가능한 해석 2~4개. 모호하지 않으면 빈 리스트."
+    )
+    dominant_interpretation: str = Field(
+        default="",
+        description="가장 그럴듯한 해석. 모호하지 않으면 빈 문자열."
+    )
+    ambiguity_rationale: str = Field(
+        default="",
+        description="그렇게 판단한 근거"
+    )
+
+
 class QueryResult(BaseModel):
     """LLM이 생성하는 최종 쿼리 분석 결과"""
     scope_assessment: ScopeAssessment = Field(
@@ -99,6 +125,10 @@ class QueryResult(BaseModel):
     negative_keywords: List[str] = Field(
         default_factory=list,
         description="검색 제외 키워드. 필요한 경우만 1~3개."
+    )
+    ambiguity: AmbiguitySignals = Field(
+        default_factory=AmbiguitySignals,
+        description="APA 기반 모호성 자기평가"
     )
 
 
@@ -199,6 +229,7 @@ class AgentState(TypedDict):
     keywords: List[str]
     negative_keywords: List[str]
     refined_query: str
+    ambiguity_signals: dict       # APA — query_analysis 가 채우고 query_refine 이 소비
     user_question: str
 
     # 진행 제어

@@ -1211,7 +1211,12 @@ JSON 리스트만 출력:
 [{{"index": 0, "quote_check": "FOUND", "claim_check": "VALID"}}, ...]"""
 
 
-def _verify_limitations(limitations: list[dict], paper_sections: dict, state: dict) -> list[dict]:
+def cross_verify_limitations(limitations: list[dict], paper_sections: dict, state: dict) -> list[dict]:
+    """추출된 한계점의 인용문·주장을 원문과 교차 검증한다.
+
+    발표자료 시스템 구조도의 `cross_verify` (quote + claim check) 단계에 해당한다.
+    검증 실패(verified=False) 한계점은 제거된다.
+    """
     """
     추출된 limitation을 다른 provider로 교차 검증.
     model_routing의 profile이 optimized/speed일 때만 실행.
@@ -1612,7 +1617,7 @@ def limitation_extract_node(state: AgentState) -> AgentState:
         print(f"  [dedup] {before_dedup} → {len(all_limitations)} ({dedup_removed}개 중복 제거)")
 
     # ── 교차 검증 ──
-    all_limitations = _verify_limitations(all_limitations, paper_sections, state)
+    all_limitations = cross_verify_limitations(all_limitations, paper_sections, state)
 
     # ── 검증 통계를 state에 기록 ──
     verify_stats = {

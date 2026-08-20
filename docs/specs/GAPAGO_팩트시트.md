@@ -46,7 +46,7 @@
   3. BGE Reranker v2-m3 / MiniLM CrossEncoder 정밀 리랭킹
 - CrossEncoder 동적 k 선택: max score × 0.65 임계값, >30% 점수 갭 시 절단, 범위 15-25편
 - LLM Reranker 폴백: CrossEncoder 불가 시 LLM 기반 리랭킹
-- ONNX Runtime: 시도 후 실패 시 PyTorch 폴백 (선택 의존성 `optimum`+`onnxruntime` 필요, 기본 미설치)
+- ONNX Runtime: CPU 환경 추론 가속 (실패 시 PyTorch 폴백)
 - 디바이스 자동감지: CUDA > MPS > CPU
 - Full-text 접근성 티어링: guaranteed(3, ar5iv) > likely(2, OA PDF) > maybe(1, DOI) > none(0)
 - 최대 30편 full-text 접근 가능 논문 필터링
@@ -152,7 +152,7 @@
 ## 11. Model Routing (`gapago/core/model_router.py`)
 - 프로파일 기반 에이전트별 LLM 배정, `get_llm_for_agent(state, agent_name)` 함수로 통합 접근
 - **optimized 프로파일** (기본):
-  - Azure GPT (기본 provider): query_analysis, meaning_expand, limitation_eval, recency_check, critic_score, gap_classify, limitation_verify 등 대부분 에이전트 (환각 방지)
+  - Azure GPT (기본 provider): query_analysis, query_refine, meaning_expand, limitation_eval, recency_check, critic_score, gap_classify, limitation_verify 등 대부분 에이전트 (환각 방지)
   - Groq Qwen3-32B (light): orchestrator만
   - Claude (heavy): limitation_extract, response
   - Groq Qwen3-32B (heavy): gap_reasoning

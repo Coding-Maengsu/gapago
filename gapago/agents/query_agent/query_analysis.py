@@ -148,6 +148,20 @@ TOO_NARROW:
   - rationale: explanation
   - refined_query, keywords: leave EMPTY
 
+=== AMBIGUITY SELF-ASSESSMENT (APA) ===
+
+Independently of the scope level, fill the `ambiguity` object by judging your OWN
+uncertainty about what the user means (Alignment with Perceived Ambiguity):
+
+  - perceived_ambiguous: true only if the wording genuinely admits two or more
+    distinct research readings. Vague-but-single-reading input is NOT ambiguous.
+  - interpretations: if ambiguous, list 2~4 concrete readings. Otherwise leave EMPTY.
+  - dominant_interpretation: the single reading you consider most likely, written as a
+    complete research statement. Leave EMPTY when not ambiguous.
+  - ambiguity_rationale: one sentence on why. Leave EMPTY when not ambiguous.
+
+Do not invent ambiguity to look thorough. Most well-formed questions are unambiguous.
+
 === RATIONALE WRITING RULES ===
 
 When writing the `rationale` field, follow these strict rules:
@@ -294,6 +308,8 @@ def query_analysis_node(state: AgentState) -> AgentState:
         "keywords": result.keywords if is_searchable else [],
         "negative_keywords": result.negative_keywords if is_searchable else [],
         "refined_query": result.refined_query if is_searchable else "",
+        # APA — query_refine 이 dominant_interpretation 을 정제 출발점으로 사용한다
+        "ambiguity_signals": result.ambiguity.model_dump(),
         "user_question": user_input,
         "needs_user_input": needs_user_input,
     }

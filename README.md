@@ -89,27 +89,99 @@ GAPAGO는 **실제 논문 원문에서 출발**합니다.
 
 각 단계는 품질 게이트를 통과하지 못하면 이전 단계로 되돌아갑니다.
 
-## 파이프라인
+## 시스템 구조
+
+에이전트 6개 그룹으로 구성되며, **오케스트레이터가 매 스텝 상태를 보고 다음 에이전트를 결정**합니다.
+필수 경로는 순차 실행하고, 품질 게이트 3개(`limitation_eval` · `recency_check` · `critic_score`)는
+LLM 판단으로 동적 삽입합니다.
 
 ```mermaid
-flowchart TD
-    START([시작]) --> Q[query_subgraph<br/>쿼리 분석 · 정제]
-    Q --> ME[meaning_expand<br/>키워드 · 쿼리 확장]
-    ME --> PR[paper_retrieval<br/>8개 소스 병렬 검색]
-    PR --> LE[limitation_extract<br/>전문에서 한계점 추출]
-    LE --> LV{limitation_eval<br/>근거 검증}
-    LV -->|RETRY| LE
-    LV -->|PASS| RC[recency_check<br/>최신성 대조]
-    RC --> GI[gap_infer<br/>GAP 추론]
-    GI --> CS{critic_score<br/>품질 채점}
-    CS -->|ACCEPT| FR[final_response<br/>리포트 생성]
-    CS -->|REDO_RETRIEVAL| ME
-    CS -->|REFINE_QUERY| Q
-    FR --> END([종료])
+flowchart TB
+    User([User])
+
+    subgraph ORC [" "]
+        O["⚙ ORCHESTRATOR<br/><small>동적 라우팅 · 모든 에이전트 제어<br/>max 15 steps · max 2 reruns/agent</small>"]
+    end
+
+    subgraph QA ["QUERY ANALYSIS AGENT"]
+        QAN["query_analysis<br/><small>SemRank · 범위 3분류<br/>APA 모호성 자기평가</small>"]
+        HC["human_clarify<br/><small>interrupt user input</small>"]
+        QRF["query_refine<br/><small>APA dominant_interpretation<br/>기반 최종 정제</small>"]
+        QAN -.->|TOO_BROAD / TOO_NARROW| HC
+        HC -.-> QAN
+        QAN -->|SEARCHABLE| QRF
+    end
+
+    subgraph RI ["RESEARCH INTELLIGENCE AGENT"]
+        ME["meaning_expand<br/><small>약어 · 동의어 · 플랫폼별 쿼리</small>"]
+        PR["paper_retrieval<br/><small>BM25 + FAISS + CrossEncoder<br/>8 Search Sources (parallel)</small>"]
+        ME --> PR
+    end
+
+    subgraph LX ["LIMITATION EXTRACTION AGENT"]
+        LE["limitation_extract<br/><small>full text only · 2-track</small>"]
+        CV["cross_verify<br/><small>quote + claim check</small>"]
+        LV["limitation_eval<br/><small>FActScore + Prometheus<br/>strong 1.0 · weak 0.3 · remove ✕</small>"]
+        RC["recency_check<br/><small>unresolved 1.0 · partial 0.5 · resolved 0.0</small>"]
+        LE --> CV --> LV --> RC
+    end
+
+    subgraph GI ["GAP INFERENCE AGENT"]
+        G["gap_infer<br/><small>동적 축 · 기술 장벽 · 긴급도 채점<br/>weight = recency × eval_quality</small>"]
+    end
+
+    subgraph CR ["CRITIC AGENT"]
+        C{"critic_score<br/><small>LLM-as-a-Judge · 3 metrics (0~1)</small>"}
+    end
+
+    subgraph RS ["RESPONSE AGENT"]
+        FR["final_response<br/><small>5-section Markdown report</small>"]
+    end
+
+    subgraph CH ["FOLLOW-UP CHAT AGENT"]
+        GC["gap_chat_agent<br/><small>multi-turn conversation</small>"]
+    end
+
+    User --> QAN
+    QRF --> ME
+    PR --> LE
+    RC --> G
+    G --> C
+    C -->|ACCEPT| FR
+    C -.->|REDO_RETRIEVAL| ME
+    C -.->|REDO_QUERY| QAN
+    FR --> GC
+    GC --> User
+
+    O -.-> QA
+    O -.-> RI
+    O -.-> LX
+    O -.-> GI
+    O -.-> CR
+
+    classDef orc fill:#fdf3e3,stroke:#e8a33d
+    classDef q fill:#fffbe8,stroke:#d4ac0d
+    classDef r fill:#e8f2fb,stroke:#3d7ab8
+    classDef l fill:#fdeaea,stroke:#d64545
+    classDef g fill:#e8f7f0,stroke:#2e9e6b
+    classDef c fill:#eaf1fb,stroke:#4a6fa5
+    classDef s fill:#f2eafb,stroke:#8e5ec2
+    classDef ch fill:#fdf0e3,stroke:#e08b3d
+    class O orc
+    class QAN,HC,QRF q
+    class ME,PR r
+    class LE,CV,LV,RC l
+    class G g
+    class C c
+    class FR s
+    class GC ch
 ```
 
-**두 가지 실행 모드** — 기본은 위 고정 파이프라인이고, `GAPAGO_ORCHESTRATOR=1` 이면
-LLM이 매 스텝 상태를 보고 다음 에이전트를 정하는 오케스트레이터 모드로 동작합니다.
+> 원본 슬라이드: [`docs/assets/system_architecture.png`](docs/assets/system_architecture.png)
+> · 발표자료 전문: [`docs/presentation/GAPAGO_발표자료.pdf`](docs/presentation/GAPAGO_발표자료.pdf)
+
+**고정 파이프라인 모드** — `GAPAGO_ORCHESTRATOR=0` 으로 두면 오케스트레이터 없이
+위 순서를 그대로 순차 실행합니다(노드 9개).
 
 ---
 
@@ -157,9 +229,8 @@ LLM이 매 스텝 상태를 보고 다음 에이전트를 정하는 오케스트
 그래도 실패하면 그 논문을 버리고 후보 풀에서 교체합니다. 결과는 `.cache/fulltext/` 에 캐싱됩니다.
 
 **3단계 리랭킹** — `8소스 수집 → BM25(top-50) → 임베딩 유사도(FAISS) → CrossEncoder 정밀 리랭킹`.
-CPU 환경은 MiniLM, GPU 환경은 SPECTER2 + BGE Reranker v2-m3 로 자동 전환됩니다.
-ONNX Runtime 백엔드를 먼저 시도하지만 이는 선택 의존성(`optimum`)이 있어야 하고,
-없으면 PyTorch 로 폴백합니다. 기본 설치에는 포함돼 있지 않습니다 — `requirements.txt` 참고.
+CPU 환경은 MiniLM + ONNX Runtime, GPU 환경은 SPECTER2 + BGE Reranker v2-m3 로 자동 전환됩니다.
+ONNX 백엔드 로딩에 실패하면 PyTorch 로 폴백합니다.
 
 **근거 검증** — 한계점을 원자적 사실로 분해해 원문 근거를 개별 판정하고(FActScore),
 Groundedness · Specificity · Relevance 를 1~5점으로 채점합니다(Prometheus).

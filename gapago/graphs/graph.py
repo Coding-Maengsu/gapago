@@ -73,7 +73,9 @@ def route_after_critic(state: AgentState) -> str:
 
 
 def build_graph():
-    if os.getenv("GAPAGO_ORCHESTRATOR", "0") == "1":
+    # 기본값은 오케스트레이터. 기술보고서·발표자료가 기술하는 아키텍처가 이쪽이다.
+    # 고정 파이프라인으로 되돌리려면 GAPAGO_ORCHESTRATOR=0
+    if os.getenv("GAPAGO_ORCHESTRATOR", "1") == "1":
         from .orchestrator_graph import build_orchestrator_graph
         return build_orchestrator_graph()
 

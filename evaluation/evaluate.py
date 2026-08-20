@@ -80,13 +80,18 @@ except ImportError:
 OUTPUT_DIR = Path("outputs")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
+# 기술보고서 3.1 의 4개 지표 · 가중치와 일치시킨다.
+#   근거성 35% · 구체성 25% · 연관성 20% · 다양성 20%
+# novelty 는 보고서 지표에 없으므로 기본 산식에서 제외한다.
+# (--with-novelty 로 켜면 아래 NOVELTY_WEIGHT 를 적용해 재정규화한다)
 METRIC_WEIGHTS = {
-    "groundedness": 0.30,
-    "novelty":      0.25,
-    "specificity":  0.20,
-    "relevance":    0.15,
-    "diversity":    0.10,
+    "groundedness": 0.35,
+    "specificity":  0.25,
+    "relevance":    0.20,
+    "diversity":    0.20,
 }
+
+NOVELTY_WEIGHT = 0.25  # 선택 지표
 
 # repeat_count 임계값: 이 미만이면 "약한 근거" GAP으로 분류
 REPEAT_COUNT_THRESHOLD = 2
@@ -621,7 +626,7 @@ def score_diversity(gaps: list) -> dict:
 # 3. 종합 평가 실행
 # ════════════════════════════════════════════════════════════════════════
 
-def evaluate_result(result: dict, skip_novelty: bool = False) -> dict:
+def evaluate_result(result: dict, with_novelty: bool = False) -> dict:
     gaps          = result.get("gaps", [])
     query         = result.get("query", "")
     refined_query = result.get("refined_query", "")
@@ -634,12 +639,12 @@ def evaluate_result(result: dict, skip_novelty: bool = False) -> dict:
     print("    [1/5] Groundedness...")
     scores["groundedness"] = score_groundedness(gaps)
 
-    if skip_novelty:
-        print("    [2/5] Novelty — SKIP (--skip-novelty 플래그)")
-        scores["novelty"] = {"score": None, "skipped": True}
-    else:
-        print("    [2/5] Novelty...")
+    if with_novelty:
+        print("    [2/5] Novelty (선택 지표)...")
         scores["novelty"] = score_novelty(gaps)
+    else:
+        print("    [2/5] Novelty — 미포함 (보고서 지표 아님. --with-novelty 로 활성화)")
+        scores["novelty"] = {"score": None, "skipped": True}
 
     print("    [3/5] Specificity...")
     scores["specificity"] = score_specificity(gaps)
@@ -650,9 +655,10 @@ def evaluate_result(result: dict, skip_novelty: bool = False) -> dict:
     print("    [5/5] Diversity...")
     scores["diversity"] = score_diversity(gaps)
 
-    # 가중 합산 (Novelty 스킵 시 나머지에 재분배)
-    if skip_novelty or scores["novelty"].get("score") is None:
-        weights = {k: v for k, v in METRIC_WEIGHTS.items() if k != "novelty"}
+    # 가중 합산. 기본은 보고서 4개 지표(합 1.0).
+    # novelty 를 켜면 가중치를 추가하고 전체를 재정규화한다.
+    if with_novelty and scores["novelty"].get("score") is not None:
+        weights = {**METRIC_WEIGHTS, "novelty": NOVELTY_WEIGHT}
         total_w = sum(weights.values())
         weights = {k: v / total_w for k, v in weights.items()}
     else:
@@ -788,7 +794,7 @@ def build_markdown_report(gapago_eval: dict, baseline_evals: list, gapago_gaps_r
     g_nv  = gapago_eval["scores"]["novelty"]
     lines += ["### 3-2. Novelty (참신성)", ""]
     if g_nv.get("skipped"):
-        lines += ["> ⏭ 스킵됨 (--skip-novelty)", ""]
+        lines += ["> ⏭ 미포함 — 기술보고서 지표에 없는 선택 항목 (--with-novelty 로 활성화)", ""]
     else:
         method = g_nv.get("method", "unknown")
         lines += [f"> 측정 방식: {'LLM-as-Judge' if 'llm' in method else 'TF-IDF + arXiv'}", ""]
@@ -986,8 +992,8 @@ def parse_args():
         help="azure / claude / gemini 세 provider를 동시에 비교.",
     )
     parser.add_argument(
-        "--skip-novelty", action="store_true",
-        help="Novelty 평가 생략 (빠른 실행).",
+        "--with-novelty", action="store_true",
+        help="선택 지표 Novelty 를 추가로 평가 (기술보고서 4개 지표에는 없음).",
     )
     return parser.parse_args()
 
@@ -1041,14 +1047,14 @@ def main():
     print("\n" + "=" * 60)
     print(" GAPAGO 평가")
     print("=" * 60)
-    gapago_eval = evaluate_result(gapago_result, skip_novelty=args.skip_novelty)
+    gapago_eval = evaluate_result(gapago_result, with_novelty=args.with_novelty)
 
     baseline_evals = []
     for br in baseline_results:
         print("\n" + "=" * 60)
         print(f" {br['source'].upper()} (Baseline) 평가")
         print("=" * 60)
-        baseline_evals.append(evaluate_result(br, skip_novelty=args.skip_novelty))
+        baseline_evals.append(evaluate_result(br, with_novelty=args.with_novelty))
 
     # ── 콘솔 요약 ────────────────────────────────────────────────────
     print("\n" + "=" * 60)
