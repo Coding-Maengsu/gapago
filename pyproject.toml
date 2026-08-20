@@ -4,6 +4,7 @@ version = "1.0.0"
 description = "연구 논문의 한계점에서 미해결 연구 공백을 찾아내는 멀티 에이전트 시스템"
 requires-python = ">=3.10"
 readme = "README.md"
+license = "Apache-2.0"
 
 # 런타임 의존성은 requirements.txt (직접 의존성) 로 관리합니다.
 # requirements-lock.txt 는 GPU/HPC 환경의 핀 고정 재현본입니다.

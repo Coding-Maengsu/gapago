@@ -198,6 +198,14 @@ API 키는 Render Dashboard의 Environment에서 주입합니다.
 | 에이전트별 상세 동작 | [`docs/specs/SPEC_AGENT.md`](docs/specs/SPEC_AGENT.md) |
 | 전체 파이프라인 요약 | [`docs/specs/GAPAGO_팩트시트.md`](docs/specs/GAPAGO_팩트시트.md) |
 
+## 라이선스
+
+[Apache License 2.0](LICENSE)
+
+PDF 전문 추출에 쓰는 `PyMuPDF`/`pymupdf4llm` 은 **AGPL-3.0** 입니다.
+소스를 내려받아 직접 설치해 쓰는 데는 제약이 없으나, **PyMuPDF 가 포함된 Docker 이미지를
+배포하거나 웹 서비스로 운영하면 AGPL-3.0 제13조가 적용됩니다.** 자세한 내용은 [`NOTICE`](NOTICE) 참고.
+
 ---
 
 <div align="center">
