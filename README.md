@@ -11,6 +11,13 @@
 
 `LangGraph` · `FastAPI` · `Multi-LLM Routing`
 
+[![Award](https://img.shields.io/badge/2026_AI_Co--Scientist_Challenge_Korea-%EC%9A%B0%EC%88%98%EC%83%81-FFB300?style=for-the-badge)](https://webzine.nrf.re.kr/magazine/2605/sub9.php)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue?style=for-the-badge)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white)](pyproject.toml)
+
+🏆 **2026 AI Co-Scientist Challenge Korea · Track 2 (AI Agent) 우수상**
+과학기술정보통신부 주최 · 한국연구재단 주관 — 팀 **코딩맹수**
+
 </div>
 
 ---
@@ -270,26 +277,28 @@ API 키는 Render Dashboard의 Environment에서 주입합니다.
 | 에이전트별 상세 동작 | [`docs/specs/SPEC_AGENT.md`](docs/specs/SPEC_AGENT.md) |
 | 전체 파이프라인 요약 | [`docs/specs/GAPAGO_팩트시트.md`](docs/specs/GAPAGO_팩트시트.md) |
 
+## 수상
+
+**2026 AI Co-Scientist Challenge Korea** — Track 2 (AI Agent) 부문 **우수상**
+
+- 주최 과학기술정보통신부 · 주관 한국연구재단 · 운영 인공지능팩토리
+- 시상식 2026년 4월 24일
+- 팀 코딩맹수 — 김희민(팀장, 시스템 설계·총괄) · 가형순 · 김병찬 · 황재원 (AI/모델 개발)
+
+Track 2 는 대상 1팀, 최우수상 2팀, 우수상 7팀이 선정되었습니다.
+
+| 자료 | |
+|---|---|
+| 본심사 발표자료 | [`docs/presentation/GAPAGO_발표자료.pdf`](docs/presentation/GAPAGO_발표자료.pdf) |
+| 수상 명단 (한국연구재단 웹진) | [webzine.nrf.re.kr](https://webzine.nrf.re.kr/magazine/2605/sub9.php) |
+| 대회 공식 홈페이지 | [aicoscientist.net](https://aicoscientist.net/) |
+
 ## 라이선스
 
 [Apache License 2.0](LICENSE)
 
-### AGPL 의존성 주의
-
-PDF 전문 추출에 쓰는 `PyMuPDF` / `pymupdf4llm`(`gapago/agents/limitation_agent.py`)은
-**AGPL-3.0** 입니다. 상황에 따라 의무가 달라집니다.
-
-| 상황 | 의무 |
-|---|---|
-| 소스를 받아 각자 `pip install` | 없음 — 이 저장소는 PyMuPDF 를 재배포하지 않습니다 |
-| PyMuPDF 를 포함한 Docker 이미지 배포 / 웹 서비스 운영 | **AGPL-3.0 제13조 적용.** 대응 소스를 제공해야 하며, 이 저장소가 공개돼 있으므로 충족됩니다 |
-
-피해야 한다면 PDF 추출기를 `pypdf`(BSD)나 `pdfminer.six`(MIT)로 교체하는 방법이 있습니다.
-다만 `pymupdf4llm` 의 마크다운 구조 보존 품질이 더 좋아 한계점 추출 정확도가 낮아질 수 있습니다.
-이 문서는 법률 자문이 아닙니다.
-
 ---
 
 <div align="center">
-<sub>팀 코딩맹수 · AI Co-Scientist Challenge</sub>
+<sub>팀 코딩맹수 · 2026 AI Co-Scientist Challenge</sub>
 </div>
