@@ -206,26 +206,3 @@ def get_llm_for_agent(state: dict, agent_name: str):
         from core.model_router import ModelRouter
         return ModelRouter.from_dict(routing).get_llm(agent_name)
     return get_llm(provider=state.get("llm_provider") if state else None)
-
-
-def select_provider_interactive() -> str:
-    print("\n=== LLM Provider 선택 (전체 파이프라인 기본 LLM) ===")
-    for key, (_, desc) in AVAILABLE_PROVIDERS.items():
-        print(f"  {key}) {desc}")
-
-    reasoning = os.getenv("GAP_REASONING_PROVIDER", "")
-    if reasoning:
-        print(f"\n  ※ GAP 추론 단계는 별도로 [{reasoning}] 사용 (GAP_REASONING_PROVIDER 설정됨)")
-
-    current = os.getenv("LLM_PROVIDER", "azure")
-    choice = input(f"\n선택 (기본값: {current}) > ").strip()
-
-    if choice in AVAILABLE_PROVIDERS:
-        selected = AVAILABLE_PROVIDERS[choice][0]
-    elif choice == "":
-        selected = current
-    else:
-        selected = choice.lower()
-
-    print(f"  → {selected} 선택됨")
-    return selected

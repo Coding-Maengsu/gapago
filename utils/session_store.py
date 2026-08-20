@@ -96,29 +96,6 @@ def get_session(session_id: str) -> Optional[dict]:
     result = dict(row)
     result["metadata"] = json.loads(result.get("metadata") or "{}")
     return result
-
-
-def list_sessions(user_id: str = "", limit: int = 50) -> list[dict]:
-    """List recent sessions, optionally filtered by user_id."""
-    conn = _get_conn()
-    if user_id:
-        rows = conn.execute(
-            "SELECT * FROM sessions WHERE user_id = ? ORDER BY started_at DESC LIMIT ?",
-            (user_id, limit),
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            "SELECT * FROM sessions ORDER BY started_at DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
-    results = []
-    for row in rows:
-        d = dict(row)
-        d["metadata"] = json.loads(d.get("metadata") or "{}")
-        results.append(d)
-    return results
-
-
 def delete_session(session_id: str):
     """Delete a session record."""
     conn = _get_conn()

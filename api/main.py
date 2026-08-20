@@ -858,41 +858,12 @@ def _build_node_payload(node: str, values: dict) -> dict:
 
 
 # ── Static frontend ─────────────────────────────────────────────────
-@app.get("/debug/paths")
-async def debug_paths():
-    """Temporary debug endpoint."""
-    index = FRONTEND_DIR / "index.html"
-    return {
-        "FRONTEND_DIR": str(FRONTEND_DIR),
-        "index_exists": index.exists(),
-        "cwd": str(Path.cwd()),
-        "__file__": str(Path(__file__).resolve()),
-        "dir_listing": [str(p.name) for p in FRONTEND_DIR.parent.iterdir()] if FRONTEND_DIR.parent.exists() else "parent not found",
-    }
-
-
-@app.get("/logo.png")
-async def logo():
-    logo_path = FRONTEND_DIR / "logo.png"
-    if logo_path.exists():
-        return FileResponse(str(logo_path), media_type="image/png")
-    raise HTTPException(404, "Logo not found")
-
-
 @app.get("/new_logo.png")
 async def new_logo():
     path = FRONTEND_DIR / "new_logo.png"
     if path.exists():
         return FileResponse(str(path), media_type="image/png")
     raise HTTPException(404, "new_logo not found")
-
-
-@app.get("/middle_image.png")
-async def middle_image():
-    path = FRONTEND_DIR / "middle_image.png"
-    if path.exists():
-        return FileResponse(str(path), media_type="image/png")
-    raise HTTPException(404, "middle_image not found")
 
 
 @app.get("/")

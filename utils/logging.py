@@ -34,7 +34,3 @@ def langsmith(project_name=None):
     os.environ["LANGSMITH_API_KEY"] = key  
 
     print(f"LangSmith 추적 ON | project={project_name}")
-
-
-def env_variable(key, value):
-    os.environ[key] = value

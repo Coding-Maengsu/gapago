@@ -23,7 +23,7 @@ class AgentModelConfig:
 ROUTING_PRESETS: dict[str, dict[str, AgentModelConfig]] = {
     "optimized": {
         # azure(GPT) 기본: 정확성 필수 작업 전부 (환각 방지)
-        # query_analysis, query_refine, meaning_expand, limitation_eval,
+        # query_analysis, meaning_expand, limitation_eval,
         # recency_check, critic_score, gap_classify, limitation_verify → 기본 provider
         "orchestrator":        AgentModelConfig(provider="groq", tier="light"),
         # heavy: 핵심 추론/추출 → claude, groq
