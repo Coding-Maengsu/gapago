@@ -9,8 +9,8 @@ GAP Chat Agent — 최종 결과 검토 후 사용자와 대화
   - 자연어 기반 의도 파악 (종료 의도, 질문 의도 등)
 """
 
-from states import AgentState
-from llm import get_llm, get_llm_for_agent
+from core.states import AgentState
+from core.llm import get_llm, get_llm_for_agent
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from utils.parse_json import parse_json
 

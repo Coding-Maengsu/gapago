@@ -29,8 +29,8 @@ import os
 import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from states import AgentState, GapCandidate, LimitationItem
-from llm import get_llm, get_llm_for_agent
+from core.states import AgentState, GapCandidate, LimitationItem
+from core.llm import get_llm, get_llm_for_agent
 from utils.parse_json import parse_json
 from utils.progress import report_progress
 from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
@@ -924,7 +924,7 @@ def gap_infer_node(state: AgentState) -> AgentState:
     session_id  = state.get("session_id", "")
     output_lang = state.get("output_language", "auto")
 
-    from prompts.system import get_language_instruction
+    from core.prompts import get_language_instruction
     lang_instruction = get_language_instruction(output_lang)
 
     # ── limitations 획득 ────────────────────────────────────────────────────

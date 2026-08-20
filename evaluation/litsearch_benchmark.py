@@ -519,7 +519,7 @@ if __name__ == "__main__":
     # Example adapter for Query Agent
     def query_agent_adapter(original_query: str) -> QueryReformulationResult:
         from agents.query_agent.query_analysis import query_analysis_node
-        from states import AgentState
+        from core.states import AgentState
         from langchain_core.messages import HumanMessage
 
         state = {
@@ -544,7 +544,7 @@ if __name__ == "__main__":
     # Example adapter for Retrieval Agent
     def retrieval_agent_adapter(refined_query: str) -> RetrievalResult:
         from agents.retrieval_agent import paper_retrieval_node
-        from states import AgentState
+        from core.states import AgentState
         from langchain_core.messages import AIMessage
         import json
 

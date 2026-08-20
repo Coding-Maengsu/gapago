@@ -8,7 +8,7 @@ import json
 from collections import Counter
 from langchain_core.messages import AIMessage
 from langgraph.types import Command
-from llm import get_llm_for_agent
+from core.llm import get_llm_for_agent
 
 # ── 필수 실행 순서 (코드 레벨 강제) ──
 MANDATORY_SEQUENCE = [

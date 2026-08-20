@@ -175,7 +175,7 @@ def generate_baseline_response(query: str, provider: str = "azure") -> dict:
     print(f"     query: '{query[:70]}'")
 
     try:
-        from llm import get_llm
+        from core.llm import get_llm
         os.environ["LLM_PROVIDER"] = provider
         get_llm.cache_clear()
         llm = get_llm(provider=provider)
@@ -343,7 +343,7 @@ def _score_novelty_llm(gaps: list) -> dict:
     """
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     try:
-        from llm import get_llm
+        from core.llm import get_llm
         llm = get_llm()
     except Exception as e:
         print(f"    ⚠️ LLM 로드 실패 ({e}) → Novelty 스킵")

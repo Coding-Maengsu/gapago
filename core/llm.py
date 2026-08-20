@@ -203,7 +203,7 @@ def get_llm_for_agent(state: dict, agent_name: str):
     """model_routing이 있으면 라우터 사용, 없으면 기존 llm_provider fallback"""
     routing = state.get("model_routing") if state else None
     if routing:
-        from model_router import ModelRouter
+        from core.model_router import ModelRouter
         return ModelRouter.from_dict(routing).get_llm(agent_name)
     return get_llm(provider=state.get("llm_provider") if state else None)
 

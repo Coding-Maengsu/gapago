@@ -18,11 +18,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-import config  # noqa: F401  (.env load, LangSmith)
+from core import config  # noqa: F401  (.env load, LangSmith)
 
 from graphs.graph import build_graph
 from langchain_core.messages import HumanMessage, AIMessage
-from llm import AVAILABLE_PROVIDERS, get_llm
+from core.llm import AVAILABLE_PROVIDERS, get_llm
 from agents.gap_chat_agent import gap_chat_respond
 from agents.retrieval_agent import preload_models
 from utils.progress import init_progress, drain_progress, cleanup_progress, mark_stage_start, mark_stage_done
@@ -467,7 +467,7 @@ async def analyze(query: str, provider: str = "azure", domain: str = "auto", yea
     _sessions[session_id]["graph"] = graph
     _sessions[session_id]["config"] = config_dict
 
-    from model_router import ModelRouter
+    from core.model_router import ModelRouter
     router = ModelRouter(default_provider=provider, profile=routing_profile)
 
     inputs = {
@@ -520,7 +520,7 @@ async def explore(topic: str, session_id: str = "", provider: str = "azure", dom
     _sessions[new_session_id]["graph"] = graph
     _sessions[new_session_id]["config"] = config_dict
 
-    from model_router import ModelRouter
+    from core.model_router import ModelRouter
     router = ModelRouter(default_provider=provider, profile=routing_profile)
 
     inputs = {

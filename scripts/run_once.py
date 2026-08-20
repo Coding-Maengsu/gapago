@@ -11,7 +11,7 @@ from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import config  # noqa: F401
+from core import config  # noqa: F401
 from graphs.graph import build_graph
 from langchain_core.messages import HumanMessage
 
@@ -23,7 +23,7 @@ async def run_once(query: str, provider: str = "azure", domain: str = "auto", ye
     import os
     os.environ["LLM_PROVIDER"] = provider
 
-    from llm import get_llm
+    from core.llm import get_llm
     get_llm.cache_clear()
     print(f"[init] LLM provider: {provider}")
     get_llm(provider=provider)

@@ -292,14 +292,15 @@ python evaluation/analyze_results.py     # 결과 분석
 │   ├── gap_chat_agent.py      결과 후속 질의응답
 │   └── orchestrator_agent.py  동적 라우팅 결정
 │
-├── tools.py                 검색 소스 통합 (arXiv/Crossref/S2/OpenAlex/ScienceON) + BM25
-├── llm.py                   Provider 추상화 (azure/claude/gemini/groq/exaone/qwq)
-├── model_router.py          에이전트별 모델 배정 프로파일
-├── states.py                AgentState 및 Pydantic 스키마
-├── config.py                환경 변수 기반 설정
+├── core/                    공용 모듈 — 에이전트 · 그래프 · API 가 함께 쓰는 것
+│   ├── tools.py               검색 소스 통합 (arXiv/Crossref/S2/OpenAlex/ScienceON) + BM25
+│   ├── llm.py                 Provider 추상화 (azure/claude/gemini/groq/exaone/qwq)
+│   ├── model_router.py        에이전트별 모델 배정 프로파일
+│   ├── states.py              AgentState 및 Pydantic 스키마
+│   ├── config.py              환경 변수 기반 설정
+│   └── prompts.py             공통 시스템 프롬프트
 │
 ├── utils/                   progress(SSE) · session_store(SQLite) · cancel · parse_json · tavily
-├── prompts/system.py        공통 시스템 프롬프트
 │
 ├── frontend/index.html      분석 앱 UI (단일 파일 SPA)
 ├── landing/                 랜딩 페이지 (React 19 + Vite + Tailwind)
@@ -307,8 +308,7 @@ python evaluation/analyze_results.py     # 결과 분석
 ├── evaluation/              평가 프레임워크 (LitSearch 벤치마크 · scope 분류 벤치마크)
 ├── scripts/                 평가 · 벤치마크 · 단발 실행 스크립트
 ├── tests/                   pytest 테스트
-├── legacy/                  구 데모 UI (Streamlit · Gradio) — 현재 미사용
-├── docs/                    specs · design · changelog · reports · archive · assets
+├── docs/                    specs · design · changelog · reports · assets
 └── outputs/                 분석 결과 JSON (gitignored)
 ```
 
@@ -380,7 +380,6 @@ startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT --workers 1
 | [`docs/changelog/`](docs/changelog) | 웹 메이저 업데이트 · 모델 라우터 변경 이력 |
 | [`docs/reports/`](docs/reports) | 동적 k 검증 · 한계점 추출 실패 분석 · 웹 검색 활용 리포트 |
 | [`docs/assets/`](docs/assets) | 파이프라인 다이어그램 |
-| [`docs/archive/`](docs/archive) | 보관용 초안 · 완료된 TODO |
 
 ---
 

@@ -1,10 +1,10 @@
 # 3-6) Final Response Agent
-from states import AgentState
+from core.states import AgentState
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage
-from tools import build_role_tools
-from prompts.system import make_system_prompt
-from llm import get_llm_for_agent
+from core.tools import build_role_tools
+from core.prompts import make_system_prompt
+from core.llm import get_llm_for_agent
 
 ROLE_TOOLS = build_role_tools()
 RESPONSE_TOOLS = ROLE_TOOLS["RESPONSE_TOOLS"]

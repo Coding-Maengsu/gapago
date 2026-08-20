@@ -29,7 +29,7 @@ from collections import defaultdict, Counter
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from states import AgentState
+from core.states import AgentState
 from langchain_core.messages import HumanMessage
 
 

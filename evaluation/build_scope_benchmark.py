@@ -183,7 +183,7 @@ def generate_query_variants(
     Returns:
         List of QueryVariant objects
     """
-    from llm import get_llm
+    from core.llm import get_llm
     from langchain_core.messages import HumanMessage
 
     llm = get_llm(provider=llm_provider)

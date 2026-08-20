@@ -8,7 +8,7 @@ import asyncio
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
-from states import AgentState
+from core.states import AgentState
 from .query_subgraph import build_subgraph
 
 from agents import (
@@ -24,15 +24,15 @@ from agents import (
 from agents.orchestrator_agent import orchestrator_node
 
 _ALLOWED_MODULES = [
-    ("states", "Paper"),
-    ("states", "LimitationItem"),
-    ("states", "GapCandidate"),
-    ("states", "CriticScores"),
-    ("states", "DimensionScore"),
-    ("states", "EvaluationResult"),
-    ("states", "ScopeCandidate"),
-    ("states", "ScopeAssessment"),
-    ("states", "QueryResult"),
+    ("core.states", "Paper"),
+    ("core.states", "LimitationItem"),
+    ("core.states", "GapCandidate"),
+    ("core.states", "CriticScores"),
+    ("core.states", "DimensionScore"),
+    ("core.states", "EvaluationResult"),
+    ("core.states", "ScopeCandidate"),
+    ("core.states", "ScopeAssessment"),
+    ("core.states", "QueryResult"),
 ]
 
 # ── 에이전트 노드 매핑 ──

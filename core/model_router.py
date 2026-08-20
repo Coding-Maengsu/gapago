@@ -9,7 +9,7 @@ ModelRouter — 에이전트별 최적 모델 자동 배정 (프리셋 기반)
 """
 
 from dataclasses import dataclass, field
-from llm import get_llm
+from core.llm import get_llm
 
 
 @dataclass

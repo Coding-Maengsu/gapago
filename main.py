@@ -8,7 +8,7 @@ GAPAGO - Research GAP Analysis Multi-Agent System
 # =====================================================================
 import asyncio
 import json
-import config  # noqa: F401
+from core import config  # noqa: F401
 import uuid
 from pathlib import Path
 from datetime import datetime
@@ -204,7 +204,7 @@ async def run():
 
     # --- LLM Provider 선택 ---
     import os
-    from model_router import ModelRouter, PROFILE_DEFAULT_PROVIDERS
+    from core.model_router import ModelRouter, PROFILE_DEFAULT_PROVIDERS
 
     selected_provider = PROFILE_DEFAULT_PROVIDERS.get(routing_profile, "azure")
     print(f"\n  → 프로파일 '{routing_profile}'의 기본 provider: {selected_provider} (자동 선택)")
@@ -212,7 +212,7 @@ async def run():
     os.environ["LLM_PROVIDER"] = selected_provider
 
     # lru_cache 초기화 (provider 변경 반영)
-    from llm import get_llm
+    from core.llm import get_llm
     get_llm.cache_clear()
 
     # --- LLM 사전 초기화 (warmup) ---

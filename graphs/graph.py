@@ -2,19 +2,19 @@ import os
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
-from states import AgentState
+from core.states import AgentState
 from .query_subgraph import build_subgraph
 
 _ALLOWED_MODULES = [
-    ("states", "Paper"),
-    ("states", "LimitationItem"),
-    ("states", "GapCandidate"),
-    ("states", "CriticScores"),
-    ("states", "DimensionScore"),
-    ("states", "EvaluationResult"),
-    ("states", "ScopeCandidate"),
-    ("states", "ScopeAssessment"),
-    ("states", "QueryResult"),
+    ("core.states", "Paper"),
+    ("core.states", "LimitationItem"),
+    ("core.states", "GapCandidate"),
+    ("core.states", "CriticScores"),
+    ("core.states", "DimensionScore"),
+    ("core.states", "EvaluationResult"),
+    ("core.states", "ScopeCandidate"),
+    ("core.states", "ScopeAssessment"),
+    ("core.states", "QueryResult"),
 ]
 
 from agents import (

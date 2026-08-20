@@ -1,7 +1,7 @@
 # 3-5) Critic Score Agent
-from states import AgentState
+from core.states import AgentState
 from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
-from llm import get_llm_for_agent
+from core.llm import get_llm_for_agent
 from utils.parse_json import parse_json
 
 MAX_CRITIC_LOOPS = 2  # 최대 재시도 횟수 (이후 강제 ACCEPT)
