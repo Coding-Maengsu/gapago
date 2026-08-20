@@ -23,8 +23,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # 의존성을 먼저 설치한다. 소스만 바뀌면 이 레이어는 캐시에서 재사용된다.
-COPY requirements_deploy.txt .
-RUN pip install --no-cache-dir -r requirements_deploy.txt
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 RUN chmod +x run_agent.sh

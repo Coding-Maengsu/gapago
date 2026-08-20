@@ -40,7 +40,7 @@ docker run --rm --env-file .env \
 ### 로컬 (Python 3.10+)
 
 ```bash
-pip install -r requirements_deploy.txt   # CPU. GPU 리랭킹은 requirements.txt
+pip install -r requirements.txt          # 정확한 재현이 필요하면 requirements-lock.txt
 cp .env.example .env
 
 ./run_agent.sh serve                     # 웹 서버
