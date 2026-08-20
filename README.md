@@ -266,36 +266,18 @@ pytest
 `--workers 1` 단일 프로세스로 기동해 임베딩/리랭커 모델을 한 번만 로드합니다.
 API 키는 Render Dashboard의 Environment에서 주입합니다.
 
-## 문서
-
-**[`docs/README.md`](docs/README.md) 에서 시작하세요** — 목적별로 정리된 인덱스입니다.
-
-| 자주 찾는 것 | 문서 |
-|---|---|
-| 환경 변수 · 모델 라우팅 · Fast Mode | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) |
-| HTTP API 레퍼런스 | [`docs/API.md`](docs/API.md) |
-| 에이전트별 상세 동작 | [`docs/specs/SPEC_AGENT.md`](docs/specs/SPEC_AGENT.md) |
-| 전체 파이프라인 요약 | [`docs/specs/GAPAGO_팩트시트.md`](docs/specs/GAPAGO_팩트시트.md) |
-
 ## 수상
 
-**2026 AI Co-Scientist Challenge Korea** — Track 2 (AI Agent) 부문 **우수상**
+**2026 AI Co-Scientist Challenge Korea** — Track 2 (AI Agent) 부문 **우수상(5위)** (2026.04.24.)
 
 - 주최 과학기술정보통신부 · 주관 한국연구재단 · 운영 인공지능팩토리
-- 시상식 2026년 4월 24일
-- 팀 코딩맹수 — 김희민(팀장, 시스템 설계·총괄) · 가형순 · 김병찬 · 황재원 (AI/모델 개발)
-
-Track 2 는 대상 1팀, 최우수상 2팀, 우수상 7팀이 선정되었습니다.
-
-| 자료 | |
-|---|---|
-| 본심사 발표자료 | [`docs/presentation/GAPAGO_발표자료.pdf`](docs/presentation/GAPAGO_발표자료.pdf) |
-| 수상 명단 (한국연구재단 웹진) | [webzine.nrf.re.kr](https://webzine.nrf.re.kr/magazine/2605/sub9.php) |
-| 대회 공식 홈페이지 | [aicoscientist.net](https://aicoscientist.net/) |
+- 팀 코딩맹수
+- 수상 명단 — [한국연구재단 웹진](https://webzine.nrf.re.kr/magazine/2605/sub9.php) · 대회 홈페이지 — [aicoscientist.net](https://aicoscientist.net/)
+- 본심사 발표자료 — [`docs/presentation/GAPAGO_발표자료.pdf`](docs/presentation/GAPAGO_발표자료.pdf)
 
 ## 라이선스
 
-[Apache License 2.0](LICENSE)
+[Apache License 2.0](LICENSE) · PDF 추출에 쓰는 `PyMuPDF` 는 AGPL-3.0
 
 ---
 
