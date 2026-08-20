@@ -58,6 +58,7 @@ pydantic
 pydantic-settings
 pycryptodome
 
-# ── 평가 전용 (선택) ─────────────────────────────────────────
-# evaluation/ 과 scripts/evaluate.py 에서 사용. 없으면 해당 도구만 제한된다.
+# ── 평가 · 개발 전용 (선택) ───────────────────────────────────
+# evaluation/ 에서 사용. 없으면 해당 도구만 제한되고 서버는 정상 동작한다.
 scikit-learn
+pytest

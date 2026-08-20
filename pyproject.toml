@@ -12,16 +12,3 @@ license = "Apache-2.0"
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-v"
-
-[tool.ruff]
-line-length = 120
-target-version = "py310"
-exclude = ["landing", "docs", "outputs", ".cache"]
-
-[tool.ruff.lint]
-# 기존 코드 스타일을 존중해 기본 규칙만 사용합니다.
-select = ["E", "F", "W"]
-ignore = [
-    "E501",  # 줄 길이는 line-length 로만 관리
-    "E402",  # config 로드 순서상 import 가 코드 뒤에 오는 경우가 있음
-]
