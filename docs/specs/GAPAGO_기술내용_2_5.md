@@ -51,7 +51,7 @@
 
 - 특징  
   - Hybrid Retrieval 구조  
-  - ONNX Runtime 기반 최적화  
+  - ONNX Runtime 백엔드 시도 (선택 의존성, 미설치 시 PyTorch 폴백)  
   - full-text 접근 가능 논문 중심 필터링  
 
 ---

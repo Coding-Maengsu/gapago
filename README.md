@@ -120,7 +120,7 @@ LLM이 매 스텝 상태를 보고 다음 에이전트를 정하는 오케스트
 ├── run_agent.sh             입구 — setup + main.py 로 전달
 ├── main.py                  CLI 정의 (serve · analyze · chat)
 ├── Dockerfile               멀티스테이지 (랜딩 빌드 + 앱)
-├── requirements.txt         직접 의존성 · requirements-lock.txt 는 재현용
+├── requirements.txt         의존성
 │
 ├── gapago/                  애플리케이션 패키지
 │   ├── paths.py               프로젝트 경로 단일 기준점
@@ -157,7 +157,9 @@ LLM이 매 스텝 상태를 보고 다음 에이전트를 정하는 오케스트
 그래도 실패하면 그 논문을 버리고 후보 풀에서 교체합니다. 결과는 `.cache/fulltext/` 에 캐싱됩니다.
 
 **3단계 리랭킹** — `8소스 수집 → BM25(top-50) → 임베딩 유사도(FAISS) → CrossEncoder 정밀 리랭킹`.
-CPU 환경은 MiniLM + ONNX Runtime, GPU 환경은 SPECTER2 + BGE Reranker v2-m3 로 자동 전환됩니다.
+CPU 환경은 MiniLM, GPU 환경은 SPECTER2 + BGE Reranker v2-m3 로 자동 전환됩니다.
+ONNX Runtime 백엔드를 먼저 시도하지만 이는 선택 의존성(`optimum`)이 있어야 하고,
+없으면 PyTorch 로 폴백합니다. 기본 설치에는 포함돼 있지 않습니다 — `requirements.txt` 참고.
 
 **근거 검증** — 한계점을 원자적 사실로 분해해 원문 근거를 개별 판정하고(FActScore),
 Groundedness · Specificity · Relevance 를 1~5점으로 채점합니다(Prometheus).
@@ -201,9 +203,19 @@ API 키는 Render Dashboard의 Environment에서 주입합니다.
 
 [Apache License 2.0](LICENSE)
 
-PDF 전문 추출에 쓰는 `PyMuPDF`/`pymupdf4llm` 은 **AGPL-3.0** 입니다.
-소스를 내려받아 직접 설치해 쓰는 데는 제약이 없으나, **PyMuPDF 가 포함된 Docker 이미지를
-배포하거나 웹 서비스로 운영하면 AGPL-3.0 제13조가 적용됩니다.** 자세한 내용은 [`NOTICE`](NOTICE) 참고.
+### AGPL 의존성 주의
+
+PDF 전문 추출에 쓰는 `PyMuPDF` / `pymupdf4llm`(`gapago/agents/limitation_agent.py`)은
+**AGPL-3.0** 입니다. 상황에 따라 의무가 달라집니다.
+
+| 상황 | 의무 |
+|---|---|
+| 소스를 받아 각자 `pip install` | 없음 — 이 저장소는 PyMuPDF 를 재배포하지 않습니다 |
+| PyMuPDF 를 포함한 Docker 이미지 배포 / 웹 서비스 운영 | **AGPL-3.0 제13조 적용.** 대응 소스를 제공해야 하며, 이 저장소가 공개돼 있으므로 충족됩니다 |
+
+피해야 한다면 PDF 추출기를 `pypdf`(BSD)나 `pdfminer.six`(MIT)로 교체하는 방법이 있습니다.
+다만 `pymupdf4llm` 의 마크다운 구조 보존 품질이 더 좋아 한계점 추출 정확도가 낮아질 수 있습니다.
+이 문서는 법률 자문이 아닙니다.
 
 ---
 

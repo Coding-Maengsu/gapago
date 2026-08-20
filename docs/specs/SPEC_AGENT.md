@@ -213,7 +213,7 @@ END
 3. **연도 필터**: `year_range` → YYYY-YYYY 형식 변환 (`_resolve_year_range`)
 4. **1단계: BM25 + FAISS 병렬** → union → 중복 제거
    - BM25 동적 k: `max(10, min(sum(scores > threshold), bm25_top_k))` (기본 50)
-   - FAISS (`_faiss_filter`): SPECTER2/MiniLM 임베딩 + 코사인 유사도 (ONNX 지원)
+   - FAISS (`_faiss_filter`): SPECTER2/MiniLM 임베딩 + 코사인 유사도
    - 두 결과의 합집합으로 후보 풀 확대
 5. **Full text 접근 가능 필터** (`_filter_fulltext_available`): 메타데이터 기반 신뢰도 등급
    - `guaranteed` (3): arXiv (ar5iv HTML 거의 100%)
@@ -224,7 +224,10 @@ END
    - 모델 tier: `auto` (GPU→full `BGE-reranker-v2-m3`, CPU→light `ms-marco-MiniLM`)
    - `reranker_top_k` (기본 15) 최종 선별
 
-**Embedding/CrossEncoder 모델 (lazy load, ONNX 지원):**
+**Embedding/CrossEncoder 모델 (lazy load):**
+
+> `backend="onnx"` 를 먼저 시도하나 `optimum`·`onnxruntime` 은 기본 설치에 없으므로
+> 실제로는 PyTorch 경로로 동작한다. 기동 로그에서 어느 쪽인지 확인할 수 있다.
 
 | 용도 | Light (CPU) | Full (GPU) |
 |------|-------------|------------|

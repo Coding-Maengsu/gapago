@@ -2,7 +2,7 @@
 #
 #   설치: pip install -r requirements.txt
 #
-# 정확한 재현이 필요하면 requirements-lock.txt (핀 고정) 를 사용하세요.
+# 이 목록은 실제 설치·서버 기동까지 검증했습니다 (2026-08).
 # 기본은 CPU 전용 PyTorch (~200MB). GPU 리랭킹은 lock 파일 쪽을 참고하세요.
 --extra-index-url https://download.pytorch.org/whl/cpu
 
@@ -46,7 +46,7 @@ transformers
 # 실패하면 PyTorch 로 폴백한다. 따라서 없어도 동작한다.
 #
 # 기본 설치에서 제외한 이유: optimum 이 transformers<5 를 요구하는데 이 코드는
-# transformers 5.x 에서 동작한다(requirements-lock.txt 참조). 함께 두면 pip 이
+# transformers 5.x 에서 동작한다. 함께 두면 pip 이
 # optimum 버전을 끝없이 되짚는 백트래킹에 빠진다.
 # 실제로 동작했던 HPC 환경에도 두 패키지는 없었다.
 #
