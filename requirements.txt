@@ -35,13 +35,23 @@ PyMuPDF
 pymupdf4llm
 faiss-cpu
 sentence-transformers
-# 아래 셋은 직접 import 한다 (agents/retrieval_agent.py, core/llm.py).
+# 아래 셋은 직접 import 한다 (gapago/agents/retrieval_agent.py, gapago/core/llm.py).
 # 지금까지는 sentence-transformers 가 전이로 끌어와 우연히 동작했다.
 numpy
 torch
 transformers
-onnxruntime
-optimum[onnxruntime]
+
+# ── ONNX 가속 (선택) ─────────────────────────────────────────
+# retrieval_agent.py 는 sentence-transformers 의 backend="onnx" 를 시도하고
+# 실패하면 PyTorch 로 폴백한다. 따라서 없어도 동작한다.
+#
+# 기본 설치에서 제외한 이유: optimum 이 transformers<5 를 요구하는데 이 코드는
+# transformers 5.x 에서 동작한다(requirements-lock.txt 참조). 함께 두면 pip 이
+# optimum 버전을 끝없이 되짚는 백트래킹에 빠진다.
+# 실제로 동작했던 HPC 환경에도 두 패키지는 없었다.
+#
+# CPU 추론을 가속하려면 transformers<5 로 내린 뒤 아래를 설치하라:
+#   pip install "transformers<5" onnxruntime "optimum[onnxruntime]"
 requests
 python-dotenv
 pydantic

@@ -15,7 +15,10 @@ set -euo pipefail
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$APP_DIR"
 
-VENV="$APP_DIR/.venv"
+# 가상환경 위치. 홈 디렉터리 쿼터가 빡빡한 HPC 등에서는
+#   GAPAGO_VENV=/scratch/$USER/gapago-venv ./run_agent.sh setup
+# 처럼 다른 파일시스템을 가리키게 할 수 있다. (의존성은 2GB 안팎)
+VENV="${GAPAGO_VENV:-$APP_DIR/.venv}"
 MIN_PY="3.10"
 
 # 컨테이너 등 venv 가 필요 없는 환경에서는 시스템 python 을 그대로 쓴다
@@ -47,9 +50,16 @@ if [ "${1:-}" = "setup" ]; then
     echo "      $("$BOOTSTRAP_PY" -V)"
 
     echo "[2/4] 가상환경 · 의존성"
+    echo "      위치: $VENV"
+    avail_kb=$(df -Pk "$(dirname "$VENV")" 2>/dev/null | awk 'NR==2{print $4}')
+    if [ -n "$avail_kb" ] && [ "$avail_kb" -lt 3000000 ]; then
+        echo "      ⚠ 여유 공간이 $((avail_kb/1024))MB 입니다. 설치에 약 2GB 가 필요합니다."
+        echo "        공간이 넉넉한 곳을 쓰려면:"
+        echo "          GAPAGO_VENV=/path/to/venv ./run_agent.sh setup"
+    fi
     if [ ! -d "$VENV" ]; then
         "$BOOTSTRAP_PY" -m venv "$VENV"
-        echo "      .venv 생성"
+        echo "      생성 완료"
     fi
     "$VENV/bin/pip" install --quiet --upgrade pip
     "$VENV/bin/pip" install -r "$APP_DIR/requirements.txt"
@@ -74,7 +84,7 @@ if [ "${1:-}" = "setup" ]; then
 
     echo "[4/4] 랜딩 페이지"
     if command -v npm >/dev/null 2>&1; then
-        (cd "$APP_DIR/landing" && npm install --silent && npm run build --silent)
+        (cd "$APP_DIR/web/landing" && npm install --silent && npm run build --silent)
         echo "      빌드 완료"
     else
         echo "      npm 이 없어 건너뜁니다. / 는 분석 앱으로 대체됩니다."
@@ -82,7 +92,11 @@ if [ "${1:-}" = "setup" ]; then
 
     echo
     echo "준비 완료. 다음을 실행하세요:"
-    echo "  ./run_agent.sh serve"
+    if [ "$VENV" != "$APP_DIR/.venv" ]; then
+        echo "  GAPAGO_VENV=$VENV ./run_agent.sh serve"
+    else
+        echo "  ./run_agent.sh serve"
+    fi
     exit 0
 fi
 
