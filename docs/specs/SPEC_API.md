@@ -215,7 +215,7 @@ GAPAGO API는 FastAPI 기반의 비동기 REST API + SSE(Server-Sent Events) 서
 }
 ```
 - `current`, `total`, `progress`는 `total > 0`일 때만 포함
-- `utils/progress.py`의 스레드 안전 큐를 통해 에이전트 스레드에서 비동기 SSE로 전달
+- `gapago/utils/progress.py`의 스레드 안전 큐를 통해 에이전트 스레드에서 비동기 SSE로 전달
 - API 서버의 `_drain_loop` 태스크가 0.3초 간격으로 큐를 폴링
 
 #### `keepalive` 이벤트 (30초 간격)
@@ -498,7 +498,7 @@ _sessions[session_id] = {
 - 세션 또는 filename을 키로 사용
 
 **진행률 큐 (별도 관리):**
-- `utils/progress.py`의 `_queues[session_id]`로 관리
+- `gapago/utils/progress.py`의 `_queues[session_id]`로 관리
 - `init_progress(session_id)`: 파이프라인 시작 시 초기화
 - `cleanup_progress(session_id)`: 파이프라인 종료 시 정리
 
@@ -586,7 +586,7 @@ _sessions[session_id] = {
 
 ## 7. 설정 (Configuration)
 
-**파일:** `core/config.py`
+**파일:** `gapago/core/config.py`
 
 `Configuration` dataclass로 환경변수에서 로딩되며, LangGraph `RunnableConfig`를 통한 요청별 오버라이드를 지원한다.
 
@@ -612,7 +612,7 @@ class Configuration:
 
 ## 8. LLM 프로바이더
 
-**파일:** `core/llm.py`
+**파일:** `gapago/core/llm.py`
 
 `get_llm(provider, model)` 팩토리 함수, `@lru_cache(maxsize=8)` 캐싱.
 
@@ -626,7 +626,7 @@ class Configuration:
 
 > **Note:** `gemini` / `google` 프로바이더는 코드에 유지되나 사용자 선택 목록에서 제거됨.
 
-**에이전트별 LLM 라우팅** (`core/model_router.py`):
+**에이전트별 LLM 라우팅** (`gapago/core/model_router.py`):
 
 `get_llm_for_agent(state, agent_name)` 함수로 에이전트별 최적 provider를 자동 배정.
 `model_routing` state 필드가 없으면 기존 `llm_provider` fallback.
@@ -651,7 +651,7 @@ class Configuration:
 
 ## 9. 검색 도구
 
-**파일:** `core/tools/`
+**파일:** `gapago/core/tools/`
 
 ### 9.1 검색 함수 목록
 
@@ -717,7 +717,7 @@ bm25_rank(papers, query_text, top_k=30) -> List[dict]
 
 ## 10. 데이터 모델
 
-**파일:** `core/states.py`
+**파일:** `gapago/core/states.py`
 
 ### 10.1 Pydantic 모델
 
@@ -799,22 +799,22 @@ services:
 
 ## 12. 유틸리티
 
-### 12.1 `utils/parse_json.py` — JSON 파싱
+### 12.1 `gapago/utils/parse_json.py` — JSON 파싱
 - 직접 JSON → 마크다운 코드 블록 → 정규식 추출 순서로 시도
 - 실패 시 빈 dict/list 반환
 
-### 12.2 `utils/session_store.py` — SQLite 세션 영속화
+### 12.2 `gapago/utils/session_store.py` — SQLite 세션 영속화
 - 서버 재시작 시에도 세션 상태 유지
 - `init_db()`: DB 초기화, 기존 running 세션을 interrupted로 마킹
 - `save_session()`, `update_session_status()`, `get_session()`, `delete_session()`
 
-### 12.3 `utils/cancel.py` — 파이프라인 취소 레지스트리
+### 12.3 `gapago/utils/cancel.py` — 파이프라인 취소 레지스트리
 - 세션별 취소 시그널 관리
 - `register()`, `cancel()`, `is_cancelled()`, `cleanup()`
 
-### 12.4 `utils/tavily.py` — Tavily 검색 래퍼
+### 12.4 `gapago/utils/tavily.py` — Tavily 검색 래퍼
 - 도메인 필터링 (include/exclude)
 - 파라미터: `search_depth`, `topic`, `max_results`, `days`
 
-### 12.5 `utils/logging.py` — LangSmith 트레이싱
+### 12.5 `gapago/utils/logging.py` — LangSmith 트레이싱
 - 환경변수 기반 LangSmith 초기화

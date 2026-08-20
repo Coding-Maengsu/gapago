@@ -7,7 +7,7 @@
 
 ## [HIGH] 1. `/api/explore` inputs에 `session_id` 누락
 
-**파일**: `api/main.py` — explore 엔드포인트의 inputs dict
+**파일**: `gapago/api/main.py` — explore 엔드포인트의 inputs dict
 
 analyze에는 `session_id`가 inputs에 포함되지만, explore에는 빠져 있음:
 
@@ -50,7 +50,7 @@ API 기본값은 `"auto"`이지만, 빈 문자열이 전달되면 기본값이 �
 
 ---
 
-## [INFO] 3. 프론트엔드 `api/chat`에서 `routing_profile` 미전달
+## [INFO] 3. 프론트엔드 `gapago/api/chat`에서 `routing_profile` 미전달
 
 **파일**: `frontend/index.html` — `sendChatMessage()`
 
@@ -60,7 +60,7 @@ chat은 POST body로 `session_id`, `message`, `filename`만 전송. `routing_pro
 
 ---
 
-## [INFO] 4. `api/clarify`에 파라미터 미전달 (기존 동작)
+## [INFO] 4. `gapago/api/clarify`에 파라미터 미전달 (기존 동작)
 
 **파일**: `frontend/index.html` — `resumePipeline()`
 
@@ -72,7 +72,7 @@ clarify는 `session_id`와 `response`만 전송. 이것은 main 브랜치에서�
 
 | 우선순위 | 항목 | 파일 | 수정 내용 |
 |---|---|---|---|
-| HIGH | explore session_id 누락 | `api/main.py` | inputs에 `"session_id": new_session_id` 추가 |
+| HIGH | explore session_id 누락 | `gapago/api/main.py` | inputs에 `"session_id": new_session_id` 추가 |
 | LOW | outputLanguage 빈 문자열 | `frontend/index.html` (2곳) | `\|\| 'auto'` fallback 추가 |
 | — | chat routing_profile | — | 수정 불필요 (저장 결과에서 복원됨) |
 | — | clarify 파라미터 | — | 수정 불필요 (기존 동작, graph state에 존재) |

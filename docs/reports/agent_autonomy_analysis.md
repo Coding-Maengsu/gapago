@@ -157,9 +157,9 @@ START
 현재 `critic_score`는 REDO_RETRIEVAL/REFINE_QUERY 결정만 내리고, 재시도 시 이전과 동일한 파이프라인을 반복한다. 어떤 품질 지표가 낮았는지에 따라 재시도 전략을 바꿀 수 있음에도 활용하지 않는다.
 
 **현재 코드 위치:**
-- `agents/critic_agent.py:46-118` — 점수 채점 + DECISION 출력
-- `graphs/graph.py:47-71` — `route_after_critic()` 문자열 매칭으로 라우팅
-- `agents/meaning_expand_agent.py:74-170` — `meaning_expand_node()` critic 피드백 미참조
+- `gapago/agents/critic_agent.py:46-118` — 점수 채점 + DECISION 출력
+- `gapago/graphs/graph.py:47-71` — `route_after_critic()` 문자열 매칭으로 라우팅
+- `gapago/agents/meaning_expand_agent.py:74-170` — `meaning_expand_node()` critic 피드백 미참조
 
 #### 해결 방안
 
@@ -301,9 +301,9 @@ GAPAGO_EVAL_GUIDANCE_INJECTION=0  # 기본값 1
 `critic_score`가 REDO_RETRIEVAL을 결정하면 `meaning_expand`부터 재실행되지만, critic의 평가 내용(어떤 점수가 낮았는지, 어떤 논문이 부적합했는지)이 meaning_expand에 전달되지 않는다.
 
 **현재 코드:**
-- `graphs/graph.py:64-65` — `REDO_RETRIEVAL → "meaning_expand"` 단순 라우팅
-- `agents/meaning_expand_agent.py:74` — state에서 `critic_feedback` 읽는 코드 없음
-- `agents/critic_agent.py:31-37` — Output Format에 점수만 있고 구체적 개선 방향 없음
+- `gapago/graphs/graph.py:64-65` — `REDO_RETRIEVAL → "meaning_expand"` 단순 라우팅
+- `gapago/agents/meaning_expand_agent.py:74` — state에서 `critic_feedback` 읽는 코드 없음
+- `gapago/agents/critic_agent.py:31-37` — Output Format에 점수만 있고 구체적 개선 방향 없음
 
 **핵심 문제**: critic→meaning_expand 루프가 존재하지만, 루프를 통해 전달되는 **정보량이 0**이다.
 
@@ -388,8 +388,8 @@ GAPAGO_CRITIC_FEEDBACK_CHANNEL=0  # 기본값 1
 - ScienceON: `client_id` 유무로만 on/off, 국내 논문 비중 조절 불가
 
 **현재 코드:**
-- `agents/retrieval_agent.py:140-264` — `_parallel_search()` 고정 도구 목록
-- `agents/retrieval_agent.py:167-181` — tasks 리스트 하드코딩
+- `gapago/agents/retrieval_agent.py:140-264` — `_parallel_search()` 고정 도구 목록
+- `gapago/agents/retrieval_agent.py:167-181` — tasks 리스트 하드코딩
 - `states.py:207` — `research_domain` 필드 존재하지만 retrieval에서 미활용
 
 #### 해결 방안

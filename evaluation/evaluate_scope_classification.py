@@ -29,7 +29,7 @@ from collections import defaultdict, Counter
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.states import AgentState
+from gapago.core.states import AgentState
 from langchain_core.messages import HumanMessage
 
 
@@ -74,7 +74,7 @@ def query_agent_predict(query_text: str, llm_provider: str = "azure") -> Tuple[s
     Returns:
         Tuple of (predicted_label, full_result_dict)
     """
-    from agents.query_agent.query_analysis import query_analysis_node
+    from gapago.agents.query_agent.query_analysis import query_analysis_node
 
     state = AgentState(
         messages=[HumanMessage(content=query_text)],

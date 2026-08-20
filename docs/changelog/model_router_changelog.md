@@ -19,8 +19,8 @@ GAPAGO는 10개 이상의 에이전트가 동일한 LLM을 사용하는 "one-siz
 
 | 파일 | 문제 | 수정 |
 |---|---|---|
-| `agents/response_agent.py` | 모듈 레벨 `llm = get_llm()` → 서버 시작 시점 기본 provider로 고정, 사용자 선택 무시 | 모듈 레벨 LLM/agent 제거. `final_response_node()` 내부에서 `get_llm_for_agent(state, "response")` 사용 |
-| `agents/gap_chat_agent.py` | `detect_user_intent()` 내 `get_llm()` → 기본 provider 사용 | 함수에 `provider` 파라미터 추가, 호출부에서 `state.get("llm_provider")` 전달 |
+| `gapago/agents/response_agent.py` | 모듈 레벨 `llm = get_llm()` → 서버 시작 시점 기본 provider로 고정, 사용자 선택 무시 | 모듈 레벨 LLM/agent 제거. `final_response_node()` 내부에서 `get_llm_for_agent(state, "response")` 사용 |
+| `gapago/agents/gap_chat_agent.py` | `detect_user_intent()` 내 `get_llm()` → 기본 provider 사용 | 함수에 `provider` 파라미터 추가, 호출부에서 `state.get("llm_provider")` 전달 |
 
 **채팅 컨텍스트 강화** (같은 커밋):
 - 기존: 논문 수, limitation 수만 전달 → 구체적 질문 답변 불가
@@ -127,7 +127,7 @@ llm = get_llm_for_agent(state, "agent_name")
 
 ### 5. 교차 검증 파일럿 (`c96d5b9`)
 
-**파일**: `agents/limitation_agent.py` — `_verify_limitations()` 함수 추가
+**파일**: `gapago/agents/limitation_agent.py` — `_verify_limitations()` 함수 추가
 
 limitation_extract 완료 후, 추출된 limitation을 **다른 provider**로 검증하는 단계.
 
@@ -197,19 +197,19 @@ LLM 프로바이더 드롭다운 아래에 라우팅 프로파일 선택기 추�
 | `model_router.py` | **신규** — ModelRouter + 프리셋 |
 | `llm.py` | `get_llm_for_agent()` 헬퍼 추가 |
 | `states.py` | `model_routing: dict` 필드 추가 |
-| `agents/response_agent.py` | 버그 수정 (모듈 레벨 LLM 제거) |
-| `agents/gap_chat_agent.py` | 버그 수정 (provider 전달) + 채팅 컨텍스트 강화 |
-| `agents/gap_agent.py` | `_llm_invoke()` state 기반 마이그레이션 |
-| `agents/meaning_expand_agent.py` | `get_llm_for_agent` 적용 |
-| `agents/critic_agent.py` | `get_llm_for_agent` 적용 |
-| `agents/query_agent/query_analysis.py` | `get_llm_for_agent` 적용 |
-| `agents/query_agent/query_refine.py` | `get_llm_for_agent` 적용 |
-| `agents/recency_agent.py` | `get_llm_for_agent` 적용 |
-| `agents/limitation_eval_agent.py` | `get_llm_for_agent` 적용 |
-| `agents/limitation_agent.py` | `get_llm_for_agent` 적용 + `_verify_limitations()` 추가 |
-| `agents/retrieval_agent.py` | `get_llm_for_agent` 적용 |
-| `agents/orchestrator_agent.py` | `get_llm_for_agent` 적용 + fast_mode 유동 판단 |
-| `api/main.py` | `routing_profile` 파라미터 + `model_routing` state 주입 |
+| `gapago/agents/response_agent.py` | 버그 수정 (모듈 레벨 LLM 제거) |
+| `gapago/agents/gap_chat_agent.py` | 버그 수정 (provider 전달) + 채팅 컨텍스트 강화 |
+| `gapago/agents/gap_agent.py` | `_llm_invoke()` state 기반 마이그레이션 |
+| `gapago/agents/meaning_expand_agent.py` | `get_llm_for_agent` 적용 |
+| `gapago/agents/critic_agent.py` | `get_llm_for_agent` 적용 |
+| `gapago/agents/query_agent/query_analysis.py` | `get_llm_for_agent` 적용 |
+| `gapago/agents/query_agent/query_refine.py` | `get_llm_for_agent` 적용 |
+| `gapago/agents/recency_agent.py` | `get_llm_for_agent` 적용 |
+| `gapago/agents/limitation_eval_agent.py` | `get_llm_for_agent` 적용 |
+| `gapago/agents/limitation_agent.py` | `get_llm_for_agent` 적용 + `_verify_limitations()` 추가 |
+| `gapago/agents/retrieval_agent.py` | `get_llm_for_agent` 적용 |
+| `gapago/agents/orchestrator_agent.py` | `get_llm_for_agent` 적용 + fast_mode 유동 판단 |
+| `gapago/api/main.py` | `routing_profile` 파라미터 + `model_routing` state 주입 |
 | `frontend/index.html` | 라우팅 프로파일 선택 UI |
 | `main.py` | 라우팅 프로파일 CLI 메뉴 + `model_routing` state 주입 |
 
@@ -219,8 +219,8 @@ LLM 프로바이더 드롭다운 아래에 라우팅 프로파일 선택기 추�
 
 | 파일 | 문제 | 수정 |
 |---|---|---|
-| `agents/gap_chat_agent.py` | `gap_chat_respond()` 내 `get_llm()` → 기본 provider 사용 | `get_llm_for_agent(state, "gap_chat")` 로 마이그레이션 |
-| `api/main.py` | explore 엔드포인트에 `fast_mode` 미전달, `_save_result`에 라우팅 정보 미저장 | `fast_mode` 파라미터 추가, `_save_result`에 `llm_provider`/`model_routing`/`output_language` 저장, `_build_chat_state`에 `model_routing`/`output_language` 전달 |
+| `gapago/agents/gap_chat_agent.py` | `gap_chat_respond()` 내 `get_llm()` → 기본 provider 사용 | `get_llm_for_agent(state, "gap_chat")` 로 마이그레이션 |
+| `gapago/api/main.py` | explore 엔드포인트에 `fast_mode` 미전달, `_save_result`에 라우팅 정보 미저장 | `fast_mode` 파라미터 추가, `_save_result`에 `llm_provider`/`model_routing`/`output_language` 저장, `_build_chat_state`에 `model_routing`/`output_language` 전달 |
 | `frontend/index.html` | explore 호출 시 `fast_mode` 파라미터 누락 | explore API 호출에 `fast_mode` 파라미터 추가 |
 
 ---
@@ -245,8 +245,8 @@ LLM 프로바이더 드롭다운 아래에 라우팅 프로파일 선택기 추�
 
 | 파일 | 변경 내용 |
 |---|---|
-| `agents/gap_chat_agent.py` | `gap_chat_respond()` LLM 라우팅 마이그레이션 |
-| `api/main.py` | explore `fast_mode`, `_save_result`/`_build_chat_state` 필드 보강 |
+| `gapago/agents/gap_chat_agent.py` | `gap_chat_respond()` LLM 라우팅 마이그레이션 |
+| `gapago/api/main.py` | explore `fast_mode`, `_save_result`/`_build_chat_state` 필드 보강 |
 | `frontend/index.html` | explore `fast_mode` + 프로파일별 provider 드롭다운 조건부 표시 |
 | `main.py` | 프로파일별 provider 선택 로직 분기 |
 | `model_router.py` | `PROFILE_DEFAULT_PROVIDERS` 추가 |

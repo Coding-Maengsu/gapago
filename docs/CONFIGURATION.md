@@ -64,7 +64,7 @@ arXiv · Crossref · Semantic Scholar · OpenAlex 는 키가 필요 없습니다
 ## 모델 라우팅 프로파일
 
 에이전트마다 요구 능력이 달라 프로파일 단위로 모델을 배정합니다
-(`core/model_router.py`).
+(`gapago/core/model_router.py`).
 
 | 프로파일 | 배정 |
 |---|---|

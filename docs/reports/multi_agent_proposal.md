@@ -119,9 +119,9 @@ query → expand → retrieval → limitation → eval → recency → gap → c
 | 파일 | 상태 | 내용 |
 |------|:---:|------|
 | `states.py` | 수정 | `completed_stages`, `agent_feedback`, `orchestrator_plan` 3개 필드 추가 |
-| `agents/orchestrator_agent.py` | 신규 | LLM 오케스트레이터 노드 (~180줄) |
-| `graphs/orchestrator_graph.py` | 신규 | 동적 그래프 빌드 + 에이전트 래퍼 (~130줄) |
-| `graphs/graph.py` | 수정 | `build_graph()`에 환경변수 분기 추가 (5줄) |
+| `gapago/agents/orchestrator_agent.py` | 신규 | LLM 오케스트레이터 노드 (~180줄) |
+| `gapago/graphs/orchestrator_graph.py` | 신규 | 동적 그래프 빌드 + 에이전트 래퍼 (~130줄) |
+| `gapago/graphs/graph.py` | 수정 | `build_graph()`에 환경변수 분기 추가 (5줄) |
 | `tests/test_orchestrator.py` | 신규 | 단위 테스트 24개 (전부 통과) |
 
 **기존 에이전트 코드 변경: 0줄** — 모든 기존 에이전트는 그대로 동작합니다.

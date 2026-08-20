@@ -122,32 +122,30 @@ LLM이 매 스텝 상태를 보고 다음 에이전트를 정하는 오케스트
 ├── Dockerfile               멀티스테이지 (랜딩 빌드 + 앱)
 ├── requirements.txt         직접 의존성 · requirements-lock.txt 는 재현용
 │
-├── api/main.py              FastAPI 서버 — SSE 스트리밍, 세션 관리
-├── graphs/                  LangGraph 그래프 (고정 / 오케스트레이터 / 쿼리 서브그래프)
-├── agents/                  에이전트 노드 10종
-│   ├── query_agent/           쿼리 분석
-│   ├── retrieval_agent.py     8소스 병렬 검색 + 3단계 리랭킹
-│   ├── limitation_agent.py    전문 기반 한계점 추출
-│   ├── limitation_eval_agent.py  FActScore + Prometheus 품질 검증
-│   ├── recency_agent.py       웹 검색 기반 최신성 대조
-│   ├── gap_agent.py           동적 축 생성 + GAP 추론
-│   └── ...                    critic · response · gap_chat · orchestrator
+├── gapago/                  애플리케이션 패키지
+│   ├── paths.py               프로젝트 경로 단일 기준점
+│   ├── api/main.py            FastAPI 서버 — SSE 스트리밍, 세션 관리
+│   ├── graphs/                LangGraph 그래프 (고정 / 오케스트레이터 / 쿼리 서브그래프)
+│   ├── agents/                에이전트 노드 10종
+│   │   ├── query_agent/         쿼리 분석
+│   │   ├── retrieval_agent.py   8소스 병렬 검색 + 3단계 리랭킹
+│   │   ├── limitation_agent.py  전문 기반 한계점 추출
+│   │   ├── gap_agent.py         동적 축 생성 + GAP 추론
+│   │   └── ...                  eval · recency · critic · response · chat · orchestrator
+│   ├── core/                  공용 모듈
+│   │   ├── tools/               검색 소스별 (arxiv · crossref · s2 · openalex · scienceon)
+│   │   ├── llm.py               Provider 추상화
+│   │   ├── model_router.py      에이전트별 모델 배정
+│   │   ├── states.py            AgentState 및 스키마
+│   │   ├── config.py            환경 변수 설정
+│   │   └── prompts.py           공통 시스템 프롬프트
+│   └── utils/                 progress(SSE) · session_store · cancel · parse_json · tavily
 │
-├── core/                    공용 모듈 — 에이전트 · 그래프 · API 가 함께 사용
-│   ├── tools/                 검색 소스별 모듈 (arxiv · crossref · s2 · openalex · scienceon)
-│   ├── llm.py                 Provider 추상화 (azure · claude · gemini · groq · exaone · qwq)
-│   ├── model_router.py        에이전트별 모델 배정 프로파일
-│   ├── states.py              AgentState 및 Pydantic 스키마
-│   ├── config.py              환경 변수 기반 설정
-│   └── prompts.py             공통 시스템 프롬프트
-│
-├── utils/                   progress(SSE) · session_store(SQLite) · cancel · parse_json · tavily
 ├── frontend/index.html      분석 앱 UI
 ├── landing/                 랜딩 페이지 (React 19 + Vite + Tailwind)
 │
 ├── data/input_sample.json   배치 입력 예시
-├── evaluation/              평가 프레임워크 (LitSearch · scope 분류 벤치마크)
-├── scripts/                 평가 · 벤치마크 · 프로파일링 도구
+├── evaluation/              평가 · 벤치마크 · 프로파일링 도구
 ├── tests/                   pytest
 └── docs/                    설정 · API · 스펙 · 설계 문서
 ```
@@ -173,9 +171,9 @@ Groundedness · Specificity · Relevance 를 1~5점으로 채점합니다(Promet
 ## 평가 · 개발 도구
 
 ```bash
-python scripts/evaluate.py --result-file outputs/gapago_result_*.json   # baseline LLM 과 품질 비교
-python scripts/compare_modes.py "연구 주제"                              # 고정 vs 오케스트레이터 모드
-python scripts/profile_timing.py                                        # 단계별 소요 시간
+python evaluation/evaluate.py --result-file outputs/gapago_result_*.json   # baseline LLM 과 품질 비교
+python evaluation/compare_modes.py "연구 주제"                              # 고정 vs 오케스트레이터 모드
+python evaluation/profile_timing.py                                        # 단계별 소요 시간
 
 python evaluation/run_evaluation.py                                     # LitSearch · scope 벤치마크
 pytest

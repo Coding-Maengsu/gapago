@@ -1,6 +1,6 @@
 # HTTP API 레퍼런스
 
-FastAPI 서버(`api/main.py`). 기본 베이스 URL: `http://localhost:8000`
+FastAPI 서버(`gapago/api/main.py`). 기본 베이스 URL: `http://localhost:8000`
 
 더 깊은 내부 동작은 [`specs/SPEC_API.md`](specs/SPEC_API.md)를 참고하세요.
 

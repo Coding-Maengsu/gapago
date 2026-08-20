@@ -3,8 +3,8 @@
 ## 1. 시스템 개요
 
 한계점 시스템은 2개 에이전트로 구성됨:
-- **Limitation Extraction Agent** (`agents/limitation_agent.py`, 1663줄): 논문 전문 획득 → 섹션 분할 → 한계점 추출
-- **Limitation Eval Agent** (`agents/limitation_eval_agent.py`, 549줄): 2-Call 파이프라인으로 품질 검증 + PASS/RETRY 결정
+- **Limitation Extraction Agent** (`gapago/agents/limitation_agent.py`, 1663줄): 논문 전문 획득 → 섹션 분할 → 한계점 추출
+- **Limitation Eval Agent** (`gapago/agents/limitation_eval_agent.py`, 549줄): 2-Call 파이프라인으로 품질 검증 + PASS/RETRY 결정
 
 핵심 원칙: **Full text 전용** — abstract fallback 없음. full text 획득 실패 논문은 제거 후 backup 논문으로 대체.
 

@@ -14,17 +14,17 @@
 
 | 구성 요소 | 위치 | 예상 메모리 | 정리 방식 | 위험도 |
 |-----------|------|------------|----------|--------|
-| `_sessions` dict (이벤트 무한 누적) | `api/main.py:100` | **무제한 증가** | `/api/stop`만 | **Critical** |
-| **MemorySaver 체크포인트** (공유 그래프) | `graphs/graph.py:126` | **무제한 증가** | **없음** | **Critical** |
+| `_sessions` dict (이벤트 무한 누적) | `gapago/api/main.py:100` | **무제한 증가** | `/api/stop`만 | **Critical** |
+| **MemorySaver 체크포인트** (공유 그래프) | `gapago/graphs/graph.py:126` | **무제한 증가** | **없음** | **Critical** |
 | **PDF 동시 다운로드 (8워커)** | `limitation_agent.py:1280` | **피크 ~240MB** | 함수 종료 | **Critical** |
-| `_chat_histories` dict | `api/main.py:423` | **무제한 증가** | 없음 | **High** |
+| `_chat_histories` dict | `gapago/api/main.py:423` | **무제한 증가** | 없음 | **High** |
 | `messages` 리스트 (LangGraph state) | `states.py:177` | **노드마다 누적** | 없음 | **High** |
 | ML 모델 (MiniLM + CrossEncoder light) | `retrieval_agent.py:32-35` | ~80MB (고정) | 없음 (설계상) | Low |
-| progress 큐 | `utils/progress.py:13` | 소량 | ✅ 정리됨 | Low |
+| progress 큐 | `gapago/utils/progress.py:13` | 소량 | ✅ 정리됨 | Low |
 
 ### 핵심 발견: MemorySaver 누적
 
-`_graph_cache`가 프로세스 전체에서 **단일 인스턴스**로 공유됨 (`api/main.py:80-86`).
+`_graph_cache`가 프로세스 전체에서 **단일 인스턴스**로 공유됨 (`gapago/api/main.py:80-86`).
 이 graph 안의 `MemorySaver`도 하나이며, 모든 세션의 체크포인트가 `thread_id`별로 누적됨.
 
 ```
@@ -81,7 +81,7 @@ State 1회분: papers(20편) + limitations(100개) + messages + gaps ≈ 300KB
 
 #### 1-1. startup 시 interrupted 세션 정리
 
-**파일:** `utils/session_store.py` — `init_db()`
+**파일:** `gapago/utils/session_store.py` — `init_db()`
 
 **현재:** running → `error`
 **변경:** running → `interrupted` (에러가 아니라 서버 재시작으로 중단된 것)
@@ -100,7 +100,7 @@ conn.execute("""
 
 #### 1-2. `/api/stop` — pop() → 상태 변경
 
-**파일:** `api/main.py:535-549`
+**파일:** `gapago/api/main.py:535-549`
 
 **현재:** `_sessions.pop(session_id, None)` — 즉시 삭제 → 스트림 연결 중 404
 **변경:** 상태만 변경, 정리는 reaper에 위임
@@ -117,7 +117,7 @@ update_session_status(session_id, "stopped")
 
 #### 1-3. 세션 자동 정리 reaper + MemorySaver 체크포인트 해제 (핵심)
 
-**파일:** `api/main.py` (신규 함수)
+**파일:** `gapago/api/main.py` (신규 함수)
 
 완료/중단/에러 상태 세션을 TTL 기반으로 자동 정리하는 백그라운드 태스크.
 **MemorySaver 체크포인트도 함께 삭제.**
@@ -188,7 +188,7 @@ async def warmup():
 
 #### 1-4. 파이프라인 완료 시 completed_at 기록
 
-**파일:** `api/main.py` — `_run_pipeline()` 내
+**파일:** `gapago/api/main.py` — `_run_pipeline()` 내
 
 ```python
 # 완료 경로 (line 245-248)
@@ -209,7 +209,7 @@ session["completed_at"] = datetime.now()  # ← 추가
 
 #### 2-1. 세션당 이벤트 수 제한
 
-**파일:** `api/main.py:166-172`
+**파일:** `gapago/api/main.py:166-172`
 
 ```python
 _MAX_EVENTS_PER_SESSION = 500
@@ -230,7 +230,7 @@ def _push_event(session_id: str, event: dict):
 
 #### 3-1. 메시지 수 상한
 
-**파일:** `api/main.py:456-458`
+**파일:** `gapago/api/main.py:456-458`
 
 ```python
 _MAX_CHAT_MESSAGES = 100
@@ -252,7 +252,7 @@ if len(_chat_histories[chat_key]) > _MAX_CHAT_MESSAGES:
 async function reconnectToSession(sessionId, query) {
     // ── status 확인 먼저 ──
     try {
-        const statusResp = await fetch(`api/status/${sessionId}`);
+        const statusResp = await fetch(`gapago/api/status/${sessionId}`);
         const statusData = await statusResp.json();
         if (['not_found', 'stopped', 'error', 'completed'].includes(statusData.status)) {
             showError('이 세션은 더 이상 사용할 수 없습니다. 새로운 분석을 시작해주세요.');
@@ -282,7 +282,7 @@ async function connectToStream(sessionId, fromIdx, retries = 1) {
 
 ### Phase 5: `/api/stream` SQLite fallback (선택)
 
-**파일:** `api/main.py:491-507`
+**파일:** `gapago/api/main.py:491-507`
 
 완료/중단된 세션의 스트림 요청 시 404 대신 적절한 SSE 응답 반환.
 
@@ -315,7 +315,7 @@ async def stream(session_id: str, from_idx: int = 0):
 
 #### 6-1. PDF 동시 다운로드 워커 축소
 
-**파일:** `agents/limitation_agent.py:1280`
+**파일:** `gapago/agents/limitation_agent.py:1280`
 
 **현재:** `ThreadPoolExecutor(max_workers=min(8, len(papers)))` — 8개 동시 다운로드
 **변경:** `max_workers=3`으로 축소
@@ -333,7 +333,7 @@ with ThreadPoolExecutor(max_workers=min(3, len(papers))) as executor:
 
 #### 6-2. PDF 크기 제한 추가
 
-**파일:** `agents/limitation_agent.py` — PDF 다운로드 함수들
+**파일:** `gapago/agents/limitation_agent.py` — PDF 다운로드 함수들
 
 ```python
 _MAX_PDF_BYTES = 10 * 1024 * 1024  # 10MB 제한
@@ -349,7 +349,7 @@ if len(resp.content) > _MAX_PDF_BYTES:
 
 #### 6-3. `_save_result()` 스트리밍 직렬화
 
-**파일:** `api/main.py:127-163`
+**파일:** `gapago/api/main.py:127-163`
 
 **현재:** `json.dumps(result)` → 전체 결과를 문자열로 메모리에 올림
 **변경:** `json.dump(result, f)`로 파일에 직접 스트리밍
@@ -369,7 +369,7 @@ with open(path, "w", encoding="utf-8") as f:
 
 #### 7-1. requests.Session() 사용
 
-**파일:** `agents/limitation_agent.py`, `agents/retrieval_agent.py`
+**파일:** `gapago/agents/limitation_agent.py`, `gapago/agents/retrieval_agent.py`
 
 **현재:** 매번 `requests.get()` 새 연결 생성 (TCP 핸드셰이크 + 메모리 누적)
 **변경:** 모듈 레벨 `requests.Session()` 공유
@@ -467,13 +467,13 @@ HTTP 연결 풀 (재사용):            ~2MB
 
 | 파일 | 변경 내용 |
 |------|----------|
-| `utils/session_store.py` | `init_db()` — running → interrupted |
-| `api/main.py` | reaper 추가, stop pop→상태변경, 이벤트 상한, completed_at, stream fallback, _save_result 스트리밍 |
-| `agents/limitation_agent.py` | PDF 워커 8→3, PDF 크기 제한, HTTP 세션 풀링 |
-| `agents/retrieval_agent.py` | HTTP 세션 풀링 |
+| `gapago/utils/session_store.py` | `init_db()` — running → interrupted |
+| `gapago/api/main.py` | reaper 추가, stop pop→상태변경, 이벤트 상한, completed_at, stream fallback, _save_result 스트리밍 |
+| `gapago/agents/limitation_agent.py` | PDF 워커 8→3, PDF 크기 제한, HTTP 세션 풀링 |
+| `gapago/agents/retrieval_agent.py` | HTTP 세션 풀링 |
 | `frontend/index.html` | reconnect status 체크, 재시도 축소 |
 | `render.yaml` | ORT_DISABLE_GPU_DEVICE_ENUMERATION 환경변수 |
-| `graphs/graph.py` | 변경 없음 (reaper에서 checkpointer 접근) |
+| `gapago/graphs/graph.py` | 변경 없음 (reaper에서 checkpointer 접근) |
 
 ---
 

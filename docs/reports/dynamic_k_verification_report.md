@@ -1,7 +1,7 @@
 # 동적 K 검증 리포트
 
 > 분석일: 2026-04-01
-> 대상 코드: `agents/retrieval_agent.py`, `config.py`, `api/main.py`
+> 대상 코드: `gapago/agents/retrieval_agent.py`, `config.py`, `gapago/api/main.py`
 
 ---
 
@@ -95,7 +95,7 @@ raw_papers = _llm_rerank(stage1_papers, query, top_k=cfg.reranker_top_k)
 
 ## 2. 프론트엔드 전달값 분석
 
-### `api/main.py` (line 738-739)
+### `gapago/api/main.py` (line 738-739)
 
 ```python
 payload["papers_count"] = len(papers)

@@ -13,21 +13,21 @@
 
 | 순서 | 노드 | 파일 | 역할 |
 |------|------|------|------|
-| 1 | query_subgraph | `agents/query_agent/` | 연구 질문 범위 평가 + 정제 (SemRank) |
-| 2 | meaning_expand | `agents/meaning_expand_agent.py` | 검색 키워드 확장 (동의어, 약어, 변형) |
-| 3 | paper_retrieval | `agents/retrieval_agent.py` | 다중 소스 논문 검색 + 임베딩 리랭킹 |
-| 4 | limitation_extract | `agents/limitation_agent.py` | 전문(full-text) 기반 한계점 추출 |
-| 5 | limitation_eval | `agents/limitation_eval_agent.py` | 한계점 품질 검증 (FActScore + Prometheus) |
-| 6 | recency_check | `agents/recency_agent.py` | 최신성 검증 (웹 검색 기반) |
-| 7 | gap_infer | `agents/gap_agent.py` | 연구 갭 도출 (동적 축 생성 + 긴급도 채점) |
-| 8 | critic_score → final_response | `agents/critic_agent.py`, `agents/response_agent.py` | 품질 게이트 + 최종 리포트 생성 |
+| 1 | query_subgraph | `gapago/agents/query_agent/` | 연구 질문 범위 평가 + 정제 (SemRank) |
+| 2 | meaning_expand | `gapago/agents/meaning_expand_agent.py` | 검색 키워드 확장 (동의어, 약어, 변형) |
+| 3 | paper_retrieval | `gapago/agents/retrieval_agent.py` | 다중 소스 논문 검색 + 임베딩 리랭킹 |
+| 4 | limitation_extract | `gapago/agents/limitation_agent.py` | 전문(full-text) 기반 한계점 추출 |
+| 5 | limitation_eval | `gapago/agents/limitation_eval_agent.py` | 한계점 품질 검증 (FActScore + Prometheus) |
+| 6 | recency_check | `gapago/agents/recency_agent.py` | 최신성 검증 (웹 검색 기반) |
+| 7 | gap_infer | `gapago/agents/gap_agent.py` | 연구 갭 도출 (동적 축 생성 + 긴급도 채점) |
+| 8 | critic_score → final_response | `gapago/agents/critic_agent.py`, `gapago/agents/response_agent.py` | 품질 게이트 + 최종 리포트 생성 |
 
 ### 1-3. 보조 Agent
 
 | Agent | 파일 | 역할 |
 |-------|------|------|
-| orchestrator | `agents/orchestrator_agent.py` | LLM 기반 동적 라우팅 (선택적 노드 삽입) |
-| gap_chat | `agents/gap_chat_agent.py` | 분석 결과 대화형 Q&A |
+| orchestrator | `gapago/agents/orchestrator_agent.py` | LLM 기반 동적 라우팅 (선택적 노드 삽입) |
+| gap_chat | `gapago/agents/gap_chat_agent.py` | 분석 결과 대화형 Q&A |
 
 ### 1-4. 데이터 흐름도
 

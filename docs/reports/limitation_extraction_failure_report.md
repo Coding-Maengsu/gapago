@@ -1,7 +1,7 @@
 # 한계점 미추출 논문 — 원인 분석 리포트
 
 > 분석일: 2026-04-01
-> 대상 코드: `agents/limitation_agent.py`
+> 대상 코드: `gapago/agents/limitation_agent.py`
 > **주의**: 해결책 실행 전 사용자 확인 필요
 
 ---

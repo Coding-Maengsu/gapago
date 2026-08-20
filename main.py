@@ -30,13 +30,13 @@ OUTPUT_DIR = BASE_DIR / "outputs"
 @lru_cache(maxsize=1)
 def get_graph():
     """LangGraph 그래프를 최초 1회만 빌드해 재사용한다 (api/main.py 와 동일한 패턴)."""
-    from graphs.graph import build_graph
+    from gapago.graphs.graph import build_graph
     return build_graph()
 
 
 def _load_env():
     """GAPAGO 모듈보다 먼저 .env 를 로드한다. 각 서브커맨드 진입 시 최초 1회."""
-    from core import config  # noqa: F401
+    from gapago.core import config  # noqa: F401
 
 async def aenumerate(aiter, start=0):
     i = start
@@ -234,8 +234,8 @@ async def run_batch(graph, input_path: str | None = None, output_path: str | Non
     """
     import os
     from langchain_core.messages import HumanMessage
-    from core.llm import get_llm
-    from core.model_router import ModelRouter, PROFILE_DEFAULT_PROVIDERS
+    from gapago.core.llm import get_llm
+    from gapago.core.model_router import ModelRouter, PROFILE_DEFAULT_PROVIDERS
 
     # 무인 실행이므로 수집량을 보수적으로 고정 (환경변수로 덮어쓸 수 있음)
     os.environ.setdefault("ARXIV_MAX_RESULTS", "3")
@@ -345,7 +345,7 @@ async def run(graph):
     # --- LLM Provider 선택 ---
     import os
     from langchain_core.messages import HumanMessage
-    from core.model_router import ModelRouter, PROFILE_DEFAULT_PROVIDERS
+    from gapago.core.model_router import ModelRouter, PROFILE_DEFAULT_PROVIDERS
 
     selected_provider = PROFILE_DEFAULT_PROVIDERS.get(routing_profile, "azure")
     print(f"\n  → 프로파일 '{routing_profile}'의 기본 provider: {selected_provider} (자동 선택)")
@@ -353,7 +353,7 @@ async def run(graph):
     os.environ["LLM_PROVIDER"] = selected_provider
 
     # lru_cache 초기화 (provider 변경 반영)
-    from core.llm import get_llm
+    from gapago.core.llm import get_llm
     get_llm.cache_clear()
 
     # --- LLM 사전 초기화 (warmup) ---
@@ -497,7 +497,7 @@ async def run(graph):
         print("\n결과에 대해 질문하시겠습니까?")
         chat_answer = input("(y/n, 기본값: n) > ").strip().lower()
         if chat_answer in ("y", "yes", "ㅛ"):
-            from agents.gap_chat_agent import interactive_chat_loop
+            from gapago.agents.gap_chat_agent import interactive_chat_loop
             interactive_chat_loop(values)
 
 # =====================================================================
@@ -549,7 +549,7 @@ def _cmd_serve(args):
         print("[안내] landing/dist 가 없어 / 는 분석 앱으로 대체됩니다.")
         print("       랜딩 페이지까지 보려면: cd landing && npm install && npm run build")
     # import 문자열로 넘겨야 --reload 가 동작하고, 이 프로세스가 FastAPI 를 직접 import 하지 않는다
-    uvicorn.run("api.main:app", host=args.host, port=port, reload=args.reload, workers=1)
+    uvicorn.run("gapago.api.main:app", host=args.host, port=port, reload=args.reload, workers=1)
 
 
 def _cmd_analyze(args, parser):

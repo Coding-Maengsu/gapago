@@ -155,7 +155,7 @@ cat results/scope_baseline.json | jq '.misclassification_analysis'
 
 #### 3.2 Modify SYSTEM_PROMPT
 
-Edit `agents/query_agent/query_analysis.py:45-170`
+Edit `gapago/agents/query_agent/query_analysis.py:45-170`
 
 **Example changes**:
 1. **Stricter TOO_BROAD**: Require [D]+[T] minimum for SEARCHABLE

@@ -4,13 +4,13 @@
 
 GAPAGO의 핵심은 LangGraph StateGraph 기반의 멀티 에이전트 파이프라인이다. 10개의 에이전트 노드가 순차적/조건부로 실행되며(+ 1개 오케스트레이터 에이전트, 1개 파이프라인 외부 대화 에이전트), 사용자의 연구 질문에서 시작하여 논문 검색 → 한계점 추출 → 갭 추론 → 품질 평가 → 최종 보고서를 생성한다.
 
-**LLM 라우팅**: 모든 에이전트는 `get_llm_for_agent(state, agent_name)`을 사용하여 `ModelRouter`가 에이전트별 최적 LLM provider를 자동 배정한다 (`core/model_router.py`). `model_routing` state 필드가 없으면 기존 `llm_provider`로 fallback.
+**LLM 라우팅**: 모든 에이전트는 `get_llm_for_agent(state, agent_name)`을 사용하여 `ModelRouter`가 에이전트별 최적 LLM provider를 자동 배정한다 (`gapago/core/model_router.py`). `model_routing` state 필드가 없으면 기존 `llm_provider`로 fallback.
 
 ---
 
 ## 2. 파이프라인 흐름도
 
-### 2.1 메인 파이프라인 (`graphs/graph.py`)
+### 2.1 메인 파이프라인 (`gapago/graphs/graph.py`)
 
 ```
 START
@@ -46,7 +46,7 @@ final_response
 END
 ```
 
-### 2.2 쿼리 서브그래프 (`graphs/query_subgraph.py`)
+### 2.2 쿼리 서브그래프 (`gapago/graphs/query_subgraph.py`)
 
 ```
 START
@@ -62,7 +62,7 @@ query_analysis
 - `interrupt_before=["human_clarify"]`: 명확화 노드 진입 전 인터럽트
 - 최대 반복: `max_iterations = 3`
 
-### 2.3 오케스트레이터 파이프라인 (`graphs/orchestrator_graph.py`)
+### 2.3 오케스트레이터 파이프라인 (`gapago/graphs/orchestrator_graph.py`)
 
 `GAPAGO_ORCHESTRATOR=1` 환경변수로 활성화. LLM 기반 동적 파이프라인 조율.
 
@@ -116,7 +116,7 @@ END
 
 ### 3.1 Query Analysis Node
 
-**파일:** `agents/query_agent/query_analysis.py`
+**파일:** `gapago/agents/query_agent/query_analysis.py`
 
 **역할:** 연구 질문의 검색 가능성 평가 (SemRank 프레임워크)
 
@@ -152,7 +152,7 @@ END
 
 ### 3.2 Human Clarify Node
 
-**파일:** `agents/query_agent/query_analysis.py`
+**파일:** `gapago/agents/query_agent/query_analysis.py`
 
 **역할:** 쿼리 명확화를 위한 인터럽트 포인트
 
@@ -170,7 +170,7 @@ END
 
 ### 3.3 Meaning Expand Node
 
-**파일:** `agents/meaning_expand_agent.py`
+**파일:** `gapago/agents/meaning_expand_agent.py`
 
 **역할:** 키워드 확장 및 검색 전략 수립 (도구 호출 없음 — 준비 단계)
 
@@ -187,7 +187,7 @@ END
 
 ### 3.4 Paper Retrieval Node
 
-**파일:** `agents/retrieval_agent.py`
+**파일:** `gapago/agents/retrieval_agent.py`
 
 **역할:** 멀티소스 병렬 논문 검색 + 다단계 랭킹
 
@@ -254,7 +254,7 @@ END
 
 ### 3.5 Limitation Extract Node
 
-**파일:** `agents/limitation_agent.py`
+**파일:** `gapago/agents/limitation_agent.py`
 
 **역할:** 2-트랙 한계점 추출
 
@@ -330,7 +330,7 @@ END
 
 ### 3.6 Limitation Eval Node
 
-**파일:** `agents/limitation_eval_agent.py`
+**파일:** `gapago/agents/limitation_eval_agent.py`
 
 **역할:** 이중 호출 한계점 품질 평가
 
@@ -379,7 +379,7 @@ END
 
 ### 3.7 Recency Check Node
 
-**파일:** `agents/recency_agent.py`
+**파일:** `gapago/agents/recency_agent.py`
 
 **역할:** 한계점의 최근 해결 여부 웹 검증
 
@@ -411,7 +411,7 @@ END
 
 ### 3.8 Gap Infer Node
 
-**파일:** `agents/gap_agent.py`
+**파일:** `gapago/agents/gap_agent.py`
 
 **역할:** 4단계 연구 갭 추론 파이프라인 (완전 동적 축 — 고정 축 없음)
 
@@ -565,7 +565,7 @@ END
 
 ### 3.9 Critic Score Node
 
-**파일:** `agents/critic_agent.py`
+**파일:** `gapago/agents/critic_agent.py`
 
 **역할:** 품질 게이트키퍼 + 조건부 라우팅
 
@@ -593,7 +593,7 @@ END
 
 ### 3.10 Final Response Node
 
-**파일:** `agents/response_agent.py`
+**파일:** `gapago/agents/response_agent.py`
 
 **역할:** 구조화된 마크다운 최종 보고서 생성
 
@@ -615,7 +615,7 @@ END
 
 ### 3.11 Gap Chat Agent (결과 검토 대화)
 
-**파일:** `agents/gap_chat_agent.py`
+**파일:** `gapago/agents/gap_chat_agent.py`
 
 **역할:** 파이프라인 완료 후 사용자와 대화형 결과 검토
 
@@ -648,7 +648,7 @@ END
 
 ## 4. 상태 관리 (AgentState)
 
-**파일:** `core/states.py`
+**파일:** `gapago/core/states.py`
 
 ### 4.1 AgentState TypedDict 전체 구조
 
@@ -841,7 +841,7 @@ class CriticScores(BaseModel):
 
 ## 6. 프롬프트 엔지니어링
 
-### 6.1 기본 시스템 프롬프트 (`core/prompts.py`)
+### 6.1 기본 시스템 프롬프트 (`gapago/core/prompts.py`)
 
 `make_system_prompt(suffix)` 함수로 공통 기반 + 에이전트별 접미사 결합:
 
@@ -878,7 +878,7 @@ class CriticScores(BaseModel):
 
 ## 7. 평가 프레임워크
 
-**파일:** `scripts/evaluate.py`
+**파일:** `evaluation/evaluate.py`
 
 ### 7.1 평가 메트릭 (5개, 가중치 합계 1.0)
 
@@ -973,5 +973,5 @@ utils/
 ├── session_store.py                 # SQLite 세션 영속화 (서버 재시작 복구)
 └── cancel.py                        # 파이프라인 취소 레지스트리
 
-scripts/evaluate.py                  # 베이스라인 비교 + 메트릭 점수
+evaluation/evaluate.py                  # 베이스라인 비교 + 메트릭 점수
 ```

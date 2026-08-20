@@ -1,6 +1,6 @@
 # GAPAGO 팩트시트 — 코드 분석 기반
 
-## 0. Orchestrator (`agents/orchestrator_agent.py`)
+## 0. Orchestrator (`gapago/agents/orchestrator_agent.py`)
 - LangGraph StateGraph 기반 전체 흐름 제어
 - 필수 파이프라인: meaning_expand → paper_retrieval → limitation_extract → gap_infer → final_response
 - 선택적 품질 게이트 (LLM이 동적 삽입 판단): limitation_eval, recency_check, critic_score
@@ -8,7 +8,7 @@
 - 재실행 제한: optional agent당 최대 2회, 전체 최대 15 step
 - 환경변수 `GAPAGO_ORCHESTRATOR=1`로 활성화
 
-## 1. Query Analysis Agent (`agents/query_agent/`)
+## 1. Query Analysis Agent (`gapago/agents/query_agent/`)
 - **SemRank (Zhang et al., EMNLP 2025)**: multi-granular 과학 개념 인덱싱
   - `general_topic` (broad) vs `specific_phrases` (concrete) 추출
   - specific_phrases가 비어있으면 TOO_BROAD 판정
@@ -26,7 +26,7 @@
 - Human-in-the-Loop: TOO_BROAD/TOO_NARROW 시 사용자 인터럽트
 - 최대 반복: max_iterations = 3
 
-## 2. Meaning Expand Agent (`agents/meaning_expand_agent.py`)
+## 2. Meaning Expand Agent (`gapago/agents/meaning_expand_agent.py`)
 - 키워드 확장: 약어 확장, 철자 변형, 동의어 매핑
 - 플랫폼별 쿼리 후보 생성:
   - arxiv_query_candidates (최대 4개)
@@ -35,7 +35,7 @@
 - 최대 12개 expanded_terms 생성
 - 사용자 메모리 통합 (선택적, 최대 1500자)
 
-## 3. Retrieval Agent (`agents/retrieval_agent.py`)
+## 3. Retrieval Agent (`gapago/agents/retrieval_agent.py`)
 - 8개 소스 병렬 검색 (ThreadPoolExecutor):
   - arXiv (100편), Crossref (60편), Semantic Scholar (50편), OpenAlex (40편)
   - ScienceON 논문(15편) + 특허(10편) + 보고서(10편)
@@ -52,7 +52,7 @@
 - 최대 30편 full-text 접근 가능 논문 필터링
 - 중복 제거: DOI + 제목 + 연도 기준
 
-## 4. Limitation Extraction Agent (`agents/limitation_agent.py`)
+## 4. Limitation Extraction Agent (`gapago/agents/limitation_agent.py`)
 - **Full text 전용**: abstract fallback 없음 — full text 획득 실패 논문은 제거 후 backup 논문으로 대체
 - 8단계 전문 획득 폴백 체인:
   1. arXiv ar5iv HTML (최우선)
@@ -73,7 +73,7 @@
 - 캐싱: SHA256 키, .cache/fulltext/ 저장, 성공 7일 TTL / 실패 6시간 TTL
 - HTTP 커넥션 풀링: 세션 기반 requests + 커스텀 User-Agent
 
-## 5. Limitation Eval Agent (`agents/limitation_eval_agent.py`)
+## 5. Limitation Eval Agent (`gapago/agents/limitation_eval_agent.py`)
 - **Call 1 — 원자적 검증 + 루브릭 채점 (배치 병렬)**:
   - FActScore 기반: 주장 → 원자적 팩트 분해 → 개별 검증 (SUPPORTED/NOT_SUPPORTED/IRRELEVANT)
     - fact_score = supported_count / total_count
@@ -92,7 +92,7 @@
 - **RETRY 조건**: >50% weak/remove, 평균 groundedness <3.0, 평균 fact_score <0.6, diversity_score ≤2
 - PASS 시 다음 단계 진행
 
-## 6. Recency Check Agent (`agents/recency_agent.py`)
+## 6. Recency Check Agent (`gapago/agents/recency_agent.py`)
 - 도메인 자동 감지 (LLM 기반, 5종): ai_cs, biomedical, materials_chemistry, physics, general
 - 도메인별 특화 웹 검색 소스:
   - AI_CS: paperswithcode, github, huggingface, medium, towardsdatascience
@@ -105,7 +105,7 @@
   - resolved: 명확한 해결 증거 (보수적 판정: 명확한 경우만)
 - Tavily + LLM 교차 검증
 
-## 7. Gap Inference Agent (`agents/gap_agent.py`)
+## 7. Gap Inference Agent (`gapago/agents/gap_agent.py`)
 - **Step 1 — 동적 축 생성** (귀납적, 사전 카테고리 없음):
   - LLM이 한계점 집합에서 도메인 특화 축 도출 (3-7개)
   - 축당 최소 2개 한계점, 상호 배타적 범위 검증
@@ -122,7 +122,7 @@
   - novelty_score (1-10) 채점
   - alt_topics (대안 연구 주제) 제안
 
-## 8. Critic Agent (`agents/critic_agent.py`)
+## 8. Critic Agent (`gapago/agents/critic_agent.py`)
 - LLM-as-a-Judge: 3개 메트릭 (0.0-1.0)
   - query_specificity: 정제된 쿼리의 학술 검색 적합성
   - paper_relevance: 검색 논문의 연구 질문 관련성
@@ -134,7 +134,7 @@
   - query_specificity <0.4 → REFINE_QUERY → query_subgraph
 - MAX_CRITIC_LOOPS = 2 (초과 시 강제 ACCEPT)
 
-## 9. Response Agent (`agents/response_agent.py`)
+## 9. Response Agent (`gapago/agents/response_agent.py`)
 - 5-section 마크다운 리포트 생성:
   1. Related Papers (테이블: paper_id, Title, Year, Relevance)
   2. Key Limitations (축별 그룹핑)
@@ -149,7 +149,7 @@
 - limitation_eval → limitation_extract: RETRY 조건 충족 시 재추출
 - Human-in-the-Loop: query_subgraph에서 scope=TOO_BROAD/TOO_NARROW 시 사용자 인터럽트
 
-## 11. Model Routing (`core/model_router.py`)
+## 11. Model Routing (`gapago/core/model_router.py`)
 - 프로파일 기반 에이전트별 LLM 배정, `get_llm_for_agent(state, agent_name)` 함수로 통합 접근
 - **optimized 프로파일** (기본):
   - Azure GPT (기본 provider): query_analysis, meaning_expand, limitation_eval, recency_check, critic_score, gap_classify, limitation_verify 등 대부분 에이전트 (환각 방지)

@@ -1,7 +1,7 @@
 # 웹 검색(Tavily) 결과 활용 현황 리포트
 
 > 분석일: 2026-04-01
-> 대상 코드: `agents/meaning_expand_agent.py`, `agents/retrieval_agent.py`, `agents/recency_agent.py`, `agents/gap_agent.py`, `api/main.py`
+> 대상 코드: `gapago/agents/meaning_expand_agent.py`, `gapago/agents/retrieval_agent.py`, `gapago/agents/recency_agent.py`, `gapago/agents/gap_agent.py`, `gapago/api/main.py`
 
 ---
 
@@ -85,7 +85,7 @@ recent = [r for r in web_results if r.get("source") == "recency_search"][:6]
 3. 프롬프트에 "Recent web developments (use as context, NOT as your answer)" 형태로 삽입
 4. LLM이 창의적 연구 방향 제안 시 최신 동향 참고
 
-### 3.3 저장 (`api/main.py:210`)
+### 3.3 저장 (`gapago/api/main.py:210`)
 
 ```python
 "web_results": state_values.get("web_results", [])

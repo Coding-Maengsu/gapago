@@ -24,7 +24,7 @@ from evaluation.litsearch_benchmark import (
     RetrievalResult,
     EndToEndEvaluator,
 )
-from core.states import AgentState
+from gapago.core.states import AgentState
 from langchain_core.messages import HumanMessage, AIMessage
 
 
@@ -39,7 +39,7 @@ def query_agent_wrapper(original_query: str, llm_provider: str = "azure") -> Que
     Returns:
         QueryReformulationResult object
     """
-    from agents.query_agent.query_analysis import query_analysis_node
+    from gapago.agents.query_agent.query_analysis import query_analysis_node
 
     state = AgentState(
         messages=[HumanMessage(content=original_query)],
@@ -128,7 +128,7 @@ def retrieval_agent_wrapper(
     Returns:
         RetrievalResult object
     """
-    from agents.retrieval_agent import paper_retrieval_node
+    from gapago.agents.retrieval_agent import paper_retrieval_node
 
     # Build meaning_expand style message
     meaning_expand_content = json.dumps({

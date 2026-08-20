@@ -13,7 +13,7 @@ import pytest
 # 프로젝트 루트를 path에 추가
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from agents.orchestrator_agent import (
+from gapago.agents.orchestrator_agent import (
     _dependencies_met,
     _next_mandatory,
     _parse_decision,
@@ -126,7 +126,7 @@ class TestOrchestratorNode:
 
 class TestExtractFeedback:
     def test_limitation_eval_retry(self):
-        from graphs.orchestrator_graph import _extract_feedback
+        from gapago.graphs.orchestrator_graph import _extract_feedback
         result = {
             "limitation_eval": {"decision": "RETRY", "retry_guidance": "improve quality"},
         }
@@ -135,27 +135,27 @@ class TestExtractFeedback:
         assert fb["from"] == "limitation_eval"
 
     def test_limitation_eval_pass(self):
-        from graphs.orchestrator_graph import _extract_feedback
+        from gapago.graphs.orchestrator_graph import _extract_feedback
         result = {"limitation_eval": {"decision": "PASS"}}
         fb = _extract_feedback("limitation_eval", result, {})
         assert fb == {}
 
     def test_critic_redo_retrieval(self):
-        from graphs.orchestrator_graph import _extract_feedback
+        from gapago.graphs.orchestrator_graph import _extract_feedback
         from langchain_core.messages import AIMessage
         result = {"messages": [AIMessage(content="DECISION: REDO_RETRIEVAL", name="critic")]}
         fb = _extract_feedback("critic_score", result, {})
         assert fb["type"] == "relevance_low"
 
     def test_unknown_agent_no_feedback(self):
-        from graphs.orchestrator_graph import _extract_feedback
+        from gapago.graphs.orchestrator_graph import _extract_feedback
         fb = _extract_feedback("meaning_expand", {"messages": []}, {})
         assert fb == {}
 
 
 class TestWrapAgent:
     def test_sync_agent_wrapper(self):
-        from graphs.orchestrator_graph import _wrap_agent
+        from gapago.graphs.orchestrator_graph import _wrap_agent
 
         def mock_agent(state):
             return {"messages": [], "sender": "test"}
@@ -167,7 +167,7 @@ class TestWrapAgent:
 
     def test_async_agent_wrapper(self):
         import asyncio
-        from graphs.orchestrator_graph import _wrap_agent
+        from gapago.graphs.orchestrator_graph import _wrap_agent
 
         async def mock_async_agent(state):
             return {"messages": [], "sender": "test"}

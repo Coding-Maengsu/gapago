@@ -46,7 +46,7 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 - 분석 앱은 외부 CSS/JS 프레임워크를 쓰지 않는다 (인라인 CSS + Vanilla JS)
 - 실시간 통신: Server-Sent Events (SSE)
 - 세션 저장: localStorage
-- 백엔드 API: FastAPI (`api/main.py`)
+- 백엔드 API: FastAPI (`gapago/api/main.py`)
 
 ---
 
@@ -327,7 +327,7 @@ GAPAGO의 웹 프론트엔드는 연구 갭 분석 파이프라인의 사용자 
 
 | 파일 | 용도 |
 |------|------|
-| `frontend/new_logo.png` | 브랜드 로고. `api/main.py` 의 `/new_logo.png` 라우트가 서빙하며
+| `frontend/new_logo.png` | 브랜드 로고. `gapago/api/main.py` 의 `/new_logo.png` 라우트가 서빙하며
   분석 앱과 **랜딩 페이지 양쪽**이 이 경로를 참조한다 |
 
 > 과거의 `logo.png`·`middle_image.png` 와 해당 라우트는 참조가 없어 제거되었다.
