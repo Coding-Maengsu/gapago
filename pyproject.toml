@@ -1,0 +1,27 @@
+[project]
+name = "gapago"
+version = "1.0.0"
+description = "연구 논문의 한계점에서 미해결 연구 공백을 찾아내는 멀티 에이전트 시스템"
+requires-python = ">=3.10"
+readme = "README.md"
+
+# 런타임 의존성은 requirements.txt / requirements_deploy.txt 로 관리합니다.
+# (HPC GPU 환경과 CPU 배포 환경의 torch 빌드가 달라 분리 유지)
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-v"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+exclude = ["landing", "docs", "outputs", ".cache"]
+
+[tool.ruff.lint]
+# 기존 코드 스타일을 존중해 기본 규칙만 사용합니다.
+select = ["E", "F", "W"]
+ignore = [
+    "E501",  # 줄 길이는 line-length 로만 관리
+    "E402",  # config 로드 순서상 import 가 코드 뒤에 오는 경우가 있음
+]
