@@ -285,6 +285,7 @@ provider 별 키는 [빠른 시작](#사전-준비) 의 표를 참고하세요.
 | `TAVILY_API_KEY` | *(필수)* | 최신성 검증용 웹 검색 |
 | `GAPAGO_ORCHESTRATOR` | `1` | `0` 이면 고정 파이프라인으로 실행 |
 | `RERANK_MODELS` | `auto` | `light`(MiniLM, CPU) \| `full`(SPECTER2+BGE) \| `auto`(GPU 감지) |
+| `PRELOAD_MODELS` | `0` | `1` 이면 서버 기동 시 임베딩·리랭커를 미리 로딩. 메모리가 작은 환경(Render 무료 플랜)은 `0` |
 | `ARXIV_MAX_RESULTS` | `20` | arXiv 최대 수집 편수 |
 | `TAVILY_MAX_RESULTS` | `5` | 웹 검색 결과 수 |
 | `FULLTEXT_TARGET_COUNT` | `30` | 전문 필터링 후 유지 편수 |
@@ -301,6 +302,11 @@ provider 별 키는 [빠른 시작](#사전-준비) 의 표를 참고하세요.
 빌드 단계에서 랜딩 페이지를 함께 빌드합니다. GPU가 없으므로 `RERANK_MODELS=light` 로 동작하고,
 `--workers 1` 단일 프로세스로 기동해 임베딩/리랭커 모델을 한 번만 로드합니다.
 API 키는 Render Dashboard의 Environment에서 주입합니다.
+
+무료 플랜(512MB)에서는 기동 직후 모델을 미리 올리면 메모리를 넘겨 프로세스가 재시작을 반복하므로
+`PRELOAD_MODELS=0`(기본) 으로 두고 첫 분석 요청 때 로딩합니다. 서비스를 Blueprint 가 아니라
+대시보드에서 직접 만들었다면 `render.yaml` 의 환경변수가 적용되지 않으니 Environment 에 직접 추가하세요.
+무료 플랜은 15분간 요청이 없으면 슬립에 들어가 첫 접속이 1분 가까이 걸릴 수 있습니다.
 
 ## 수상
 

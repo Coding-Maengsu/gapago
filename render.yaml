@@ -13,6 +13,9 @@ services:
         value: azure
       - key: RERANK_MODELS
         value: light
+      # 기동 시 모델 프리로드 금지 — 무료 플랜 메모리(512MB) 초과로 재시작 루프 발생
+      - key: PRELOAD_MODELS
+        value: "0"
       - key: ORT_DISABLE_GPU_DEVICE_ENUMERATION
         value: "1"
       # Add these in Render Dashboard > Environment

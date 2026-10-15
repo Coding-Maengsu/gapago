@@ -47,6 +47,7 @@ arXiv · Crossref · Semantic Scholar · OpenAlex 는 키가 필요 없습니다
 | `BM25_TOP_K` | 50 | BM25 1차 필터 통과 수 |
 | `RERANKER_TOP_K` | 15 | 리랭커 2차 선별 수 |
 | `RERANK_MODELS` | `auto` | `light`(MiniLM, CPU) \| `full`(SPECTER2+BGE) \| `auto`(GPU 감지) |
+| `PRELOAD_MODELS` | `0` | `1`이면 서버 기동 시 임베딩·리랭커를 미리 로딩. 메모리가 작은 환경(Render 무료 플랜)은 `0` — 첫 분석 요청 때 로딩 |
 | `GAPAGO_ORCHESTRATOR` | `0` | `1`이면 LLM 오케스트레이터 동적 라우팅 모드 |
 
 배치 모드(`--input`)에서는 `ARXIV_MAX_RESULTS=3`, `TAVILY_MAX_RESULTS=3`,
