@@ -58,12 +58,18 @@ async def warmup():
             get_llm()
             print("[startup] Warming up graph...")
             _get_graph()  # 캐시 채우기 — 이후 analyze/explore는 즉시 반환
-            # ── 모델 사전 로딩 ──────────────────────────────────────────
-            # workers=1 단일 프로세스이므로 여기서 한 번만 로딩하면
-            # 이후 모든 요청이 캐시된 모델을 재사용 (메모리 절약 + 첫 요청 지연 제거)
-            print("[startup] Preloading Embedding + CrossEncoder models...")
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, preload_models, "light")
+            # ── 모델 사전 로딩 (옵트인) ─────────────────────────────────
+            # 기본은 끈다. Render 무료 플랜(512MB)에서는 기동 직후 임베딩·리랭커를
+            # 올리는 순간 메모리를 넘겨 프로세스가 조용히 죽고 재시작을 반복했다
+            # (로그에 "[preload] ... 로딩 시작" 까지만 남고 "완료" 가 없는 상태).
+            # 모델은 첫 분석 요청 때 _get_specter_model / _get_cross_encoder 가
+            # 지연 로딩하므로, 메모리 여유가 있는 환경에서만 PRELOAD_MODELS=1 로 켠다.
+            if os.getenv("PRELOAD_MODELS", "0") == "1":
+                print("[startup] Preloading Embedding + CrossEncoder models...")
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(None, preload_models, "light")
+            else:
+                print("[startup] Model preload skipped (PRELOAD_MODELS != 1) — 첫 분석 요청 시 로딩")
             print("[startup] Warm-up complete.")
         except Exception as e:
             print(f"[startup] Warm-up failed (non-fatal): {e}")
