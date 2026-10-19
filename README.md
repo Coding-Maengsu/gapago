@@ -41,7 +41,7 @@ GAPAGO는 **실제 논문 원문에서 출발**합니다.
 
 ## 데모
 
-> 🎬 **시연 영상** — [GAP 분석 데모 보기](https://heernink.github.io/gapago/docs/presentation/gap-loop.html)
+> 🎬 **시연 영상** — [GAP 분석 데모 보기](https://coding-maengsu.github.io/gapago/docs/presentation/gap-loop.html)
 
 | | |
 |---|---|
