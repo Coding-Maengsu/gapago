@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GAPAGO – GAP 분석 플로우 데모</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --primary: #5B6AF0;
+  --primary-light: #7B8BF5;
+  --primary-soft: #EEF0FD;
+  --primary-tag: #dde0fb;
+  --surface: #FFFFFF;
+  --surface2: #F7F8FC;
+  --border: #E4E7F5;
+  --text: #1A1D2E;
+  --text-mid: #4A4F6A;
+  --text-light: #9099B8;
+  --red: #E85D4A; --red-soft: #FEF0EE;
+  --orange: #F59E0B; --orange-soft: #FEF9EC;
+  --purple: #8B5CF6; --purple-soft: #F3F0FE;
+  --radius: 12px;
+}
+
+body {
+  font-family: 'Noto Sans KR', sans-serif;
+  background: linear-gradient(135deg, #e8ebf8 0%, #f0f2fa 50%, #e8eaf7 100%);
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 32px 20px;
+}
+
+/* ─── OUTER SHELL (shared by all screens) ─── */
+.shell {
+  width: 100%; max-width: 960px;
+  background: var(--surface);
+  border-radius: 22px;
+  box-shadow: 0 24px 80px rgba(91,106,240,0.13), 0 4px 16px rgba(0,0,0,0.06);
+  overflow: hidden; border: 1px solid var(--border);
+  position: relative;
+}
+
+/* ─── SCREEN TRANSITION ─── */
+.screen {
+  position: absolute; inset: 0;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.45s ease;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.screen.active { opacity: 1; pointer-events: auto; position: relative; }
+
+/* ════════════════════════════════════════
+   SCREEN 0 – LANDING PAGE
+   ════════════════════════════════════════ */
+#s-landing {
+  min-height: 520px;
+  background: var(--surface);
+  flex-direction: column;
+}
+
+.lp-nav {
+  padding: 0 36px;
+  height: 56px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.lp-logo { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; color: var(--text); }
+.lp-logo-icon {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 2px solid var(--text); display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; color: var(--text);
+}
+.lp-nav-links { display: flex; gap: 28px; }
+.lp-nav-link { font-size: 13px; color: var(--text-mid); font-weight: 500; cursor: default; }
+.lp-cta-btn {
+  background: var(--primary); color: white; font-size: 13px; font-weight: 700;
+  padding: 8px 18px; border-radius: 10px; cursor: pointer;
+  border: none; font-family: inherit; transition: background 0.2s, transform 0.15s;
+}
+.lp-cta-btn:hover { background: var(--primary-light); transform: translateY(-1px); }
+
+.lp-body {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; padding: 40px 40px 20px;
+}
+.lp-badge {
+  display: inline-block; font-size: 12px; color: var(--text-mid);
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 100px; padding: 5px 16px; margin-bottom: 26px;
+  font-weight: 500;
+}
+.lp-headline {
+  font-size: clamp(36px, 6vw, 58px); font-weight: 800; color: var(--text);
+  line-height: 1.15; margin-bottom: 18px; letter-spacing: -0.02em;
+}
+.lp-headline span { color: var(--primary); }
+.lp-sub {
+  font-size: 15px; color: var(--text-mid); line-height: 1.7;
+  max-width: 460px; margin: 0 auto 32px;
+}
+.lp-start-btn {
+  background: var(--primary); color: white; font-size: 15px; font-weight: 700;
+  padding: 14px 36px; border-radius: 14px; cursor: pointer;
+  border: none; font-family: inherit;
+  transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 6px 24px rgba(91,106,240,0.3);
+}
+.lp-start-btn:hover { background: var(--primary-light); transform: translateY(-2px); box-shadow: 0 10px 32px rgba(91,106,240,0.35); }
+.lp-arrow { color: var(--text-light); margin-top: 24px; font-size: 18px; animation: bounce 1.8s infinite; }
+@keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(6px)} }
+
+/* ════════════════════════════════════════
+   SCREEN 1 – KEYWORD INPUT
+   ════════════════════════════════════════ */
+#s-input {
+  background: var(--surface2);
+  min-height: 580px;
+}
+
+.ki-body {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; padding: 40px 32px 0;
+  text-align: center;
+}
+.ki-title { font-size: 22px; font-weight: 800; color: var(--text); margin-bottom: 8px; letter-spacing: -0.01em; }
+.ki-sub { font-size: 13.5px; color: var(--text-light); margin-bottom: 28px; }
+
+.ki-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 14px; width: 100%; max-width: 680px; margin-bottom: 10px;
+}
+.ki-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 16px 18px;
+  text-align: left;
+}
+.ki-card-title { font-size: 12px; font-weight: 700; color: var(--primary); margin-bottom: 10px; text-align: center; }
+.ki-item {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 12px; margin-bottom: 7px;
+  font-size: 12px; color: var(--text-mid); line-height: 1.45;
+  cursor: default; transition: border-color 0.2s, background 0.2s;
+}
+.ki-item:last-child { margin-bottom: 0; }
+.ki-item:hover { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+.ki-item.typing-target { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+
+/* Bottom input bar for screen 1 */
+.ki-bottom {
+  background: var(--surface); border-top: 1px solid var(--border);
+  padding: 14px 20px; display: flex; align-items: center; gap: 10px;
+  flex-shrink: 0;
+}
+.ki-input-wrap {
+  flex: 1; background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: 100px; padding: 10px 18px;
+  font-size: 13.5px; color: var(--text-mid); font-family: inherit;
+  position: relative; display: flex; align-items: center;
+  min-height: 44px;
+}
+.ki-input-wrap.focused { border-color: var(--primary); }
+.ki-input-text { flex: 1; }
+.ki-cursor { display: inline-block; width: 2px; height: 16px; background: var(--primary); margin-left: 1px; animation: cur 0.75s step-end infinite; vertical-align: middle; }
+@keyframes cur { 0%,100%{opacity:1} 50%{opacity:0} }
+.ki-send-btn {
+  width: 38px; height: 38px; background: var(--primary); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  cursor: pointer; transition: transform 0.2s, background 0.2s;
+  border: none;
+}
+.ki-send-btn:hover { background: var(--primary-light); transform: scale(1.08); }
+
+/* ════════════════════════════════════════
+   SCREEN 2 – ANALYSIS DEMO (original)
+   ════════════════════════════════════════ */
+#s-demo { background: var(--surface); }
+
+/* TOP BAR */
+.topbar { background: var(--surface2); border-bottom: 1px solid var(--border); padding: 13px 18px; display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+.dot { width: 11px; height: 11px; border-radius: 50%; }
+.dot-r{background:#FF5F57} .dot-y{background:#FFBD2E} .dot-g{background:#28C840}
+
+/* PROGRESS */
+.progress-bar-wrap { height: 3px; background: var(--border); flex-shrink: 0; }
+.progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--primary-light)); transition: width 0.9s ease; border-radius: 2px; }
+
+/* STATUS */
+.statusbar {
+  text-align: center; padding: 16px 20px 12px; border-bottom: 1px solid var(--border);
+  min-height: 70px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.status-title { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+.status-title.done { color: var(--primary); }
+.status-sub { font-size: 12.5px; color: var(--text-light); margin-bottom: 1px; }
+.status-time { font-size: 11px; color: var(--text-light); opacity: 0.65; }
+
+/* MAIN BODY */
+.main-body { display: flex; height: 430px; flex: 1; }
+
+/* SIDEBAR */
+.sidebar { width: 210px; flex-shrink: 0; padding: 16px 12px; border-right: 1px solid var(--border); overflow-y: auto; }
+.sb-step { display: flex; align-items: flex-start; gap: 10px; position: relative; }
+.sb-step:not(:last-child)::after { content: ''; position: absolute; left: 13px; top: 28px; width: 2px; height: calc(100% - 6px); background: var(--border); transition: background 0.4s; }
+.sb-step.done::after { background: var(--primary); }
+.sb-step.active::after { background: linear-gradient(180deg, var(--primary) 0%, var(--border) 100%); }
+.sb-dot { width: 27px; height: 27px; border-radius: 50%; border: 2px solid var(--border); background: var(--surface); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px; transition: all 0.35s cubic-bezier(0.34,1.56,0.64,1); }
+.sb-dot svg { display: none; }
+.sb-step.active .sb-dot { border-color: var(--primary); background: var(--primary-soft); box-shadow: 0 0 0 3px rgba(91,106,240,0.12); }
+.sb-step.active .sb-dot::after { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--primary); display: block; }
+.sb-step.done .sb-dot { border-color: var(--primary); background: var(--primary); }
+.sb-step.done .sb-dot svg { display: block; }
+.sb-content { padding-top: 3px; padding-bottom: 13px; min-width: 0; }
+.sb-name { font-size: 12px; font-weight: 600; color: var(--text-mid); margin-bottom: 3px; }
+.sb-step.active .sb-name { color: var(--primary); font-weight: 700; }
+.sb-step.done .sb-name { color: var(--text); }
+.sb-meta { font-size: 10px; color: var(--text-light); line-height: 1.5; }
+.sb-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.sb-tag { font-size: 9.5px; background: var(--primary-tag); color: var(--primary); border-radius: 4px; padding: 1px 6px; font-weight: 500; }
+
+/* CONTENT */
+.content-panel { flex: 1; overflow: hidden; position: relative; }
+.panel { position: absolute; inset: 0; padding: 16px; overflow-y: auto; opacity: 0; transform: translateX(16px); pointer-events: none; transition: opacity 0.4s ease, transform 0.4s ease; }
+.panel.active { opacity: 1; transform: translateX(0); pointer-events: auto; }
+
+/* shared */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 8px; }
+.card-lbl { font-size: 10px; color: var(--text-light); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 5px; }
+.card-val { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.5; }
+.tags-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag-pill { background: var(--primary-soft); color: var(--primary); font-size: 11px; font-weight: 600; padding: 4px 11px; border-radius: 100px; }
+.sec-title { font-size: 11.5px; font-weight: 600; color: var(--text-mid); margin-bottom: 8px; }
+.paper { background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 12px; margin-bottom: 6px; }
+.paper-t { font-size: 11.5px; font-weight: 600; color: var(--text); line-height: 1.4; margin-bottom: 2px; }
+.paper-m { font-size: 10px; color: var(--text-light); }
+.limit { background: var(--surface2); border-left: 3px solid var(--primary-light); border-radius: 0 8px 8px 0; padding: 8px 12px; margin-bottom: 6px; font-size: 11.5px; color: var(--text-mid); line-height: 1.55; animation: slideIn 0.3s ease both; }
+@keyframes slideIn { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:translateX(0)} }
+.gap-c { border-radius: var(--radius); padding: 12px 14px; margin-bottom: 8px; border-left: 4px solid; }
+.gap-c.red    { border-color: var(--red);    background: var(--red-soft); }
+.gap-c.purple { border-color: var(--purple);  background: var(--purple-soft); }
+.gap-c.orange { border-color: var(--orange);  background: var(--orange-soft); }
+.gap-badge { font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; margin-bottom: 5px; display: inline-block; }
+.gap-badge.red    { color: var(--red); }
+.gap-badge.purple { color: var(--purple); }
+.gap-badge.orange { color: var(--orange); }
+.gap-text { font-size: 12px; font-weight: 700; color: var(--text); line-height: 1.5; }
+
+/* report */
+.rpt-hdr { background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; padding: 9px 12px; margin-bottom: 9px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.rpt-query { font-size: 11px; font-weight: 700; color: var(--text); flex: 1; min-width: 0; }
+.rpt-stat { font-size: 9.5px; color: var(--text-light); background: var(--surface); border: 1px solid var(--border); border-radius: 5px; padding: 2px 7px; white-space: nowrap; }
+.rpt-stat strong { color: var(--text-mid); }
+.rpt-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.rpt-tab { padding: 5px 12px; border-radius: 7px; font-size: 11px; font-weight: 600; border: 1px solid var(--border); background: var(--surface); color: var(--text-mid); cursor: default; font-family: inherit; }
+.rpt-tab.on { background: var(--primary); border-color: var(--primary); color: white; }
+.rpt-split { display: flex; gap: 10px; }
+.rpt-left { width: 190px; flex-shrink: 0; }
+.rpt-right { flex: 1; min-width: 0; }
+.rl { border: 1px solid var(--border); border-radius: 9px; padding: 8px 10px; margin-bottom: 6px; }
+.rl.s1 { border-color: var(--red);    background: #FFF9F8; }
+.rl.s2 { border-color: var(--purple);  background: #F9F7FE; }
+.rl.s3 { border-color: var(--orange);  background: #FEFAF3; }
+.rl-top { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
+.rl-top-badge { font-size: 8.5px; background: #FFD166; color: #7A5200; padding: 1px 5px; border-radius: 3px; font-weight: 700; }
+.rl-num { font-size: 8.5px; font-weight: 700; color: var(--text-light); background: var(--surface2); border: 1px solid var(--border); border-radius: 3px; padding: 1px 4px; }
+.rl-cat { font-size: 8.5px; font-weight: 700; padding: 1px 5px; border-radius: 3px; }
+.rl-cat.red    { color: var(--red);    background: var(--red-soft); }
+.rl-cat.purple { color: var(--purple);  background: var(--purple-soft); }
+.rl-cat.orange { color: var(--orange);  background: var(--orange-soft); }
+.rl-t { font-size: 10.5px; font-weight: 600; color: var(--text); line-height: 1.4; }
+.rl-papers { font-size: 10px; color: var(--text-light); margin-top: 2px; }
+.rl-section { font-size: 10.5px; font-weight: 600; color: var(--text-mid); margin: 8px 0 5px; }
+.rr-cat { font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 4px; display: inline-block; margin-bottom: 3px; }
+.rr-cat.red { color: var(--red); background: var(--red-soft); }
+.rr-from { font-size: 10px; color: var(--text-light); margin-bottom: 7px; }
+.rr-title { font-size: 13px; font-weight: 800; color: var(--text); line-height: 1.5; margin-bottom: 7px; }
+.rr-desc { font-size: 11px; color: var(--text-mid); line-height: 1.65; margin-bottom: 9px; }
+.ev-lbl { font-size: 10px; font-weight: 600; color: var(--text-light); margin-bottom: 4px; }
+.ev-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.ev-tag { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px; font-size: 10px; color: var(--text-mid); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quote { background: var(--surface2); border: 1px solid var(--border); border-radius: 7px; padding: 7px 10px; font-size: 10px; color: var(--text-mid); line-height: 1.65; font-style: italic; margin-bottom: 6px; }
+.dir-box { border-left: 3px solid var(--primary); border-radius: 0 8px 8px 0; padding: 8px 11px; background: var(--primary-soft); margin-bottom: 8px; }
+.dir-lbl { font-size: 9.5px; font-weight: 700; color: var(--text-light); letter-spacing: 0.05em; margin-bottom: 3px; }
+.dir-title { font-size: 11.5px; font-weight: 700; color: var(--primary); line-height: 1.4; }
+.explore-btn { display: inline-block; background: var(--primary); color: white; font-size: 11px; font-weight: 700; padding: 7px 15px; border-radius: 100px; margin-bottom: 18px; cursor: default; }
+.rel-section { border-top: 1px solid var(--border); padding-top: 14px; margin-top: 2px; }
+.rel-title { font-size: 12.5px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
+.rel-map { display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.rel-col { flex: 1; border-right: 1px solid var(--border); }
+.rel-col:last-child { border-right: none; }
+.col-hdr { padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 10px; font-weight: 700; color: var(--text-mid); background: var(--surface2); display: flex; align-items: center; gap: 4px; }
+.col-cnt { font-weight: 800; color: var(--text); }
+.rel-items { padding: 8px; }
+.rp { background: var(--surface2); border: 1.5px solid var(--border); border-radius: 7px; padding: 6px 8px; margin-bottom: 5px; }
+.rp.hi { border-color: var(--primary); background: var(--primary-soft); }
+.rp.dim .rp-t { color: var(--text-light); }
+.rp-t { font-size: 10px; font-weight: 600; color: var(--text); line-height: 1.4; margin-bottom: 2px; }
+.rp-m { font-size: 9.5px; color: var(--text-light); }
+.rl-item { background: #FFF8F0; border: 1px solid #F8DDB0; border-radius: 7px; padding: 6px 8px; margin-bottom: 5px; font-size: 10px; color: var(--text-mid); line-height: 1.5; }
+.rg { border-radius: 7px; padding: 7px 9px; margin-bottom: 5px; }
+.rg.red    { background: var(--red-soft);    border: 1px solid #F5BEB8; }
+.rg.purple { background: var(--purple-soft);  border: 1px solid #D5C5F8; }
+.rg-cat { font-size: 8.5px; font-weight: 700; letter-spacing: 0.04em; margin-bottom: 3px; }
+.rg.red    .rg-cat { color: var(--red); }
+.rg.purple .rg-cat { color: var(--purple); }
+.rg-t { font-size: 10px; font-weight: 600; color: var(--text); line-height: 1.4; }
+.rg-p { font-size: 9px; color: var(--text-light); margin-top: 2px; }
+
+/* BOTTOM BAR (demo) */
+.bottombar { background: var(--surface2); border-top: 1px solid var(--border); padding: 9px 16px; display: flex; align-items: center; gap: 9px; flex-shrink: 0; }
+.input-fake { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 100px; padding: 8px 15px; font-size: 12.5px; color: var(--text-light); font-family: inherit; }
+.stop-btn { width: 34px; height: 34px; background: var(--primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; cursor: pointer; }
+
+/* NAV CONTROLS (demo) */
+.nav-controls { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 12px 18px; background: var(--surface2); border-top: 1px solid var(--border); flex-shrink: 0; }
+.nav-btn { padding: 7px 18px; border-radius: 100px; font-size: 12px; font-weight: 600; border: 1.5px solid var(--border); background: var(--surface); color: var(--text-mid); cursor: pointer; transition: all 0.2s; font-family: inherit; }
+.nav-btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.nav-btn.primary { background: var(--primary); border-color: var(--primary); color: white; }
+.nav-btn.primary:hover:not(:disabled) { background: var(--primary-light); }
+.ad { display: flex; gap: 5px; }
+.ad-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--border); transition: all 0.3s; }
+.ad-dot.on { background: var(--primary); transform: scale(1.4); }
+.step-ind { font-size: 11px; color: var(--text-light); }
+
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ══════ SCREEN 0: LANDING ══════ -->
+  <div class="screen active" id="s-landing">
+    <nav class="lp-nav">
+      <div class="lp-logo">
+        <div class="lp-logo-icon">G</div>
+        GAPAGO
+      </div>
+      <div class="lp-nav-links">
+        <span class="lp-nav-link">사용법</span>
+        <span class="lp-nav-link">핵심 기능</span>
+        <span class="lp-nav-link">차별점</span>
+        <span class="lp-nav-link">예시</span>
+      </div>
+      <button class="lp-cta-btn" onclick="goToInput()">분석 시작하기</button>
+    </nav>
+    <div class="lp-body">
+      <div class="lp-badge">AI 기반 연구 GAP 분석</div>
+      <div class="lp-headline">논문 속 <span>연구 GAP</span>을<br>찾아드립니다</div>
+      <div class="lp-sub">키워드로 관련 논문들을 분석하고, 연구 GAP을 도출합니다.<br>단순 요약이 아닌, 진짜 빈틈을 발견하고 연구를 시작하세요.</div>
+      <button class="lp-start-btn" onclick="goToInput()">무료로 분석 시작 &nbsp;→</button>
+      <div class="lp-arrow">∨</div>
+    </div>
+  </div>
+
+  <!-- ══════ SCREEN 1: KEYWORD INPUT ══════ -->
+  <div class="screen" id="s-input" style="min-height:580px;">
+    <div class="ki-body">
+      <div class="ki-title">키워드 또는 논문 제목으로 시작해보세요</div>
+      <div class="ki-sub">연구 방향을 입력하면 논문 검색부터 연구 GAP 도출까지 진행됩니다.</div>
+      <div class="ki-grid">
+        <div class="ki-card">
+          <div class="ki-card-title">Biomedical / Healthcare</div>
+          <div class="ki-item">Drug-drug interaction prediction using graph neural networks</div>
+          <div class="ki-item">AI-assisted early detection of Alzheimer's disease from neuroimaging</div>
+        </div>
+        <div class="ki-card">
+          <div class="ki-card-title">Quantum / Physics</div>
+          <div class="ki-item">Quantum error correction for near-term noisy quantum devices</div>
+          <div class="ki-item">Machine learning potentials for molecular dynamics simulation</div>
+        </div>
+        <div class="ki-card">
+          <div class="ki-card-title">Environment / Earth Science</div>
+          <div class="ki-item" id="ki-typing-item">Urban heat island mitigation through green infrastructure planning</div>
+          <div class="ki-item">AI-driven wildfire spread prediction from multi-sensor data</div>
+        </div>
+        <div class="ki-card">
+          <div class="ki-card-title">AI / Machine Learning</div>
+          <div class="ki-item">Reinforcement learning from human feedback in dialogue systems</div>
+          <div class="ki-item">LLM-based automated code review systems</div>
+        </div>
+      </div>
+    </div>
+    <div class="ki-bottom">
+      <div class="ki-input-wrap" id="ki-input-wrap">
+        <span class="ki-input-text" id="ki-input-text" style="color:var(--text-light)">연구하고 싶은 주제를 입력하세요</span>
+        <span class="ki-cursor" id="ki-cursor" style="display:none"></span>
+      </div>
+      <button class="ki-send-btn" id="ki-send-btn" onclick="goToDemo()" style="opacity:0.3;pointer-events:none">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 13V3M8 3L4 7M8 3L12 7" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════ SCREEN 2: ANALYSIS DEMO ══════ -->
+  <div class="screen" id="s-demo">
+    <div class="topbar">
+      <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+    </div>
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" id="pgBar" style="width:12%"></div></div>
+
+    <div class="statusbar">
+      <div class="status-title" id="sTitle">질문 분석 &amp; 확장...</div>
+      <div class="status-sub" id="sSub">더 나은 결과를 위해 깊이 분석 중...</div>
+      <div class="status-time" id="sTime">8초 경과</div>
+    </div>
+
+    <div class="main-body">
+      <div class="sidebar" id="sidebar"></div>
+      <div class="content-panel">
+
+        <!-- PANEL 0 -->
+        <div class="panel" id="p0">
+          <div class="card"><div class="card-lbl">정제된 질문</div><div class="card-val">Class imbalance handling methods for molecular toxicity prediction on the Tox21 dataset</div></div>
+          <div class="card"><div class="card-lbl">확장 키워드</div><div class="tags-row" style="margin-top:5px"><span class="tag-pill">class imbalance</span><span class="tag-pill">molecular toxicity prediction</span><span class="tag-pill">Tox21</span><span class="tag-pill">imbalanced learning</span></div></div>
+        </div>
+
+        <!-- PANEL 1 -->
+        <div class="panel" id="p1">
+          <div class="sec-title">검색된 논문 (15/207개)</div>
+          <div class="paper"><div class="paper-t">Measuring AI Progress in Drug Discovery: A Reproducible Leaderboard for the Tox21 Challenge</div><div class="paper-m">2025 · arXiv preprint</div></div>
+          <div class="paper"><div class="paper-t">ToxicBlend: Virtual Screening of Toxic Compounds with Ensemble Predictors</div><div class="paper-m">2018 · arXiv preprint</div></div>
+          <div class="paper"><div class="paper-t">Bayes Imbalance Impact Index: A Measure of Class Imbalanced Dataset for Classification Problem</div><div class="paper-m">2019 · arXiv preprint</div></div>
+          <div class="paper"><div class="paper-t">Task-Specific Sparse Feature Masks for Molecular Toxicity Prediction with Chemical Language Models</div><div class="paper-m">2025 · arXiv preprint</div></div>
+          <div class="paper"><div class="paper-t">Investigating bankruptcy prediction models in the presence of extreme class imbalance and multiple stage...</div><div class="paper-m">2021 · arXiv preprint</div></div>
+          <div style="height:8px"></div>
+          <div class="card"><div class="card-lbl">정제된 질문</div><div class="card-val">Class imbalance handling methods for molecular toxicity prediction on the Tox21 dataset</div></div>
+          <div class="card"><div class="card-lbl">확장 키워드</div><div class="tags-row" style="margin-top:5px"><span class="tag-pill">class imbalance</span><span class="tag-pill">molecular toxicity prediction</span><span class="tag-pill">Tox21</span><span class="tag-pill">imbalanced learning</span></div></div>
+        </div>
+
+        <!-- PANEL 2 -->
+        <div class="panel" id="p2">
+          <div class="sec-title">한계점 추출 (6개)</div>
+          <div class="limit" style="animation-delay:0s">제시된 리더보드는 원래 Tox21-Challenge의 평가 체계를 재현하고자 하나, 텍스트 누락으로 인해 평가 범위의 완전성을 담보할 수 없어 벤치마크로서의 신뢰도가 저하된다.</div>
+          <div class="limit" style="animation-delay:0.07s">연구마다 상이한 데이터셋 구성을 채택함으로써 결과 간 직접 비교가 불가능해졌고, 이로 인해 지난 10년간 분자 독성 예측 분야의 실질적 진보를 정량적으로 평가하기 어렵다.</div>
+          <div class="limit" style="animation-delay:0.14s">고급 머신러닝 모델의 실질적 배포를 가로막는 핵심 장벽은 모델 복잡도에 비례하는 훈련 데이터 수요다. 현실적으로 분자 독성 도메인에서 이를 충족하기란 어렵다.</div>
+          <div class="limit" style="animation-delay:0.21s">Lasso, ridge regression, random forests, K-nearest neighbors 등 전통적인 머신러닝 기법들은 분자 독성 예측 과제에서 실험적으로 충분한 성능을 달성하지 못하는 것으로 확인되었다.</div>
+          <div class="limit" style="animation-delay:0.28s">불균형 비율(IR)만으로 데이터 불균형의 심각도를 정량화하는 것은 불충분하며, 데이터셋이 내포한 난이도의 다차원적 특성을 포착하기에 부정확하다.</div>
+          <div class="limit" style="animation-delay:0.35s">기존 연구들은 방법론적 선택을 경험적 관찰에만 의존하여 정당화하며, 이를 뒷받침하는 체계적인 이론적 프레임워크가 결여되어 있다.</div>
+          <div style="height:8px"></div>
+          <div class="sec-title">검색된 논문 (15/207개)</div>
+          <div class="paper"><div class="paper-t">Measuring AI Progress in Drug Discovery: A Reproducible Leaderboard for the Tox21 Challenge</div><div class="paper-m">2025 · arXiv preprint</div></div>
+          <div class="paper"><div class="paper-t">ToxicBlend: Virtual Screening of Toxic Compounds with Ensemble Predictors</div><div class="paper-m">2018 · arXiv preprint</div></div>
+        </div>
+
+        <!-- PANEL 3 -->
+        <div class="panel" id="p3">
+          <div class="sec-title">연구 GAP (3개)</div>
+          <div class="gap-c red"><div class="gap-badge red">Model Complexity vs. Data Sufficiency Requirements</div><div class="gap-text">데이터 부족 대비 과도한 모델 복잡도로 인해 클래스 불균형 처리 성능 저하 및 최적 균형점 분석 부재</div></div>
+          <div class="gap-c purple"><div class="gap-badge purple">Evaluation Methodology and Dataset Comparability</div><div class="gap-text">데이터셋 버전 불일치와 통계적 유의성 보고 부재로 인한 모델 간 공정한 성능 비교 불가 및 표준화된 평가 프로토콜 미비</div></div>
+          <div class="gap-c orange"><div class="gap-badge orange">Theoretical Justification and Metric Limitations</div><div class="gap-text">불균형 데이터셋의 학습 난이도를 정량화할 이론적 프레임워크와 객관적 평가 지표 부재</div></div>
+          <div style="height:8px"></div>
+          <div class="sec-title">검색된 논문 (15/207개)</div>
+          <div class="paper"><div class="paper-t">Measuring AI Progress in Drug Discovery: A Reproducible Leaderboard for the Tox21 Challenge</div><div class="paper-m">2025 · arXiv preprint</div></div>
+          <div class="paper"><div class="paper-t">ToxicBlend: Virtual Screening of Toxic Compounds with Ensemble Predictors</div><div class="paper-m">2018 · arXiv preprint</div></div>
+          <div class="paper"><div class="paper-t">Bayes Imbalance Impact Index: A Measure of Class Imbalanced Dataset for Classification Problem</div><div class="paper-m">2019 · arXiv preprint</div></div>
+        </div>
+
+        <!-- PANEL 4: 분석 결과 (scrollable) -->
+        <div class="panel" id="p4">
+          <div class="rpt-hdr">
+            <div class="rpt-query">Class imbalance handling methods for molecular toxicity prediction on the Tox21 dataset</div>
+            <span class="rpt-stat">논문 <strong>15/207개</strong></span>
+            <span class="rpt-stat">GAP <strong>3개</strong></span>
+            <span class="rpt-stat">Azure GPT</span>
+            <span class="rpt-stat">자동 추천</span>
+            <span class="rpt-stat">한국어</span>
+          </div>
+          <div class="tags-row" style="margin-bottom:10px">
+            <span class="tag-pill">class imbalance</span>
+            <span class="tag-pill">molecular toxicity prediction</span>
+            <span class="tag-pill">Tox21</span>
+            <span class="tag-pill">imbalanced learning</span>
+          </div>
+          <div class="rpt-tabs">
+            <button class="rpt-tab on">📄 미리보기</button>
+            <button class="rpt-tab">다운로드 .md</button>
+            <button class="rpt-tab">다운로드 .docx</button>
+          </div>
+          <div class="rpt-split">
+            <div class="rpt-left">
+              <div class="sec-title">연구 GAP (3개)</div>
+              <div class="rl s1"><div class="rl-top"><span class="rl-top-badge">TOP</span><span class="rl-cat red">Model Complexity vs. Data Sufficiency Requirements</span></div><div class="rl-t">데이터 부족 대비 과도한 모델 복잡도로 인해 클래스 불균형 처리 성능 저하 및 최적 균형점 분석 부재</div></div>
+              <div class="rl s2"><div class="rl-top"><span class="rl-num">#2</span><span class="rl-cat purple">Evaluation Methodology and Dataset Comparability</span></div><div class="rl-t">데이터셋 버전 불일치와 통계적 유의성 보고 부재로 인한 모델 간 공정한 성능 비교 불가 및 표준화된 평가 프로토콜 미비</div></div>
+              <div class="rl s3"><div class="rl-top"><span class="rl-num">#3</span><span class="rl-cat orange">Theoretical Justification and Metric Limitations</span></div><div class="rl-t">불균형 데이터셋의 학습 난이도를 정량화할 이론적 프레임워크와 객관적 평가 지표 부재</div></div>
+              <div class="rl-papers">논문 15/207개 선별</div>
+            </div>
+            <div class="rpt-right">
+              <span class="rr-cat red">Model Complexity vs. Data Sufficiency Requirements</span>
+              <div class="rr-from">4편 논문에서 도출</div>
+              <div class="rr-title">데이터 부족 대비 과도한 모델 복잡도로 인해 클래스 불균형 처리 성능 저하 및 최적 균형점 분석 부재</div>
+              <div class="rr-desc">독성 양성 샘플의 극심한 희소성으로 인한 클래스 불균형 문제를 해소하기 위해, 분자 구조를 그래프 형태로 인코딩하고 GAN 기반 생성 모델을 통해 소수 클래스의 화학적으로 유효한 합성 샘플을 생성하는 데이터 증강 프레임워크를 제안합니다.</div>
+              <div class="ev-lbl">근거 논문</div>
+              <div class="ev-tags"><span class="ev-tag">Mitigating Dataset Imbalance via Joint G...</span><span class="ev-tag">ToxicBlend: Virtual Screening of Toxic C...</span></div>
+              <div class="ev-lbl">근거 인용</div>
+              <div class="quote">However, these approaches are limited to the data at hand in the sense that these can not generate additional unseen data that can help increase the much needed diversity for unbiased training.</div>
+              <div class="quote">tive of dataset imbalance resulting out of severe under-representation of annotated training data for certain classes</div>
+              <div class="quote">However, we found empirically that these simple methods did not provide...</div>
+              <div class="dir-box"><div class="dir-lbl">제안 연구 방향</div><div class="dir-title">Graph-Guided GAN for Class-Aware Molecular Synthesis in Tox21</div></div>
+              <div class="explore-btn">이 방향으로 추가 탐색 →</div>
+            </div>
+          </div>
+          <!-- 관계도 -->
+          <div class="rel-section">
+            <div class="rel-title">관계도 (Papers → Limitations → GAPs)</div>
+            <div class="rel-map">
+              <div class="rel-col">
+                <div class="col-hdr">📄 Papers <span class="col-cnt">15개</span></div>
+                <div class="rel-items">
+                  <div class="rp dim"><div class="rp-t">Measuring AI Progress in Drug Discovery: A Reproducible Leaderboard for the Tox21 Challenge</div><div class="rp-m">arXiv preprint, 2025</div></div>
+                  <div class="rp hi"><div class="rp-t">ToxicBlend: Virtual Screening of Toxic Compounds with Ensemble Predictors</div><div class="rp-m">arXiv preprint, 2018</div></div>
+                  <div class="rp dim"><div class="rp-t">Bayes Imbalance Impact Index: A Measure of Class Imbalanced Dataset for Classification Problem</div><div class="rp-m">arXiv preprint, 2019</div></div>
+                  <div class="rp dim"><div class="rp-t">Task-Specific Sparse Feature Masks for Molecular Toxicity Prediction</div><div class="rp-m">arXiv preprint, 2025</div></div>
+                </div>
+              </div>
+              <div class="rel-col">
+                <div class="col-hdr">⚠️ Limitations <span class="col-cnt">8개</span></div>
+                <div class="rel-items">
+                  <div class="rl-item">독성 예측을 위한 고급 기계학습 방법의 성공적인 배포에서 주요 제한 요인은 복잡한 모델을 훈련하기 위한 대규모 데이터셋의 요구사항입니다.</div>
+                  <div class="rl-item">기존 전통적인 방법들이 가진 한계로 언급된 '추가적인 미지의 데이터 생성 불가능' 문제를 해결하려 하지만, 생성된 데이터의 다양성과 품질에 대한 보장이 명시적으로 다루어지지 않았다.</div>
+                  <div class="rl-item">데이터셋 변경으로 인해 연구 간 결과 비교가 불가능해져서 지난 10년간 분자 독성 예측에서 얼마나 진전이 있었는지 불분명합니다.</div>
+                  <div class="rl-item">제안된 방법은 특정 클래스의 주석이 달린 훈련 데이터가 심각하게 부족한 상황에서만 효과적이며, 다른 유형의 데이터 불균형 문제에 대한 일반화 능력이 제한적이다.</div>
+                </div>
+              </div>
+              <div class="rel-col">
+                <div class="col-hdr">💡 GAPs <span class="col-cnt">3개</span></div>
+                <div class="rel-items">
+                  <div class="rg red"><div class="rg-cat">MODEL COMPLEXITY VS. DATA SUFFICIENCY REQUIREMENTS</div><div class="rg-t">데이터 부족 대비 과도한 모델 복잡도로 인해 클래스 불균형 처리 성능 저하 및 최적 균형점 분석 부재</div><div class="rg-p">● 5 papers</div></div>
+                  <div class="rg purple"><div class="rg-cat">EVALUATION METHODOLOGY AND DATASET COMPARABILITY</div><div class="rg-t">데이터셋 버전 불일치와 통계적 유의성 보고 부재로 인한 모델 간 공정한 성능 비교 불가 및 표준화된 평가 프로토콜 미비</div><div class="rg-p">● 4 papers</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /content-panel -->
+    </div><!-- /main-body -->
+
+    <div class="bottombar">
+      <div class="input-fake" id="inputFake">class imbalance</div>
+      <div class="stop-btn" id="stopBtn">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="2" y="2" width="8" height="8" rx="1.5" fill="white"/></svg>
+      </div>
+    </div>
+    <div class="nav-controls">
+      <button class="nav-btn" id="prevBtn" onclick="changeStep(-1)" disabled>← 이전</button>
+      <div class="ad" id="adDots"></div>
+      <span class="step-ind" id="stepInd">1 / 5</span>
+      <button class="nav-btn primary" id="nextBtn" onclick="changeStep(1)">다음 →</button>
+    </div>
+  </div><!-- /s-demo -->
+
+</div><!-- /shell -->
+
+<script>
+/* ─── SCREEN ROUTING ─── */
+function goToInput() {
+  switchScreen('s-landing', 's-input');
+  setTimeout(startTypingAnimation, 600);
+}
+function goToDemo() {
+  render(0);
+  switchScreen('s-input', 's-demo');
+  startAutoPlay();
+}
+function switchScreen(fromId, toId) {
+  document.getElementById(fromId).classList.remove('active');
+  const to = document.getElementById(toId);
+  to.classList.add('active');
+}
+
+/* ─── TYPING ANIMATION (screen 1) ─── */
+const TYPED_TEXT = 'class imbalance in molecular toxicity prediction on the Tox21 dataset';
+function startTypingAnimation() {
+  const wrap = document.getElementById('ki-input-wrap');
+  const textEl = document.getElementById('ki-input-text');
+  const cursor = document.getElementById('ki-cursor');
+  const sendBtn = document.getElementById('ki-send-btn');
+
+  wrap.classList.add('focused');
+  textEl.style.color = 'var(--text)';
+  textEl.textContent = '';
+  cursor.style.display = 'inline-block';
+
+  let i = 0;
+  const interval = setInterval(() => {
+    if (i < TYPED_TEXT.length) {
+      textEl.textContent += TYPED_TEXT[i++];
+    } else {
+      clearInterval(interval);
+      // enable send button
+      sendBtn.style.opacity = '1';
+      sendBtn.style.pointerEvents = 'auto';
+      // auto-proceed after short pause
+      setTimeout(goToDemo, 900);
+    }
+  }, 38);
+}
+
+/* ─── ANALYSIS DEMO ─── */
+const STEPS = [
+  { title:'질문 분석 & 확장...', sub:'더 나은 결과를 위해 깊이 분석 중...', time:'8초 경과', progress:12, input:'class imbalance in molecular toxicity prediction on the Tox21 dataset', stop:true, done:false, sbActive:0, tags:['class imbalance','molecular toxicity prediction','Tox21','imbalanced learning'], metas:{1:null,2:null,3:null,4:null,5:null} },
+  { title:'논문 검색...', sub:'더 나은 결과를 위해 깊이 분석 중...', time:'40초 경과', progress:28, input:'class imbalance in molecular toxicity prediction on the Tox21 dataset', stop:true, done:false, sbActive:1, tags:['class imbalance','molecular toxicity prediction','Tox21','imbalanced learning'], metas:{1:'15편 논문 검색 완료',2:null,3:null,4:null,5:null} },
+  { title:'논문 검색...', sub:'교차 검증을 진행하고 있습니다...', time:'1분 18초 경과', progress:50, input:'class imbalance in molecular toxicity prediction on the Tox21 dataset', stop:true, done:false, sbActive:1, tags:['class imbalance','molecular toxicity prediction','Tox21','imbalanced learning'], metas:{1:'15편 논문 검색 완료',2:null,3:null,4:null,5:null} },
+  { title:'연구 GAP 도출...', sub:'더 나은 결과를 위해 깊이 분석 중...', time:'3분 1초 경과', progress:78, input:'class imbalance in molecular toxicity prediction on the Tox21 dataset', stop:true, done:false, sbActive:3, tags:['class imbalance','molecular toxicity prediction','Tox21','imbalanced learning'], metas:{1:'15편 논문 검색 완료',2:'8개 한계점 추출',3:'Analyzed research axis 3/3: Model Complexity vs. Data Sufficiency Requirements',4:null,5:null} },
+  { title:'분석 완료  4분 17초 소요', sub:'', time:'', progress:100, input:'분석 결과에 대해 질문하세요...', stop:false, done:true, sbActive:99, tags:null, metas:{1:'15편 논문 검색 완료',2:'8개 한계점 추출',3:null,4:'검증 완료',5:'리포트 작성 완료'} }
+];
+const PANEL_MAP = [0,1,2,3,4];
+const SB_DEFS = [
+  {name:'질문 분석 & 확장',metaKey:0,showTags:true},
+  {name:'논문 검색',metaKey:1},
+  {name:'한계점 추출',metaKey:2},
+  {name:'연구 GAP 도출',metaKey:3},
+  {name:'결과 검증',metaKey:4},
+  {name:'리포트 작성',metaKey:5},
+];
+let cur = 0, timer = null;
+
+function buildSidebar(idx) {
+  const s = STEPS[idx];
+  const sb = document.getElementById('sidebar');
+  sb.innerHTML = '';
+  const active = s.sbActive;
+  SB_DEFS.forEach((def, i) => {
+    const el = document.createElement('div');
+    el.className = 'sb-step';
+    const isDone = active === 99 || i < active;
+    const isActive = i === active;
+    if (isDone) el.classList.add('done');
+    else if (isActive) el.classList.add('active');
+    const check = `<svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M2 5.5L4.5 8L9 3" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const metaText = (def.metaKey > 0) ? (s.metas[def.metaKey] || '') : '';
+    let tagsHtml = '';
+    if (def.showTags && s.tags && (isDone || isActive)) {
+      tagsHtml = `<div class="sb-tags">${s.tags.map(t=>`<span class="sb-tag">${t}</span>`).join('')}</div>`;
+    }
+    el.innerHTML = `<div class="sb-dot">${check}</div><div class="sb-content"><div class="sb-name">${def.name}</div>${metaText?`<div class="sb-meta">${metaText}</div>`:''}${tagsHtml}</div>`;
+    sb.appendChild(el);
+  });
+}
+
+function buildDots() {
+  const wrap = document.getElementById('adDots');
+  wrap.innerHTML = '';
+  STEPS.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'ad-dot' + (i===cur?' on':'');
+    wrap.appendChild(d);
+  });
+}
+
+function render(idx) {
+  const s = STEPS[idx];
+  const tEl = document.getElementById('sTitle');
+  tEl.textContent = s.title;
+  tEl.className = 'status-title' + (s.done?' done':'');
+  document.getElementById('sSub').textContent = s.sub;
+  document.getElementById('sTime').textContent = s.time;
+  document.getElementById('pgBar').style.width = s.progress+'%';
+  const inp = document.getElementById('inputFake');
+  inp.textContent = s.input;
+  inp.style.color = s.done ? 'var(--text-light)' : 'var(--text-mid)';
+  document.getElementById('stopBtn').style.opacity = s.stop ? '1' : '0.3';
+  document.querySelectorAll('.panel').forEach((p,i) => {
+    const active = i === PANEL_MAP[idx];
+    p.classList.toggle('active', active);
+    if (active) p.scrollTop = 0;
+  });
+  buildSidebar(idx);
+  buildDots();
+  document.getElementById('stepInd').textContent = `${idx+1} / ${STEPS.length}`;
+  document.getElementById('prevBtn').disabled = idx === 0;
+  const nBtn = document.getElementById('nextBtn');
+  nBtn.disabled = idx === STEPS.length-1;
+  nBtn.textContent = idx === STEPS.length-1 ? '완료 ✓' : '다음 →';
+  nBtn.className = 'nav-btn' + (idx === STEPS.length-1 ? '' : ' primary');
+}
+
+function changeStep(dir) {
+  const n = cur + dir;
+  if (n < 0 || n >= STEPS.length) return;
+  cur = n;
+  clearInterval(timer);
+  render(cur);
+}
+
+function startAutoPlay() {
+  timer = setInterval(() => {
+    if (cur < STEPS.length - 1) {
+      cur++; render(cur);
+    } else {
+      // 마지막 단계에서 2.5초 대기 후 처음부터 루프
+      clearInterval(timer);
+      setTimeout(() => {
+        cur = 0;
+        // 랜딩 → 인풋 → 데모 전체 재시작
+        document.getElementById('s-demo').classList.remove('active');
+        document.getElementById('s-input').classList.remove('active');
+        document.getElementById('s-landing').classList.add('active');
+        // 인풋 창 초기화
+        const textEl = document.getElementById('ki-input-text');
+        const cursor = document.getElementById('ki-cursor');
+        const wrap = document.getElementById('ki-input-wrap');
+        const sendBtn = document.getElementById('ki-send-btn');
+        textEl.textContent = '연구하고 싶은 주제를 입력하세요';
+        textEl.style.color = 'var(--text-light)';
+        cursor.style.display = 'none';
+        wrap.classList.remove('focused');
+        sendBtn.style.opacity = '0.3';
+        sendBtn.style.pointerEvents = 'none';
+        // 2초 후 자동으로 다음 화면으로
+        setTimeout(goToInput, 2000);
+      }, 2500);
+    }
+  }, 3000);
+}
+</script>
+</body>
+</html>
