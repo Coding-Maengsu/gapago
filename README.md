@@ -41,11 +41,8 @@ GAPAGO는 **실제 논문 원문에서 출발**합니다.
 
 ## 데모
 
-> 🎬 **시연 영상** — 준비 중
->
-> <!-- 여기에 시연 영상 또는 GIF 를 넣으세요.
->      예) ![demo](docs/assets/demo.gif)
->          [![시연 영상](docs/assets/demo_thumb.png)](https://youtu.be/VIDEO_ID) -->
+> 🎬 **시연 영상** — ![docs/presentation/gap-loop.html](docs/presentation/gap-loop.html)
+
 
 | | |
 |---|---|
